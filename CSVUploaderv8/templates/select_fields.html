@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prepare Upload</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .form-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .form-control {
+            border-radius: 5px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Prepare Upload</h1>
+        <form method="post" action="{{ url_for('process_upload', filename=filename) }}">
+            <div class="mb-3">
+                <label for="base_url" class="form-label" data-bs-toggle="tooltip" data-bs-placement="right" title="Choose the API endpoint to use (Commercial or Gov Cloud)">API Endpoint:</label>
+                <select class="form-select" id="base_url" name="base_url" required>
+                    <option value="https://api.clarifai.com">Commercial</option>
+                    <option value="https://portal-gov.cf.ai">Gov Cloud</option>
+                    <option value="custom">Custom URL</option> <!-- Changed value to "custom" -->
+                </select>
+            </div>
+            <div class="mb-3" id="custom_url_input" style="display: none;">
+                <label for="custom_url" class="form-label">Custom API Endpoint URL:</label>
+                <input type="text" class="form-control" id="custom_url" name="custom_url">
+            </div>
+            <div class="mb-3">
+                <label for="user_id" class="form-label">User ID:</label>
+                <input type="text" class="form-control" id="user_id" name="user_id" required>
+            </div>
+            <div class="mb-3">
+                <label for="pat" class="form-label"data-bs-toggle="tooltip" data-bs-placement="right" title="Head over to Clarifai.com to get your PAT">Personal Access Token (PAT):</label>
+                <input type="text" class="form-control" id="pat" name="pat" required>
+            </div>
+            <div class="mb-3">
+                <label for="app_id" class="form-label">App ID:</label>
+                <input type="text" class="form-control" id="app_id" name="app_id" required>
+            </div>
+            <!-- <div class="mb-3">
+                <label for="dataset_id" class="form-label">Dataset ID:</label>
+                <input type="text" class="form-control" id="dataset_id" name="dataset_id" required>
+            </div> -->
+            <!-- <div class="mb-3">
+                <label for="description_field" class="form-label">Dataset Version Description: (max 100 characters)</label>
+                <input type="textarea" class="form-control" id="description_field" name="description_field" rows="3" maxlength="100" required>
+            </div> -->
+            <div class="mb-3">
+                <label for="id_field" class="form-label"data-bs-toggle="tooltip" data-bs-placement="right" title="Choose the field that contains the ID field">Select ID Field:</label>
+                <select class="form-select" id="id_field" name="id_field" required>
+                    {% for field_name in field_names %}
+                        <option value="{{ field_name }}">{{ field_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="path_field" class="form-label" data-bs-toggle="tooltip" data-bs-placement="right" title="Choose the field that contains the file path">Select Path Field:</label>
+                <select class="form-select" id="path_field" name="path_field" required>
+                    {% for field_name in field_names %}
+                        {% if 'path' in field_name|lower %}
+                            <option value="{{ field_name }}" selected>{{ field_name }}</option>
+                        {% else %}
+                            <option value="{{ field_name }}">{{ field_name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            <input type="submit" class="btn btn-primary" value="Next">
+        </form>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+    <script>
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    </script>
+    <script>
+        document.getElementById('base_url').addEventListener('change', function() {
+            var customUrlInput = document.getElementById('custom_url_input');
+    
+            if (this.value === "custom") { 
+                customUrlInput.style.display = 'block'; 
+            } else {
+                customUrlInput.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
