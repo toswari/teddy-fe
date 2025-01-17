@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  deb_downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./deb_files:/deb_files
+    stdin_open: true
+    tty: true

@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  rpm_downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./rpm_files:/rpm_files
+    stdin_open: true
+    tty: true
