@@ -1,0 +1,19 @@
+<user-mapping>
+    <authorize 
+            username="admin"
+            password="admin">
+        
+        <connection name="Linux Desktop">
+            <protocol>vnc</protocol>
+            <param name="hostname">localhost</param>
+            <param name="port">5901</param>
+            <param name="password">vncpass123</param>
+            <param name="enable-audio">true</param>
+            <param name="color-depth">24</param>
+            <param name="cursor">remote</param>
+            <param name="swap-red-blue">false</param>
+            <param name="dest-port">5901</param>
+        </connection>
+
+    </authorize>
+</user-mapping>
