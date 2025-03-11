@@ -1,0 +1,42 @@
+image:
+  repository: localhost:5000/guacamole
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+service:
+  type: ClusterIP
+  guacamolePort: 8080
+  vncPort: 5901
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations: {}
+  hosts:
+    - host: guacamole.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+
+persistence:
+  enabled: false
+  size: 10Gi
+  storageClass: ""
+
+securityContext:
+  privileged: true
+  capabilities:
+    add:
+      - SYS_ADMIN
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
