@@ -1,0 +1,19 @@
+config:
+  cookieSecret: jEKqLi2ctjUWvEgFxgjaoLfmOCw6HaZy
+  host: model-eval-clarifai.api.cf
+
+image:
+  repository: "localhost:5000/module-video-stream"
+  tag: "prod"
+
+ingress:
+  className: "api-ingress-clarifai"
+  tls:
+  - hosts:
+    - model-eval-clarifai.api.cf
+    secretName: web-cert
+
+onprem:
+  enabled: true
+  apiurl: http://go-api:8000
+  sdhurl: http://secure-data-hosting:443

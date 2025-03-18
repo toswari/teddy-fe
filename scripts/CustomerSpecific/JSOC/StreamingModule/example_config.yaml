@@ -1,0 +1,11 @@
+credentials:
+  pat: your_personal_access_token
+  user_id: your_user_id
+  app_id: your_app_id
+  base_url: https://api.clarifai.com  # Optional
+
+models:
+  - name: RTDETR Model
+    url: https://clarifai.com/clarifai/open-world/models/rtdetr_r18vd_coco_o365
+  - name: YOLOv8
+    url: https://clarifai.com/clarifai/open-world/models/yolov8
