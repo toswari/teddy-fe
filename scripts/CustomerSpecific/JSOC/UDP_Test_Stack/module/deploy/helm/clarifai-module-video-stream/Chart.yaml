@@ -1,0 +1,12 @@
+apiVersion: v2
+name: clarifai-module-video-stream
+description: Clarifai Streamlit module video stream
+type: application
+version: 0.1.0
+sources:
+  - https://github.com/Clarifai/module-eval
+icon: https://www.clarifai.com/hubfs/clarifai%20favicon.png
+maintainers:
+  - name: Clarifai
+    email: sre@clarifai.com
+    url: https://www.clarifai.com/

@@ -1,0 +1,28 @@
+{{ if and .Values.enabled .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Chart.Name | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    {{- include "ingressMergeAnnotations" . | nindent 4 }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.config.host | quote }}
+      http:
+        paths:
+          - path: "/"
+            pathType: "Prefix"
+            backend:
+              service:
+                name: {{ .Chart.Name | quote }}
+                port:
+                  number: 8501
+{{ end }}
