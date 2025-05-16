@@ -1,0 +1,7 @@
+flask==2.2.3
+opencv-python==4.7.0.72
+numpy==1.24.2
+pillow==9.4.0
+clarifai==9.7.0
+python-dotenv==1.0.0
+werkzeug==2.2.3 
