@@ -1,0 +1,105 @@
+/* Main Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+/* Header styles */
+header {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.header-logo {
+    height: 40px;
+    width: auto;
+}
+
+/* Card styles */
+.card {
+    border-radius: 8px;
+    border: none;
+    transition: transform 0.3s ease;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    padding: 1rem;
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress bar styles */
+.progress {
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+
+/* System info box */
+.system-info-box {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+/* Table styles */
+.table {
+    margin-bottom: 0;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Download button */
+.btn-primary {
+    background-color: #0052CC;
+    border-color: #0052CC;
+    padding: 0.5rem 1rem;
+}
+
+.btn-primary:hover {
+    background-color: #003d99;
+    border-color: #003d99;
+}
+
+/* Footer */
+footer {
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .header-logo {
+        height: 30px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    .system-info-box {
+        margin-bottom: 15px;
+    }
+}

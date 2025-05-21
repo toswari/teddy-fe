@@ -1,0 +1,7 @@
+Flask==2.2.3
+Werkzeug==2.2.3
+psutil==5.9.5
+py-cpuinfo==9.0.0
+GPUtil==1.4.0
+xhtml2pdf==0.2.11
+Pillow==9.5.0
