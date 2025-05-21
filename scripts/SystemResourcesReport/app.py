@@ -1,4 +1,4 @@
-from flask import Flask, render_template, send_file, make_response
+from flask import Flask, render_template, send_file, make_response, jsonify
 import os
 import platform
 import psutil
@@ -6,15 +6,27 @@ import socket
 import json
 import datetime
 import io
-import cpuinfo
-from xhtml2pdf import pisa
+import sys
 
-# Try to import GPU modules, but don't fail if they're not available
+# Try to import optional modules with fallbacks
+try:
+    import cpuinfo
+    cpu_info_available = True
+except ImportError:
+    cpu_info_available = False
+
 try:
     import GPUtil
     gpu_available = True
 except ImportError:
     gpu_available = False
+
+# Try to import PDF generation modules
+try:
+    from xhtml2pdf import pisa
+    pdf_generation_available = True
+except ImportError:
+    pdf_generation_available = False
 
 app = Flask(__name__)
 
@@ -29,20 +41,28 @@ def get_system_info():
     }
     
     # CPU Information
-    try:
-        cpu_info = cpuinfo.get_cpu_info()
+    if cpu_info_available:
+        try:
+            cpu_info = cpuinfo.get_cpu_info()
+            cpu_data = {
+                "brand": cpu_info.get('brand_raw', 'Not available'),
+                "cores_logical": psutil.cpu_count(logical=True),
+                "cores_physical": psutil.cpu_count(logical=False),
+                "frequency": f"{psutil.cpu_freq().current:.2f} MHz" if psutil.cpu_freq() else "Not available"
+            }
+        except Exception as e:
+            cpu_data = {
+                "brand": "Not available (Error: {})".format(str(e)),
+                "cores_logical": psutil.cpu_count(logical=True),
+                "cores_physical": psutil.cpu_count(logical=False),
+                "frequency": "Not available"
+            }
+    else:
         cpu_data = {
-            "brand": cpu_info.get('brand_raw', 'Not available'),
+            "brand": "Not available (cpuinfo module not installed)",
             "cores_logical": psutil.cpu_count(logical=True),
             "cores_physical": psutil.cpu_count(logical=False),
             "frequency": f"{psutil.cpu_freq().current:.2f} MHz" if psutil.cpu_freq() else "Not available"
-        }
-    except Exception as e:
-        cpu_data = {
-            "brand": "Not available",
-            "cores_logical": psutil.cpu_count(logical=True),
-            "cores_physical": psutil.cpu_count(logical=False),
-            "frequency": "Not available"
         }
     
     # Memory Information
@@ -91,7 +111,16 @@ def get_system_info():
                 }
                 gpu_data.append(gpu_info)
         except Exception as e:
-            gpu_data = []
+            gpu_data = [{
+                "id": 0,
+                "name": f"Error detecting GPU: {str(e)}",
+                "load": "N/A",
+                "memory_total": "N/A",
+                "memory_used": "N/A",
+                "memory_free": "N/A",
+                "temperature": "N/A",
+                "driver": "N/A"
+            }]
     
     # Network Information
     hostname = socket.gethostname()
@@ -108,6 +137,12 @@ def get_system_info():
     # Current Time
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
+    # Python Information
+    python_data = {
+        "version": sys.version,
+        "path": sys.executable
+    }
+    
     # Combine all data
     all_info = {
         "os": os_info,
@@ -116,6 +151,7 @@ def get_system_info():
         "storage": storage_data,
         "gpu": gpu_data,
         "network": network_data,
+        "python": python_data,
         "timestamp": current_time
     }
     
@@ -123,6 +159,9 @@ def get_system_info():
 
 def generate_pdf_report(data):
     """Generate PDF report from system data"""
+    if not pdf_generation_available:
+        return None
+        
     # HTML content for PDF
     html_content = f"""
     <!DOCTYPE html>
@@ -175,7 +214,6 @@ def generate_pdf_report(data):
     </head>
     <body>
         <div class="header">
-            <img src="static/img/clarifai_logo.png" alt="Clarifai Logo" class="logo">
             <h1>System Resource Report</h1>
             <p>Generated: {data['timestamp']}</p>
         </div>
@@ -295,23 +333,36 @@ def generate_pdf_report(data):
             </table>
         </div>
         
+        <div class="section">
+            <h2>Python Information</h2>
+            <table>
+                <tr><th>Version</th><td>{data['python']['version']}</td></tr>
+                <tr><th>Path</th><td>{data['python']['path']}</td></tr>
+            </table>
+        </div>
+        
         <div class="footer">
             <p>This report was automatically generated on {data['timestamp']}.</p>
+            <p>Clarifai System Resources Report</p>
         </div>
     </body>
     </html>
     """
     
-    # Create PDF
-    pdf_buffer = io.BytesIO()
-    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
-    
-    # Return PDF if successful
-    if pisa_status.err:
+    try:
+        # Create PDF
+        pdf_buffer = io.BytesIO()
+        pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+        
+        # Return PDF if successful
+        if pisa_status.err:
+            return None
+        
+        pdf_buffer.seek(0)
+        return pdf_buffer
+    except Exception as e:
+        print(f"Error generating PDF: {str(e)}")
         return None
-    
-    pdf_buffer.seek(0)
-    return pdf_buffer
 
 @app.route('/')
 def index():
@@ -323,10 +374,20 @@ def index():
 def download_report():
     """Generate and download PDF report"""
     system_data = get_system_info()
+    
+    if not pdf_generation_available:
+        return jsonify({
+            "error": "PDF generation libraries not available",
+            "message": "The required libraries for PDF generation (xhtml2pdf) are not installed."
+        }), 500
+    
     pdf_buffer = generate_pdf_report(system_data)
     
     if pdf_buffer is None:
-        return "Error generating PDF", 500
+        return jsonify({
+            "error": "PDF generation failed",
+            "message": "An error occurred while generating the PDF report."
+        }), 500
     
     # Generate filename with timestamp
     filename = f"system_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
@@ -338,7 +399,19 @@ def download_report():
     
     return response
 
+@app.route('/api/system-info')
+def api_system_info():
+    """API endpoint to get system info as JSON"""
+    system_data = get_system_info()
+    return jsonify(system_data)
+
 if __name__ == '__main__':
     # Create logo directory if it doesn't exist
     os.makedirs('static/img', exist_ok=True)
+    
+    # Check for PDF generation capability
+    if not pdf_generation_available:
+        print("WARNING: PDF generation libraries not available. PDF download will not work.")
+    
+    # Start the Flask app
     app.run(host='0.0.0.0', port=5000, debug=False)

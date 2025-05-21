@@ -19,16 +19,35 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Add click animation to download button
-    const downloadBtn = document.querySelector('a[href="/download-report"]');
+    const downloadBtn = document.querySelector('#download-btn');
     if (downloadBtn) {
         downloadBtn.addEventListener('click', function(e) {
             // Add a visual indicator that download is in progress
+            const originalText = this.innerHTML;
             this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating PDF...';
             
-            // Reset button text after 2 seconds (PDF should be downloading by then)
-            setTimeout(() => {
-                this.innerHTML = '<i class="fas fa-download me-2"></i>Download Report';
-            }, 2000);
+            // Make fetch request to check if PDF generation worked
+            fetch('/api/system-info')
+                .then(response => {
+                    if (response.ok) {
+                        // If successful, the download will start automatically
+                        setTimeout(() => {
+                            this.innerHTML = originalText;
+                        }, 2000);
+                    } else {
+                        // If there was an error, show an error message
+                        this.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>PDF Generation Failed';
+                        setTimeout(() => {
+                            this.innerHTML = originalText;
+                        }, 3000);
+                        
+                        throw new Error('Error checking API');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.innerHTML = originalText;
+                });
         });
     }
     
