@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basketball Analytics Visualization</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Main visualization area -->
+        <div id="court-container">
+            <div id="court">
+                <!-- Court markings -->
+                <div class="court-line center-circle"></div>
+                <div class="court-line three-point-line left"></div>
+                <div class="court-line three-point-line right"></div>
+                <div class="court-line free-throw-line left"></div>
+                <div class="court-line free-throw-line right"></div>
+                
+                <!-- Player tracking visualizations -->
+                <div class="player-marker" id="player-119" style="left: 25%; top: 70%;">
+                    <div class="player-id">119</div>
+                    <div class="player-metrics">
+                        <div class="speed">12.03 km/h</div>
+                        <div class="distance">0.61 m</div>
+                    </div>
+                </div>
+                
+                <div class="player-marker" id="player-10" style="left: 60%; top: 50%;">
+                    <div class="player-id">10</div>
+                    <div class="player-metrics">
+                        <div class="speed">9.98 km/h</div>
+                        <div class="distance">37.41 m</div>
+                    </div>
+                </div>
+                
+                <div class="player-marker" id="player-52" style="left: 55%; top: 61%;">
+                    <div class="player-id">52</div>
+                    <div class="player-metrics">
+                        <div class="speed">12.66 km/h</div>
+                        <div class="distance">13.16 m</div>
+                    </div>
+                </div>
+                
+                <div class="player-marker" id="player-85" style="left: 90%; top: 60%;">
+                    <div class="player-id">85</div>
+                    <div class="player-metrics">
+                        <div class="speed">16.41 km/h</div>
+                        <div class="distance">24.38 m</div>
+                    </div>
+                </div>
+                
+                <!-- Event markers -->
+                <div class="event-marker red-marker" style="left: 30%; top: 40%"></div>
+                <div class="event-marker green-marker" style="left: 34%; top: 50%"></div>
+                <div class="event-marker red-marker" style="left: 37%; top: 30%"></div>
+                
+                <!-- Ball marker -->
+                <div class="ball-marker" style="left: 50%; top: 36%">
+                    <div class="ball-movement">
+                        <div class="speed">9.67 km/h</div>
+                        <div class="distance">29.61 m</div>
+                    </div>
+                </div>
+                
+                <!-- Score display -->
+                <div id="score-display">
+                    <div class="team home">HOU <span class="score">94</span></div>
+                    <div class="team away">SAC <span class="score">104</span></div>
+                </div>
+                
+                <!-- Stats display -->
+                <div id="stats-display">
+                    <div class="team-stats">
+                        <div class="stat-row">
+                            Team 1 <span class="stat-label">Passes:</span> 1
+                            <span class="stat-label">Interceptions:</span> 0
+                        </div>
+                        <div class="stat-row">
+                            Team 2 <span class="stat-label">Passes:</span> 0
+                            <span class="stat-label">Interceptions:</span> 0
+                        </div>
+                    </div>
+                    <div class="possession-stats">
+                        <div class="possession">
+                            Team 1 Control: 12.02%
+                        </div>
+                        <div class="possession">
+                            Team 2 Control: 0.00%
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Frame counter -->
+                <div id="frame-counter">182</div>
+                
+                <!-- Court diagram in corner -->
+                <div id="court-diagram">
+                    <div class="diagram-court">
+                        <!-- Player position markers on the minimap -->
+                        <div class="mini-marker" style="top: 30%; left: 70%; background-color: #ff0000;"></div>
+                        <div class="mini-marker" style="top: 50%; left: 25%; background-color: #00ff00;"></div>
+                        <div class="mini-marker" style="top: 60%; left: 65%; background-color: #00ff00;"></div>
+                        <div class="mini-marker" style="top: 40%; left: 85%; background-color: #ff0000;"></div>
+                    </div>
+                </div>
+                
+                <!-- Clarifai logo -->
+                <div id="logo">
+                    <span class="logo-text">clarifai</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
