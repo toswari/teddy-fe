@@ -1,4 +1,4 @@
-# Sports Analytics Visualization Prototype
+# Basketball Analytics Visualization Prototype
 
 This is a rapid prototype for visualizing basketball tracking data with player statistics. The visualization displays:
 
