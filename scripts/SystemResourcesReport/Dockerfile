@@ -24,12 +24,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# IMPORTANT: Before building this Docker image, replace the logo file at:
+# /app/static/img/clarifai_logo.png with the official Clarifai logo
+# Download from: https://www.clarifai.com/brand-resources
+
 # Create directory for logo if it doesn't exist
 RUN mkdir -p /app/static/img
-
-# Download Clarifai logo
-RUN wget -O /app/static/img/clarifai_logo.png https://www.clarifai.com/hubfs/logo-main.svg || \
-    echo "Clarifai logo could not be downloaded" > /app/static/img/clarifai_logo.png
 
 # Expose port
 EXPOSE 5000
