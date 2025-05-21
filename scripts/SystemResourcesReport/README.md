@@ -108,13 +108,4 @@ If you're behind a corporate firewall or proxy, you might need to configure Dock
 
 ## Customization
 
-### Clarifai Logo
-
-This application requires the official Clarifai logo for proper branding. Before deploying:
-
-1. Download the official Clarifai brand kit from https://www.clarifai.com/brand-resources
-2. Extract the ZIP file and locate an appropriate PNG logo file (preferably with transparency)
-3. Rename the logo file to `clarifai_logo.png` and place it in the `static/img/` directory
-4. Rebuild the Docker image if you're building locally
-
-**Note:** The logo should be a PNG file that looks good at 40px height against a dark background (header).
+The application comes pre-configured with the Clarifai logo for proper branding. If you need to use a different logo or make other visual adjustments, the logo file is located at `static/img/clarifai_logo.png`.
