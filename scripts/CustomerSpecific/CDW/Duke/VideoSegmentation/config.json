@@ -1,0 +1,33 @@
+{
+  "classes": [
+    "Ball",
+    "Clock",
+    "Hoop",
+    "Overlay",
+    "Player",
+    "Ref",
+    "Scoreboard"
+  ],
+  "target_classes": ["Player", "Ref"],
+  "keypoints": ["basketball"],
+  "gameplay_detection": {
+    "min_players": 2,
+    "min_overlay_points": 1,
+    "min_confidence": 0.3,
+    "min_keypoint_confidence": 0.3
+  },
+  "model": {
+    "path": "model/player_detector.pt",
+    "input_size": [640, 640],
+    "batch_size": 1
+  },
+  "key_point_model": {
+    "path": "model/court_keypoint_detector.pt",
+    "input_size": [224, 224],
+    "batch_size": 8
+  },
+  "video": {
+    "min_clip_duration": 2,
+    "sampling_rate": 5
+  }
+} 

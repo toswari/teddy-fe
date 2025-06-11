@@ -1,0 +1,69 @@
+/* Custom styles for Basketball Video Segmenter */
+
+.aspect-w-16 {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+  height: 0;
+}
+
+.aspect-w-16 > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Fix for iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  .aspect-w-16 {
+    height: auto;
+    padding-bottom: 0;
+  }
+  
+  .aspect-w-16 > video {
+    position: relative;
+    height: auto;
+    max-height: 70vh;
+  }
+}
+
+/* Improved focus states for accessibility */
+:focus {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Transition effects */
+.transition-opacity {
+  transition: opacity 0.3s ease-in-out;
+}
+
+.transition-height {
+  transition: max-height 0.5s ease-in-out;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Loading spinner */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-left-color: #3B82F6;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+} 

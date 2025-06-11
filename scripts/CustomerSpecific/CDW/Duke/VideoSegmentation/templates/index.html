@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gameplay Segmentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Custom styles */
+        .clip-thumbnail {
+            transition: all 0.3s ease;
+        }
+        .clip-thumbnail:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .custom-file-input::-webkit-file-upload-button {
+            visibility: hidden;
+            width: 0;
+        }
+        .custom-file-input::before {
+            content: 'Select Video';
+            display: inline-block;
+            background: #3B82F6;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 0.375rem;
+            outline: none;
+            cursor: pointer;
+        }
+        .custom-file-input:hover::before {
+            background: #2563EB;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans min-h-screen">
+    <header class="bg-gradient-to-r from-blue-700 to-blue-500 text-white shadow-md">
+        <div class="container mx-auto p-6 flex flex-col md:flex-row items-center justify-center gap-4">
+            <img src="/static/logo/logo.png" alt="Logo" style="height:60px;max-width:200px;object-fit:contain;" class="mb-2 md:mb-0 md:mr-4" />
+            <div>
+                <h1 class="text-3xl md:text-4xl font-bold text-center md:text-left">Gameplay Segmentation</h1>
+                <p class="text-center md:text-left mt-2 opacity-90">Extract gameplay clips from basketball videos</p>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container mx-auto p-4 md:p-6 lg:p-8">
+        <!-- Upload Section -->
+        <section class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Upload Basketball Video</h2>
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-grow flex items-center">
+                    <input type="file" id="videoInput" accept="video/mp4,video/avi,video/mov" 
+                           class="custom-file-input focus:outline-none" aria-label="Upload video file">
+                    <span id="fileNameDisplay" class="ml-3 text-gray-600"></span>
+                </div>
+                <button id="uploadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50"
+                        aria-label="Upload and process video">
+                    Upload & Process
+                </button>
+            </div>
+            
+            <div id="fileError" class="mt-2 text-red-600 hidden"></div>
+            
+            <!-- Processing Progress -->
+            <div id="progressContainer" class="mt-6 hidden">
+                <div class="flex justify-between mb-1">
+                    <span class="text-sm font-medium">Processing Video</span>
+                    <span class="text-sm font-medium" id="progressPercentage">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="progressStatus" class="text-sm mt-1 text-gray-600">Initializing...</p>
+            </div>
+        </section>
+        
+        <!-- Video Player Section -->
+        <section id="videoPlayerSection" class="bg-white rounded-lg shadow-md p-6 mb-8 hidden">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Video Player</h2>
+                <div class="flex gap-4 mt-2 md:mt-0">
+                    <button id="playOriginal" class="text-blue-600 hover:text-blue-800 font-medium transition">
+                        Play Original
+                    </button>
+                    <button id="downloadAllClips" class="text-green-600 hover:text-green-800 font-medium transition">
+                        Download All Clips
+                    </button>
+                    <button id="toggleFullscreen" class="text-blue-600 hover:text-blue-800 font-medium transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm5 10a1 1 0 01-1 1H3a1 1 0 010-2h2.586l-2.293-2.293a1 1 0 111.414-1.414L7 11.586V10a1 1 0 112 0v4zm7-10a1 1 0 010-1h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L17.586 5H16a1 1 0 01-1-1zm2 7a1 1 0 011 1v2.586l2.293-2.293a1 1 0 111.414 1.414L19.414 16H20a1 1 0 110 2h-4a1 1 0 01-1-1v-4a1 1 0 011-1z" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="aspect-w-16 bg-black rounded-lg overflow-hidden">
+                <video id="mainVideo" controls class="w-full h-full object-contain"></video>
+            </div>
+            
+            <div class="mt-2 text-sm text-gray-600">
+                <p id="currentClipInfo">No clip selected</p>
+            </div>
+        </section>
+        
+        <!-- Clips Gallery Section -->
+        <section id="clipsSection" class="bg-white rounded-lg shadow-md p-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Gameplay Clips</h2>
+            <!-- Timeline Bar -->
+            <div id="timelineContainer" class="w-full mb-6">
+                <div id="timelineBar" class="relative h-6 bg-gray-200 rounded-full overflow-hidden">
+                    <!-- Dynamic segments will be inserted here -->
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span id="timelineStart">0:00</span>
+                    <span id="timelineEnd">--:--</span>
+                </div>
+            </div>
+            <p id="noClipsMessage" class="text-gray-600 italic">No gameplay clips found</p>
+            <div id="thumbnails" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white py-4 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm opacity-80">&copy; 2025 Gameplay Segmentation</p>
+        </div>
+    </footer>
+
+    <!-- Include the JavaScript file -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <script>
+        // DOM elements
+        const videoInput = document.getElementById('videoInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const fileError = document.getElementById('fileError');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const progressStatus = document.getElementById('progressStatus');
+        const videoPlayerSection = document.getElementById('videoPlayerSection');
+        const mainVideo = document.getElementById('mainVideo');
+        const currentClipInfo = document.getElementById('currentClipInfo');
+        const clipsSection = document.getElementById('clipsSection');
+        const thumbnails = document.getElementById('thumbnails');
+        const noClipsMessage = document.getElementById('noClipsMessage');
+        const playOriginal = document.getElementById('playOriginal');
+        const downloadAllClips = document.getElementById('downloadAllClips');
+        const toggleFullscreenBtn = document.getElementById('toggleFullscreen');
+        
+        // SocketIO setup
+        let socket = io();
+        let socketId = null;
+        
+        // Store video and clip data
+        let originalVideoUrl = null;
+        let clipsData = [];
+        let isProcessingComplete = false;  // Add flag to track completion state
+        let originalVideoDuration = null;
+        let currentClipIndex = null; // null means original video, otherwise 0-based index
+        
+        // Socket event handlers
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socketId = socket.id;
+            isProcessingComplete = false;  // Reset completion state on new connection
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            if (progressContainer && !progressContainer.classList.contains('hidden')) {
+                showError('Connection to server lost. Please try again.');
+                uploadBtn.disabled = false;
+            }
+            isProcessingComplete = false;  // Reset completion state on disconnect
+        });
+        
+        socket.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            showError('Connection error. Please refresh the page and try again.');
+            uploadBtn.disabled = false;
+            isProcessingComplete = false;  // Reset completion state on error
+        });
+        
+        socket.on('progress_update', (data) => {
+            console.log('Progress update received:', data);
+            
+            // Don't process progress updates if we're already complete
+            if (isProcessingComplete) {
+                console.log('Ignoring progress update - processing already complete');
+                return;
+            }
+            
+            if (data.progress !== undefined) {
+                updateProgress(data.progress, data.status);
+                
+                // If we reach 100%, show the video player and clips section
+                if (data.progress >= 100) {
+                    console.log('Progress reached 100%, showing results');
+                    videoPlayerSection.classList.remove('hidden');
+                    clipsSection.classList.remove('hidden');
+                    
+                    // If we have clips data, display them
+                    if (clipsData && clipsData.length > 0) {
+                        console.log('Displaying clips after 100% progress');
+                        displayClips(clipsData);
+                    }
+                }
+            }
+        });
+        
+        socket.on('processing_complete', (data) => {
+            console.log('Processing complete event received:', data);
+            // Set completion flag
+            isProcessingComplete = true;
+            // Update clips data if provided
+            if (data.clips) {
+                console.log('Received clips data in processing_complete:', JSON.stringify(data.clips, null, 2));
+                clipsData = data.clips;
+            }
+            // Set the original video URL if provided
+            if (data.video_path) {
+                originalVideoUrl = data.video_path;
+            }
+            // Hide progress container immediately
+            progressContainer.classList.add('hidden');
+            // Show video player and clips section if there are clips
+            // Display clips if we have them
+            if (clipsData && clipsData.length > 0) {
+                console.log('About to call displayClips with data:', JSON.stringify(clipsData, null, 2));
+                displayClips(clipsData);
+            } else {
+                console.log('No clips to display in processing_complete handler');
+                noClipsMessage.classList.remove('hidden');
+            }
+            // Re-enable upload button
+            uploadBtn.disabled = false;
+            // Show success message
+            if (data.message) {
+                showSuccess(data.message);
+            }
+            // Force a UI refresh after a short delay
+            setTimeout(() => {
+                console.log('Forcing UI refresh after completion');
+                if (clipsData && clipsData.length > 0) {
+                    displayClips(clipsData);
+                }
+            }, 100);
+        });
+        
+        // File input change listener
+        videoInput.addEventListener('change', () => {
+            const file = videoInput.files[0];
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                fileError.classList.add('hidden');
+                uploadBtn.disabled = false;
+            } else {
+                fileNameDisplay.textContent = '';
+            }
+        });
+        
+        // Upload button click handler
+        uploadBtn.addEventListener('click', () => {
+            videoPlayerSection.classList.add('hidden');
+            clipsSection.classList.add('hidden');
+            thumbnails.innerHTML = '';
+            noClipsMessage.classList.add('hidden');
+            resetUIForNewUpload();
+            const file = videoInput.files[0];
+            if (!file) {
+                showError('Please select a video file');
+                return;
+            }
+            
+            // Reset completion state
+            isProcessingComplete = false;
+            
+            // Check file type
+            const fileType = file.type;
+            if (!fileType.match('video/mp4|video/avi|video/quicktime')) {
+                showError('Please select an MP4, AVI, or MOV file');
+                return;
+            }
+            
+            // Check file size (2GB max)
+            if (file.size > 2 * 1024 * 1024 * 1024) {
+                showError('File size too large. Maximum size: 2GB');
+                return;
+            }
+            
+            // Prepare for upload
+            const formData = new FormData();
+            formData.append('video', file);
+            if (socketId) {
+                formData.append('socket_id', socketId);
+            }
+            
+            // Show progress container
+            progressContainer.classList.remove('hidden');
+            uploadBtn.disabled = true;
+            updateProgress(0, 'Uploading video...');
+            
+            // Add timeout for the fetch to handle long uploads
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
+            
+            // Send the video file to the server
+            console.log("Starting upload request...");
+            window.currentRequest = fetch('/upload', {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal
+            })
+            .then(response => {
+                clearTimeout(timeoutId);
+                console.log("Server response received:", response.status);
+                
+                if (!response.ok) {
+                    if (response.status === 413) {
+                        throw new Error("File too large. Maximum upload size is 2GB.");
+                    }
+                    
+                    return response.json()
+                        .then(data => {
+                            throw new Error(data.error || `Server error! Status: ${response.status}`);
+                        })
+                        .catch(e => {
+                            if (e.message.includes('JSON')) {
+                                throw new Error(`Server error (${response.status}): The server returned an invalid response.`);
+                            }
+                            throw e;
+                        });
+                }
+                
+                return response.json().catch(e => {
+                    throw new Error("The server returned an invalid JSON response.");
+                });
+            })
+            .then(data => {
+                console.log("Data received from server:", data);
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                if (data.warning) {
+                    showWarning(data.warning);
+                }
+                
+                // Store video data
+                originalVideoUrl = data.video_path;
+                clipsData = data.clips || [];
+                
+                console.log("Original video URL:", originalVideoUrl);
+                console.log("Number of clips:", clipsData.length);
+                console.log("Clips data from server:", JSON.stringify(clipsData, null, 2));
+                
+                // Only display clips if we have them (displayClips will handle showing/hiding sections)
+                if (clipsData && clipsData.length > 0) {
+                    console.log("About to call displayClips from fetch response");
+                    displayClips(clipsData);
+                } else {
+                    console.log("No clips found in fetch response");
+                    noClipsMessage.classList.remove('hidden');
+                }
+                
+                // Update UI
+                uploadBtn.disabled = false;
+                
+                // Clear the request reference
+                window.currentRequest = null;
+            })
+            .catch(error => {
+                clearTimeout(timeoutId);
+                console.error('Upload/process error:', error);
+                
+                // Handle specific error types
+                if (error.name === 'AbortError') {
+                    showError("Request timed out. The server took too long to respond.");
+                } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+                    showError("Network error. Check your connection and try again.");
+                } else {
+                    showError(`Error: ${error.message || 'Unknown error occurred'}`);
+                }
+                
+                uploadBtn.disabled = false;
+                window.currentRequest = null;
+            });
+        });
+        
+        // Play original button
+        playOriginal.addEventListener('click', () => {
+            if (originalVideoUrl) {
+                currentClipIndex = null; // No clip selected
+                mainVideo.src = originalVideoUrl;
+                mainVideo.play();
+                currentClipInfo.textContent = 'Playing original video';
+                if (originalVideoDuration) {
+                    renderTimeline(clipsData, originalVideoDuration);
+                }
+            }
+        });
+        
+        // Download all clips button
+        downloadAllClips.addEventListener('click', () => {
+            if (clipsData && clipsData.length > 0) {
+                downloadAllClipsAsZip(clipsData);
+            } else {
+                showError('No clips available to download');
+            }
+        });
+        
+        // Toggle fullscreen button
+        toggleFullscreenBtn.addEventListener('click', () => {
+            toggleFullscreen(mainVideo);
+        });
+        
+        // Function to update progress bar
+        function updateProgress(progress, status) {
+            console.log('Updating progress:', progress, status);
+            
+            // Don't update if we're already complete
+            if (isProcessingComplete) {
+                console.log('Ignoring progress update - processing already complete');
+                return;
+            }
+            
+            // Cap progress at 100%
+            progress = Math.min(Math.max(progress, 0), 100);
+            
+            // Update progress bar
+            progressBar.style.width = `${progress}%`;
+            progressPercentage.textContent = `${progress}%`;
+            
+            // Update status message
+            if (status) {
+                progressStatus.textContent = status;
+            } else if (progress < 25) {
+                progressStatus.textContent = 'Processing video frames...';
+            } else if (progress < 50) {
+                progressStatus.textContent = 'Analyzing content...';
+            } else if (progress < 75) {
+                progressStatus.textContent = 'Identifying gameplay sections...';
+            } else if (progress < 100) {
+                progressStatus.textContent = 'Creating clips...';
+            } else {
+                progressStatus.textContent = 'Processing complete! Loading results...';
+            }
+
+            // If we're at 100%, schedule hiding the progress container
+            if (progress >= 100) {
+                setTimeout(() => {
+                    console.log('Hiding progress container after completion');
+                    progressContainer.classList.add('hidden');
+                    
+                    // Ensure video player and clips section are visible
+                    videoPlayerSection.classList.remove('hidden');
+                    clipsSection.classList.remove('hidden');
+                    
+                    // If we have clips data, display them
+                    if (clipsData && clipsData.length > 0) {
+                        console.log('Displaying clips after progress completion');
+                        displayClips(clipsData);
+                    }
+                }, 1000);
+            }
+        }
+        
+        // Function to display error messages
+        function showError(message) {
+            console.error("Error:", message);
+            fileError.textContent = message;
+            fileError.classList.remove('hidden');
+            fileError.classList.remove('text-yellow-600');
+            fileError.classList.add('text-red-600');
+            progressContainer.classList.add('hidden');
+            uploadBtn.disabled = false;
+        }
+        
+        // Function to display warnings
+        function showWarning(message) {
+            console.warn("Warning:", message);
+            fileError.textContent = message;
+            fileError.classList.remove('hidden');
+            fileError.classList.remove('text-red-600');
+            fileError.classList.add('text-yellow-600');
+            // Still show progress container for warnings
+        }
+        
+        // Function to display clips
+        function displayClips(clips) {
+            // Always hide by default
+            videoPlayerSection.classList.add('hidden');
+            clipsSection.classList.add('hidden');
+            thumbnails.innerHTML = '';
+            if (!clips || clips.length === 0) {
+                noClipsMessage.classList.remove('hidden');
+                return;
+            }
+            noClipsMessage.classList.add('hidden');
+            // Set the default video to the original video
+            if (originalVideoUrl) {
+                mainVideo.src = originalVideoUrl;
+                currentClipInfo.textContent = 'Playing original video';
+            }
+            
+            clips.forEach((clip, index) => {
+                try {
+                    console.log(`Processing clip ${index}:`, JSON.stringify(clip, null, 2));
+                    
+                    if (!clip || !clip.thumbnail) {
+                        console.error("Invalid clip data at index", index, clip);
+                        return;
+                    }
+                    
+                    const clipCard = document.createElement('div');
+                    clipCard.className = 'bg-gray-100 rounded-lg overflow-hidden shadow clip-thumbnail';
+                    
+                    // Use safe values with defaults
+                    const duration = clip.duration || 0;
+                    const startTime = clip.start_time || 0;
+                    const formattedDuration = formatDuration(duration);
+                    const formattedStartTime = formatDuration(startTime);
+                    const clipPath = clip.path || '';
+                    const thumbnailSrc = clip.thumbnail || '';
+                    
+                    console.log(`Creating clip card ${index}:`, {
+                        duration,
+                        startTime,
+                        clipPath,
+                        thumbnailSrc
+                    });
+                    
+                    clipCard.innerHTML = `
+                        <div class="relative">
+                            <img src="${thumbnailSrc}" alt="Clip ${index + 1}" 
+                                 class="w-full h-36 object-cover cursor-pointer">
+                            <div class="absolute bottom-0 right-0 bg-black bg-opacity-70 text-white px-2 py-1 text-xs rounded-tl">
+                                ${formattedDuration}
+                            </div>
+                        </div>
+                        <div class="p-3">
+                            <p class="font-medium">Clip ${index + 1}</p>
+                            <p class="text-sm text-gray-600">Starts at: ${formattedStartTime}</p>
+                            <div class="flex mt-2 gap-2">
+                                <button class="play-clip-btn bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded text-sm flex-1 transition"
+                                        data-clip-id="${index}">
+                                    Play
+                                </button>
+                                <a href="${clipPath}" download="clip_${index + 1}.mp4"
+                                   class="bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded text-sm flex-1 transition text-center">
+                                    Download
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add click event for the thumbnail image
+                    const thumbnailImg = clipCard.querySelector('img');
+                    if (thumbnailImg) {
+                        thumbnailImg.addEventListener('click', () => {
+                            playClip(index);
+                        });
+                    }
+                    
+                    // Add click event for the play button
+                    const playBtn = clipCard.querySelector('.play-clip-btn');
+                    if (playBtn) {
+                        playBtn.addEventListener('click', () => {
+                            playClip(index);
+                        });
+                    }
+                    
+                    thumbnails.appendChild(clipCard);
+                    console.log(`Added clip card ${index} to thumbnails`);
+                } catch (e) {
+                    console.error("Error displaying clip", e);
+                }
+            });
+            
+            console.log("Finished displaying clips");
+            
+            // Render the timeline
+            if (originalVideoDuration) {
+                renderTimeline(clips, originalVideoDuration);
+            } else if (mainVideo && mainVideo.src === originalVideoUrl) {
+                mainVideo.onloadedmetadata = () => {
+                    originalVideoDuration = mainVideo.duration;
+                    renderTimeline(clips, originalVideoDuration);
+                };
+                if (!isNaN(mainVideo.duration) && mainVideo.duration > 0) {
+                    originalVideoDuration = mainVideo.duration;
+                    renderTimeline(clips, originalVideoDuration);
+                }
+            } else {
+                let maxEnd = 0;
+                clips.forEach(clip => {
+                    const end = (clip.start_time || 0) + (clip.duration || 0);
+                    if (end > maxEnd) maxEnd = end;
+                });
+                renderTimeline(clips, maxEnd);
+            }
+            // Only now, after rendering, show the sections
+            videoPlayerSection.classList.remove('hidden');
+            clipsSection.classList.remove('hidden');
+        }
+        
+        // Function to play a specific clip
+        function playClip(clipIndex) {
+            if (clipIndex >= 0 && clipIndex < clipsData.length) {
+                currentClipIndex = clipIndex; // Track the selected clip
+                const clip = clipsData[clipIndex];
+                mainVideo.src = clip.path;
+                mainVideo.play();
+                
+                const formattedDuration = formatDuration(clip.duration);
+                const formattedStartTime = formatDuration(clip.start_time);
+                currentClipInfo.textContent = `Clip ${clipIndex + 1} | Duration: ${formattedDuration} | Starts at: ${formattedStartTime}`;
+                
+                // Scroll to video player if not visible
+                videoPlayerSection.scrollIntoView({ behavior: 'smooth' });
+
+                // Re-render timeline to highlight the selected segment
+                if (originalVideoDuration) {
+                    renderTimeline(clipsData, originalVideoDuration);
+                }
+            }
+        }
+        
+        // Format duration to MM:SS format
+        function formatDuration(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+        }
+        
+        // Initialize Upload button as disabled
+        uploadBtn.disabled = true;
+        
+        // Add success message function
+        function showSuccess(message) {
+            fileError.textContent = message;
+            fileError.classList.remove('hidden');
+            fileError.classList.remove('text-red-600');
+            fileError.classList.remove('text-yellow-600');
+            fileError.classList.add('text-green-600');
+        }
+        
+        // Add JS function to render the timeline
+        function renderTimeline(clips, videoDuration) {
+            const timelineBar = document.getElementById('timelineBar');
+            timelineBar.innerHTML = '';
+            if (!videoDuration || !clips || clips.length === 0) return;
+            clips.forEach((clip, idx) => {
+                const left = (clip.start_time / videoDuration) * 100;
+                const width = (clip.duration / videoDuration) * 100;
+                const segment = document.createElement('div');
+                segment.className = 'absolute top-0 h-full rounded-full cursor-pointer transition';
+                segment.style.left = `${left}%`;
+                segment.style.width = `${width}%`;
+                // Remove any Tailwind background color classes
+                segment.classList.remove('bg-blue-600', 'bg-blue-700', 'bg-green-600', 'bg-green-700');
+                if (currentClipIndex === idx) {
+                    segment.style.backgroundColor = 'orange';
+                    segment.style.opacity = '1';
+                } else {
+                    segment.style.backgroundColor = '#2563EB';
+                    segment.style.opacity = '0.7';
+                }
+                segment.title = `Clip ${idx + 1}`;
+                segment.addEventListener('click', () => playClip(idx));
+                timelineBar.appendChild(segment);
+            });
+        }
+        
+        // On upload or new video, hide both sections until clips are available
+        function resetUIForNewUpload() {
+            videoPlayerSection.classList.add('hidden');
+            clipsSection.classList.add('hidden');
+            thumbnails.innerHTML = '';
+            noClipsMessage.classList.add('hidden');
+        }
+        
+        // Call resetUIForNewUpload() at the start of uploadBtn click handler and on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            videoPlayerSection.classList.add('hidden');
+            clipsSection.classList.add('hidden');
+            thumbnails.innerHTML = '';
+            noClipsMessage.classList.add('hidden');
+            resetUIForNewUpload();
+        });
+    </script>
+</body>
+</html> 
