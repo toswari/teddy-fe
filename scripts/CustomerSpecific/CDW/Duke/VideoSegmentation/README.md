@@ -1,4 +1,4 @@
-# Basketball Video Segmenter
+# Basketball Video Segmenter  **Needs NVIDIA GPU - Built on Windows host so may need some changes for MAC
 
 A web application that allows users to upload basketball game videos and automatically extract clips showing players on the court (gameplay), excluding commercials, fan close-ups, or other non-gameplay footage.
 
