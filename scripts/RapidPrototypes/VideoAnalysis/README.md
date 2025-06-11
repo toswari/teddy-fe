@@ -60,3 +60,6 @@ video-analysis-platform/
 - `POST /analyze/stream` - Stream video analysis
 - `POST /chat` - Send chat message
 - `GET /chat/stream/<question>` - Stream chat response
+
+## SAMPLE VIDEOS FOR DEMO
+-- https://drive.google.com/drive/folders/1kXfpolSCYhHG55W72wSbqTTQrJ7sF1zi?usp=drive_link
