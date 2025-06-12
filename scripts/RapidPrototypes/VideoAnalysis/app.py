@@ -131,7 +131,7 @@ def chat():
             
         # Update RAG engine with credentials
         rag_engine.update_credentials(username, pat)
-        
+            
         # Store the question and analysis results in the session
         session['current_question'] = question
         session['current_analysis'] = {'results': analysis_results}
