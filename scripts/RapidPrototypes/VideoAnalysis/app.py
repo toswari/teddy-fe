@@ -8,12 +8,14 @@ from rag_engine import VideoAnalysisRAG
 from werkzeug.utils import secure_filename
 import traceback
 from prompts_config import PROMPTS
+from flask_cors import CORS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='static')
+CORS(app)  # Enable CORS for all routes
 app.secret_key = os.urandom(24)  # Required for session
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -235,20 +237,50 @@ def analyze_stream():
 
         def generate():
             try:
+                final_results = None
                 for progress in analyze_video(
                     video_path=filepath,
                     model_config=model_config,
                     prompt=prompt,
                     stream=True
                 ):
-                    yield f"data: {json.dumps(progress)}\n\n"
+                    # Store the final results when we get them
+                    if isinstance(progress, dict) and 'results' in progress:
+                        final_results = progress
+                    
+                    # Ensure each chunk is properly formatted and flushed
+                    chunk = f"data: {json.dumps(progress)}\n\n"
+                    logger.info(f"Sending chunk: {chunk.strip()}")
+                    yield chunk
+                
+                # Send final completion message with results
+                if final_results:
+                    completion_msg = {
+                        'status': 'complete',
+                        'results': final_results
+                    }
+                    yield f"data: {json.dumps(completion_msg)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+                    
             finally:
                 try:
                     os.remove(filepath)
+                    logger.info(f"Cleaned up video file: {filepath}")
                 except Exception as e:
                     logger.warning(f"Failed to clean up video file: {e}")
 
-        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+        response = Response(
+            stream_with_context(generate()),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no'  # Disable proxy buffering
+            }
+        )
+        return response
+
     except Exception as e:
         logger.error(f"Error during streaming analysis: {str(e)}")
         logger.error(traceback.format_exc())

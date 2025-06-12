@@ -90,13 +90,13 @@
             </div>
         </div>
 
-        <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-8">
             
-            
-            <!-- Upload Section -->
-            <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
-                <form id="uploadForm" class="space-y-4">
-                    <!-- Category Selection -->
+        
+        <!-- Upload Section -->
+        <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <form id="uploadForm" class="space-y-4">
+                <!-- Category Selection -->
                     <div class="mb-4">
                         <label class="block text-gray-700 text-sm font-bold mb-2" for="username">
                             Username
@@ -115,12 +115,12 @@
                                placeholder="Enter your PAT">
                     </div>
 
-                    <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2" for="category">
-                            Analysis Category
-                        </label>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="category">
+                        Analysis Category
+                    </label>
                         <select id="category" name="category" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                            <option value="general">General Analysis</option>
+                        <option value="general">General Analysis</option>
                             <option value="bronc_riding">Bronc Riding</option>
                             <option value="bull_riding">Bull Riding</option>
                             <option value="barrel_racing">Barrel Racing</option>
@@ -131,39 +131,39 @@
                             <option value="baseball">Baseball</option>
                             <option value="hockey">Hockey</option>
                             <option value="military_surveillance">Military/Surveillance</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Custom Prompt (initially hidden) -->
-                    <div id="customPromptContainer" class="mb-4 hidden">
-                        <label class="block text-gray-700 text-sm font-bold mb-2" for="customPrompt">
-                            Custom Analysis Prompt
-                        </label>
-                        <textarea id="customPrompt" rows="4" 
-                            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="Enter your custom analysis prompt..."></textarea>
-                    </div>
-                    
-                    <!-- Video Upload -->
-                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                        <input type="file" id="videoFile" accept="video/*" class="hidden">
-                        <label for="videoFile" class="cursor-pointer">
-                            <div class="text-gray-600">
-                                <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                                </svg>
-                                <p class="text-lg">Click to upload video</p>
-                                <p class="text-sm text-gray-500">or drag and drop</p>
-                            </div>
-                        </label>
-                        <div id="selectedFileName" class="text-sm text-gray-700 mt-2"></div>
-                    </div>
+                    </select>
+                </div>
 
-                    <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
-                        Analyze Video
-                    </button>
-                </form>
-            </div>
+                <!-- Custom Prompt (initially hidden) -->
+                <div id="customPromptContainer" class="mb-4 hidden">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="customPrompt">
+                        Custom Analysis Prompt
+                    </label>
+                    <textarea id="customPrompt" rows="4" 
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter your custom analysis prompt..."></textarea>
+                </div>
+
+                <!-- Video Upload -->
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" id="videoFile" accept="video/*" class="hidden">
+                    <label for="videoFile" class="cursor-pointer">
+                        <div class="text-gray-600">
+                            <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                            <p class="text-lg">Click to upload video</p>
+                            <p class="text-sm text-gray-500">or drag and drop</p>
+                        </div>
+                    </label>
+                        <div id="selectedFileName" class="text-sm text-gray-700 mt-2"></div>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                    Analyze Video
+                </button>
+            </form>
+        </div>
 
             <!-- Progress Container -->
             <div id="progressContainer" class="max-w-xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8" style="display: none;">
@@ -179,22 +179,22 @@
                     <div id="processingDetails" class="text-sm text-gray-600 h-20 overflow-hidden">
                         <div class="italic text-gray-500">Starting analysis...</div>
                     </div>
-                </div>
             </div>
+        </div>
 
-            <!-- Results Section -->
+        <!-- Results Section -->
             <div id="results" class="max-w-4xl mx-auto mt-8" style="display: none;">
-                <div class="flex gap-8">
-                    <!-- Left side: Video player and summary -->
-                    <div class="w-1/2 flex-shrink-0">
-                        <div class="sticky top-4">
-                            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
-                                <h2 class="text-xl font-bold mb-4">Video Player</h2>
-                                <video id="videoPlayer" class="w-full rounded-lg" controls>
-                                    Your browser does not support the video tag.
-                                </video>
-                            </div>
-                            
+            <div class="flex gap-8">
+                <!-- Left side: Video player and summary -->
+                <div class="w-1/2 flex-shrink-0">
+                    <div class="sticky top-4">
+                        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <h2 class="text-xl font-bold mb-4">Video Player</h2>
+                            <video id="videoPlayer" class="w-full rounded-lg" controls>
+                                Your browser does not support the video tag.
+                            </video>
+                        </div>
+                        
                             <!-- Summary Section -->
                             <div id="summary" class="mt-4 p-4 bg-white rounded-lg shadow">
                                 <h3 class="text-lg font-semibold mb-2">Analysis Summary</h3>
@@ -202,633 +202,684 @@
                                 <button id="newAnalysisBtn" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors">
                                     Start New Analysis
                                 </button>
-                            </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Right side: Frame analysis -->
-                    <div class="w-1/2">
-                        <div class="bg-white rounded-lg shadow-lg p-6">
-                            <h2 class="text-xl font-bold mb-4">Frame Analysis</h2>
+                <!-- Right side: Frame analysis -->
+                <div class="w-1/2">
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h2 class="text-xl font-bold mb-4">Frame Analysis</h2>
                             <div id="resultsContent" class="space-y-4 max-h-[calc(100vh-300px)] overflow-y-auto pr-4">
-                                <!-- Frame cards will be inserted here -->
-                            </div>
+                            <!-- Frame cards will be inserted here -->
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
-        <!-- Chat Modal -->
-        <div id="chatModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg w-full max-w-2xl mx-4 flex flex-col" style="max-height:60vh; height:60vh; overflow:hidden;">
-                <!-- Modal Header -->
-                <div class="p-4 border-b flex justify-between items-center">
-                    <h3 class="text-lg font-semibold">Ask about Analysis Results</h3>
-                    <button id="closeChat" class="text-gray-500 hover:text-gray-700">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Add toggle for model thinking -->
-                <div class="flex items-center justify-end px-4 py-2 border-t border-gray-200 bg-gray-50">
-                    <label class="inline-flex items-center px-3 py-1.5 rounded-full bg-white shadow-sm border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors duration-200">
-                        <input type="checkbox" id="showThinking" class="form-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                        <span class="ml-2 text-sm font-medium text-gray-700">Show model thinking</span>
-                    </label>
-                </div>
-
-                <!-- Chat messages container -->
-                <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
-                    <!-- Messages will be added here -->
-                </div>
-
-                <!-- Chat Input -->
-                <div class="p-4 border-t">
-                    <form id="chatForm" class="flex space-x-2">
-                        <input type="text" id="chatInput" class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ask a question about the analysis...">
-                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200">
-                            Send
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Chat Button -->
-        <button id="chatButton" class="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2 hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            <span>Ask about Results</span>
-        </button>
-
-        <!-- Footer -->
-        <footer class="mt-12 py-6 bg-white border-t">
-            <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-                <p>&copy; 2024 Clarifai, Inc. All rights reserved.</p>
-            </div>
-        </footer>
     </div>
 
-    <script>
-        const videoPlayer = document.getElementById('videoPlayer');
-        const uploadForm = document.getElementById('uploadForm');
-        const results = document.getElementById('results');
-        const progressContainer = document.getElementById('progressContainer');
+    <!-- Chat Modal -->
+    <div id="chatModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[80vh] flex flex-col">
+            <!-- Header -->
+            <div class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-semibold">Chat with Video Analysis</h2>
+                <button onclick="toggleChat()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Chat Messages -->
+            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-4">
+                <!-- Messages will be added here -->
+            </div>
+            
+            <!-- Chat Input -->
+            <div class="p-4 border-t">
+                <form id="chatForm" class="flex space-x-2">
+                    <input type="text" id="chatInput" placeholder="Ask a question about the video..." 
+                           class="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:outline-none focus:border-blue-500">
+                    <button type="submit" class="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                        Send
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Button -->
+    <button id="chatButton" class="fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-colors duration-200 flex items-center space-x-2 hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+        <span>Ask about Results</span>
+    </button>
+
+    <!-- Footer -->
+    <footer class="mt-12 py-6 bg-white border-t">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>&copy; 2024 Clarifai, Inc. All rights reserved.</p>
+        </div>
+    </footer>
+</div>
+
+<script>
+    const videoPlayer = document.getElementById('videoPlayer');
+    const uploadForm = document.getElementById('uploadForm');
+    const results = document.getElementById('results');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+    const progressBarFill = document.getElementById('progressBarFill');
+    const error = document.getElementById('error');
+    const resultsContent = document.getElementById('resultsContent');
+    const summaryContent = document.getElementById('summaryContent');
+
+    // Chat functionality
+    let currentAnalysisResults = null;
+    let isChatMinimized = false;
+
+    // Load cached credentials on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const username = localStorage.getItem('username');
+        const pat = localStorage.getItem('pat');
+        
+        if (username) {
+            document.getElementById('username').value = username;
+        }
+        if (pat) {
+            document.getElementById('pat').value = pat;
+        }
+    });
+
+    // Handle form submission
+    uploadForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const videoFile = document.getElementById('videoFile').files[0];
+        if (!videoFile) {
+            showError('Please select a video file');
+            return;
+        }
+
+        const username = document.getElementById('username').value.trim();
+        const pat = document.getElementById('pat').value.trim();
+        
+        if (!username || !pat) {
+            showError('Please enter both username and PAT');
+            return;
+        }
+
+        // Cache the credentials
+        localStorage.setItem('username', username);
+        localStorage.setItem('pat', pat);
+
+        const category = document.getElementById('category').value;
+        const customPrompt = document.getElementById('customPrompt').value;
+        
+        // Hide upload container and show progress
+        document.querySelector('.max-w-xl.mx-auto').style.display = 'none';
+        progressContainer.style.display = 'block';
+        
+        // Clear previous processing details
+        const processingDetails = document.getElementById('processingDetails');
+        processingDetails.innerHTML = '<div class="italic text-gray-500">Starting analysis...</div>';
+        
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        formData.append('category', category);
+        formData.append('username', username);
+        formData.append('pat', pat);
+        if (customPrompt) {
+            formData.append('prompt', customPrompt);
+        }
+
+        try {
+            const response = await fetch('/analyze/stream', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            handleStreamResponse(response);
+        } catch (error) {
+            console.error('Error:', error);
+            showError('An error occurred during analysis. Please try again.');
+            document.querySelector('.max-w-xl.mx-auto').style.display = 'block';
+            progressContainer.style.display = 'none';
+        }
+    });
+
+    // Update progress bar
+    function updateProgress(progress) {
         const progressBar = document.getElementById('progressBar');
         const progressBarFill = document.getElementById('progressBarFill');
-        const error = document.getElementById('error');
-        const resultsContent = document.getElementById('resultsContent');
-        const summaryContent = document.getElementById('summaryContent');
+        if (progressBar && progressBarFill) {
+            progressBar.textContent = `${Math.round(progress)}%`;
+            progressBarFill.style.width = `${progress}%`;
+        }
+    }
 
-        // Chat functionality
-        let currentAnalysisResults = null;
-        let isChatMinimized = false;
+    // Update status message
+    function updateStatus(message) {
+        const status = document.getElementById('status');
+        if (status) {
+            status.textContent = message;
+        }
+    }
 
-        // Load cached credentials into form
-        document.addEventListener('DOMContentLoaded', function() {
-            const username = localStorage.getItem('username');
-            const pat = localStorage.getItem('pat');
-            
-            if (username) {
-                document.getElementById('username').value = username;
-            }
-            if (pat) {
-                document.getElementById('pat').value = pat;
-            }
-        });
+    // Display final results
+    function displayResults(data) {
+        console.log('Displaying results:', data);
+        
+        // Store results for chat
+        currentAnalysisResults = data;
+        
+        // Show chat button when results are ready
+        document.getElementById('chatButton').style.display = 'flex';
+        
+        // Hide upload container and show results
+        document.querySelector('.max-w-xl.mx-auto').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+        document.getElementById('results').style.display = 'block';
+        
+        // Set video source
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoFile = document.getElementById('videoFile').files[0];
+        if (videoFile) {
+            videoPlayer.src = URL.createObjectURL(videoFile);
+        }
+        
+        // Update summary content
+        if (data.video_summary) {
+            summaryContent.innerHTML = `
+                <div class="mb-4">
+                    <p class="text-gray-600">${data.video_summary}</p>
+                </div>
+                <div class="mb-4">
+                    <p class="text-gray-600">Total Frames Analyzed: ${data.total_frames}</p>
+                    <p class="text-gray-600">Analysis Duration: ${data.duration.toFixed(2)} seconds</p>
+                </div>
+            `;
+        } else {
+            summaryContent.innerHTML = `
+                <div class="mb-4">
+                    <p class="text-gray-600">Total Frames Analyzed: ${data.total_frames}</p>
+                    <p class="text-gray-600">Analysis Duration: ${data.duration.toFixed(2)} seconds</p>
+                </div>
+            `;
+        }
 
-        // Handle form submission
-        uploadForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            // Get form data
-            const formData = new FormData(this);
-            const username = formData.get('username');
-            const pat = formData.get('pat');
-            
-            // Cache credentials
-            localStorage.setItem('username', username);
-            localStorage.setItem('pat', pat);
-            
-            const videoFile = document.getElementById('videoFile').files[0];
-            if (!videoFile) {
-                showError('Please select a video file');
-                return;
-            }
-            
-            if (!username || !pat) {
-                showError('Please enter both username and PAT');
-                return;
-            }
-            
-            const category = document.getElementById('category').value;
-            const prompt = document.getElementById('customPrompt').value.trim();
-            
-            // Show progress container
-            document.getElementById('progressContainer').style.display = 'block';
-            document.getElementById('progressBarFill').style.width = '0%';
-            document.getElementById('progressBar').textContent = '0%';
-            document.getElementById('processingDetails').innerHTML = '<div class="italic text-gray-500">Starting analysis...</div>';
-            
-            // Create new FormData for the upload
-            const uploadData = new FormData();
-            uploadData.append('video', videoFile);
-            uploadData.append('username', username);
-            uploadData.append('pat', pat);
-            uploadData.append('category', category);
-            if (prompt) {
-                uploadData.append('prompt', prompt);
-            }
-            
-            try {
-                const response = await fetch('/analyze/stream', {
-                    method: 'POST',
-                    body: uploadData
+        // Display all frames in a scrollable container
+        resultsContent.innerHTML = data.frames.map((frame, index) => `
+            <div class="frame-card bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors mb-2" 
+                 data-timestamp="${frame.timestamp}">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm text-gray-500 font-medium">${frame.timestamp.toFixed(2)}s</span>
+                </div>
+                <div class="frame-reasoning text-gray-800 mb-2 font-medium">${frame.reasoning}</div>
+                <div class="frame-details hidden space-y-2">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="text-lg font-semibold text-gray-900">Frame ${index + 1}</h3>
+                    </div>
+                    ${Object.entries(frame)
+                        .filter(([key]) => key !== 'timestamp' && key !== 'reasoning')
+                        .map(([key, value]) => `
+                            <div class="flex flex-col">
+                                <span class="text-sm font-medium text-gray-600">${key.replace(/_/g, ' ')}</span>
+                                <span class="text-gray-800">${value}</span>
+                            </div>
+                        `).join('')}
+                </div>
+            </div>
+        `).join('');
+        
+        // Add click handler to frame cards
+        document.querySelectorAll('.frame-card').forEach(card => {
+            card.addEventListener('click', function() {
+                // Toggle expanded state
+                const details = this.querySelector('.frame-details');
+                const isExpanded = !details.classList.contains('hidden');
+                
+                // Update all cards to collapsed state
+                document.querySelectorAll('.frame-card').forEach(c => {
+                    c.querySelector('.frame-details').classList.add('hidden');
+                    c.classList.remove('bg-blue-50', 'border-blue-500');
                 });
                 
-                if (!response.ok) {
-                    throw new Error('Failed to start analysis');
+                // If this card wasn't expanded, expand it
+                if (!isExpanded) {
+                    details.classList.remove('hidden');
+                    this.classList.add('bg-blue-50', 'border-blue-500');
                 }
                 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                
-                while (true) {
-                    const {value, done} = await reader.read();
-                    if (done) break;
-                    
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.error) {
-                                    throw new Error(data.error);
-                                }
-                                if (data.progress) {
-                                    const progress = data.progress;
-                                    document.getElementById('progressBarFill').style.width = `${progress}%`;
-                                    document.getElementById('progressBar').textContent = `${progress}%`;
-                                }
-                                if (data.result) {
-                                    const frameResult = data.result;
-                                    const processingDetails = document.getElementById('processingDetails');
-                                    
-                                    // Create a more detailed frame analysis
-                                    const frameInfo = [];
-                                    if (frameResult.timestamp) {
-                                        frameInfo.push(`[${frameResult.timestamp.toFixed(2)}s]`);
-                                    }
-                                    if (frameResult.event_type) {
-                                        frameInfo.push(`Event: ${frameResult.event_type}`);
-                                    }
-                                    if (frameResult.animal_behavior) {
-                                        frameInfo.push(`Behavior: ${frameResult.animal_behavior}`);
-                                    }
-                                    if (frameResult.performance) {
-                                        frameInfo.push(`Performance: ${frameResult.performance}`);
-                                    }
-                                    if (frameResult.score) {
-                                        frameInfo.push(`Score: ${frameResult.score}`);
-                                    }
-                                    if (frameResult.reasoning) {
-                                        frameInfo.push(`Analysis: ${frameResult.reasoning}`);
-                                    }
-                                    
-                                    // Clear previous content
-                                    processingDetails.innerHTML = '';
-                                    
-                                    // Create a container for the streaming text
-                                    const textContainer = document.createElement('div');
-                                    textContainer.className = 'text-gray-600';
-                                    processingDetails.appendChild(textContainer);
-                                    
-                                    // Stream the text character by character
-                                    const fullText = frameInfo.join(' | ');
-                                    let charIndex = 0;
-                                    
-                                    const streamText = () => {
-                                        if (charIndex < fullText.length) {
-                                            textContainer.textContent = fullText.substring(0, charIndex + 1);
-                                            charIndex++;
-                                            setTimeout(streamText, 20); // Adjust speed here (lower = faster)
-                                        }
-                                    };
-                                    
-                                    streamText();
-                                }
-                                if (data.complete) {
-                                    // Store the results for chat
-                                    currentAnalysisResults = data.results;
-                                    
-                                    // Show chat interface
-                                    document.getElementById('chatInterface').style.display = 'block';
-                                    document.getElementById('chatInput').focus();
-                                    
-                                    // Hide progress container after a delay
-                                    setTimeout(() => {
-                                        document.getElementById('progressContainer').style.display = 'none';
-                                    }, 2000);
-                                }
-                            } catch (e) {
-                                console.error('Error parsing chunk:', e);
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showError(error.message);
-                document.getElementById('progressContainer').style.display = 'none';
-            }
-        });
-
-        function displayResults(data) {
-            console.log('Displaying results:', data);
-            
-            // Store results for chat
-            currentAnalysisResults = data;
-            
-            // Show chat button when results are ready
-            document.getElementById('chatButton').style.display = 'flex';
-            
-            // Hide upload container and show results
-            document.querySelector('.max-w-xl.mx-auto').style.display = 'none';
-            results.style.display = 'block';
-            
-            // Set video source
-            const videoPlayer = document.getElementById('videoPlayer');
-            const videoFile = document.getElementById('videoFile').files[0];
-            if (videoFile) {
-                videoPlayer.src = URL.createObjectURL(videoFile);
-            }
-            
-            // Update summary content
-            if (data.video_summary) {
-                summaryContent.innerHTML = `
-                    <div class="mb-4">
-                        <p class="text-gray-600">${data.video_summary}</p>
-                    </div>
-                    <div class="mb-4">
-                        <p class="text-gray-600">Total Frames Analyzed: ${data.total_frames}</p>
-                        <p class="text-gray-600">Analysis Duration: ${data.duration.toFixed(2)} seconds</p>
-                    </div>
-                `;
-            } else {
-                summaryContent.innerHTML = `
-                    <div class="mb-4">
-                        <p class="text-gray-600">Total Frames Analyzed: ${data.total_frames}</p>
-                        <p class="text-gray-600">Analysis Duration: ${data.duration.toFixed(2)} seconds</p>
-                    </div>
-                `;
-            }
-
-            // Display all frames in a scrollable container
-            resultsContent.innerHTML = data.frames.map((frame, index) => `
-                <div class="frame-card bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors mb-2" 
-                     data-timestamp="${frame.timestamp}">
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-sm text-gray-500 font-medium">${frame.timestamp.toFixed(2)}s</span>
-                    </div>
-                    <div class="frame-reasoning text-gray-800 mb-2 font-medium">${frame.reasoning}</div>
-                    <div class="frame-details hidden space-y-2">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="text-lg font-semibold text-gray-900">Frame ${index + 1}</h3>
-                        </div>
-                        ${Object.entries(frame)
-                            .filter(([key]) => key !== 'timestamp' && key !== 'reasoning')
-                            .map(([key, value]) => `
-                                <div class="flex flex-col">
-                                    <span class="text-sm font-medium text-gray-600">${key.replace(/_/g, ' ')}</span>
-                                    <span class="text-gray-800">${value}</span>
-                                </div>
-                            `).join('')}
-                    </div>
-                </div>
-            `).join('');
-
-            // Add click handler to frame cards
-            document.querySelectorAll('.frame-card').forEach(card => {
-                card.addEventListener('click', function() {
-                    // Toggle expanded state
-                    const details = this.querySelector('.frame-details');
-                    const isExpanded = !details.classList.contains('hidden');
-                    
-                    // Update all cards to collapsed state
-                    document.querySelectorAll('.frame-card').forEach(c => {
-                        c.querySelector('.frame-details').classList.add('hidden');
-                        c.classList.remove('bg-blue-50', 'border-blue-500');
-                    });
-                    
-                    // If this card wasn't expanded, expand it
-                    if (!isExpanded) {
-                        details.classList.remove('hidden');
-                        this.classList.add('bg-blue-50', 'border-blue-500');
-                    }
-                    
-                    // Jump to timestamp in video
-                    const timestamp = parseFloat(this.getAttribute('data-timestamp'));
-                    if (!isNaN(timestamp) && videoPlayer) {
-                        if (videoPlayer.readyState >= 2) {
+                // Jump to timestamp in video
+                const timestamp = parseFloat(this.getAttribute('data-timestamp'));
+                if (!isNaN(timestamp) && videoPlayer) {
+                    if (videoPlayer.readyState >= 2) {
+                        videoPlayer.currentTime = timestamp;
+                        videoPlayer.pause();
+                        setTimeout(() => { videoPlayer.play(); }, 100);
+                    } else {
+                        videoPlayer.addEventListener('loadeddata', function onLoad() {
                             videoPlayer.currentTime = timestamp;
                             videoPlayer.pause();
                             setTimeout(() => { videoPlayer.play(); }, 100);
-                        } else {
-                            videoPlayer.addEventListener('loadeddata', function onLoad() {
-                                videoPlayer.currentTime = timestamp;
-                                videoPlayer.pause();
-                                setTimeout(() => { videoPlayer.play(); }, 100);
-                                videoPlayer.removeEventListener('loadeddata', onLoad);
-                            });
-                        }
+                            videoPlayer.removeEventListener('loadeddata', onLoad);
+                        });
                     }
-                });
+                }
             });
-        }
-
-        function showError(message) {
-            error.textContent = message;
-            error.classList.remove('hidden');
-            document.querySelector('.max-w-xl.mx-auto').style.display = 'block';
-            progressContainer.style.display = 'none';
-            // Hide chat button on error
-            document.getElementById('chatButton').style.display = 'flex';
-        }
-
-        // Drag and drop support
-        const dropZone = document.querySelector('.border-dashed');
-        
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
         });
+    }
 
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+    // Handle streaming response
+    function handleStreamResponse(response) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentResults = null;
 
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
-        });
+        function processChunk(chunk) {
+            buffer += chunk;
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
-        });
-
-        function highlight(e) {
-            dropZone.classList.add('border-blue-500');
-        }
-
-        function unhighlight(e) {
-            dropZone.classList.remove('border-blue-500');
-        }
-
-        dropZone.addEventListener('drop', handleDrop, false);
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            document.getElementById('videoFile').files = files;
-        }
-
-        // Chat functionality
-        const chatButton = document.getElementById('chatButton');
-        const chatModal = document.getElementById('chatModal');
-        const closeChat = document.getElementById('closeChat');
-        const chatForm = document.getElementById('chatForm');
-        const chatInput = document.getElementById('chatInput');
-        const chatMessages = document.getElementById('chatMessages');
-
-        // Chat UI handlers
-        chatButton.addEventListener('click', () => {
-            chatModal.classList.remove('hidden');
-        });
-
-        closeChat.addEventListener('click', () => {
-            chatModal.classList.add('hidden');
-        });
-
-        // Close modal when clicking outside
-        chatModal.addEventListener('click', (e) => {
-            if (e.target === chatModal) {
-                chatModal.classList.add('hidden');
-            }
-        });
-
-        // Add message to chat
-        function addMessageToChat(role, content) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-4`;
-            
-            const messageContent = document.createElement('div');
-            messageContent.className = `max-w-[80%] rounded-lg p-3 ${
-                role === 'user' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-gray-100 text-gray-800'
-            }`;
-            
-            // Store the raw text for assistant messages for toggling thinking
-            if (role === 'assistant') {
-                messageContent.setAttribute('data-original-text', content);
-                messageContent.innerHTML = renderAssistantText(content);
-            } else {
-                messageContent.textContent = content;
-            }
-            
-            messageDiv.appendChild(messageContent);
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-            return messageContent;
-        }
-
-        // Update the last message
-        function updateLastMessage(content) {
-            const lastMessage = chatMessages.lastElementChild?.querySelector('div');
-            if (lastMessage) {
-                lastMessage.setAttribute('data-original-text', content);
-                lastMessage.innerHTML = renderAssistantText(content);
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }
-        }
-
-        // Handle chat form submission
-        chatForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const question = document.getElementById('chatInput').value.trim();
-            if (!question) return;
-            
-            // Get cached credentials
-            const username = localStorage.getItem('username');
-            const pat = localStorage.getItem('pat');
-            
-            if (!username || !pat) {
-                showError('Please enter your credentials before using chat');
-                return;
-            }
-            
-            // Add user message to chat
-            addMessageToChat('user', question);
-            document.getElementById('chatInput').value = '';
-            
-            // Add initial assistant message
-            const assistantMessage = addMessageToChat('assistant', 'Thinking...');
-            
-            try {
-                // First, store the question and results
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        question: question,
-                        analysis_results: currentAnalysisResults,
-                        username: username,
-                        pat: pat
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to send question');
-                }
-                
-                // Then start the stream
-                const streamResponse = await fetch(`/chat/stream/${encodeURIComponent(question)}`);
-                if (!streamResponse.ok) {
-                    throw new Error('Failed to start chat stream');
-                }
-                
-                const reader = streamResponse.body.getReader();
-                const decoder = new TextDecoder();
-                let responseText = '';
-                
-                while (true) {
-                    const {value, done} = await reader.read();
-                    if (done) break;
-                    
-                    const chunk = decoder.decode(value);
-                    const lines = chunk.split('\n');
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.error) {
-                                    throw new Error(data.error);
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        console.log('Processing data:', data);
+                        
+                        if (data.error) {
+                            showError(data.error);
+                            return;
+                        }
+                        
+                        if (data.done && data.result) {
+                            console.log('Received final results:', data.result);
+                            currentResults = data.result;
+                            displayResults(data.result);  // Display results immediately when we get them
+                            return;
+                        }
+                        
+                        if (data.progress !== undefined) {
+                            updateProgress(data.progress);
+                        }
+                        
+                        if (data.message) {
+                            updateStatus(data.message);
+                        }
+                        
+                        if (data.frame) {
+                            // Update progress
+                            const progress = (data.frame / data.total_frames) * 100;
+                            updateProgress(progress);
+                            
+                            // Add processing details
+                            if (data.result) {
+                                const frameResult = data.result;
+                                const processingDetails = document.getElementById('processingDetails');
+                                
+                                // Create a more detailed frame analysis
+                                const frameInfo = [];
+                                if (frameResult.timestamp) {
+                                    frameInfo.push(`[${frameResult.timestamp.toFixed(2)}s]`);
                                 }
-                                if (data.chunk) {
-                                    responseText += data.chunk;
-                                    updateLastMessage(responseText);
+                                if (frameResult.event_type) {
+                                    frameInfo.push(`Event: ${frameResult.event_type}`);
                                 }
-                            } catch (e) {
-                                console.error('Error parsing chunk:', e);
+                                if (frameResult.animal_behavior) {
+                                    frameInfo.push(`Behavior: ${frameResult.animal_behavior}`);
+                                }
+                                if (frameResult.performance) {
+                                    frameInfo.push(`Performance: ${frameResult.performance}`);
+                                }
+                                if (frameResult.score) {
+                                    frameInfo.push(`Score: ${frameResult.score}`);
+                                }
+                                if (frameResult.reasoning) {
+                                    frameInfo.push(`Analysis: ${frameResult.reasoning}`);
+                                }
+                                
+                                // Clear previous content
+                                processingDetails.innerHTML = '';
+                                
+                                // Create a container for the streaming text
+                                const textContainer = document.createElement('div');
+                                textContainer.className = 'text-gray-600';
+                                processingDetails.appendChild(textContainer);
+                                
+                                // Stream the text character by character
+                                const fullText = frameInfo.join(' | ');
+                                let charIndex = 0;
+                                
+                                const streamText = () => {
+                                    if (charIndex < fullText.length) {
+                                        textContainer.textContent = fullText.substring(0, charIndex + 1);
+                                        charIndex++;
+                                        setTimeout(streamText, 20); // Adjust speed here (lower = faster)
+                                    }
+                                };
+                                
+                                streamText();
                             }
                         }
+                    } catch (e) {
+                        console.error('Error parsing chunk:', e);
                     }
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                updateLastMessage('Sorry, I encountered an error. Please try again.');
-            }
-        });
-
-        // Update all assistant messages when toggling thinking
-        const showThinkingCheckbox = document.getElementById('showThinking');
-        showThinkingCheckbox.addEventListener('change', function() {
-            const assistantMessages = document.querySelectorAll('#chatMessages > div:not(.justify-end) > div');
-            assistantMessages.forEach(msg => {
-                const originalText = msg.getAttribute('data-original-text');
-                if (originalText) {
-                    msg.innerHTML = renderAssistantText(originalText);
-                }
-            });
-        });
-
-        function renderAssistantText(text) {
-            const showThinking = document.getElementById('showThinking').checked;
-            if (showThinking) {
-                // Show everything, style <think>...</think>
-                const thinkingRegex = /<think>([\s\S]*?)<\/think>/g;
-                return text.replace(thinkingRegex, '<span class="text-blue-600 italic">$1</span>');
-            } else {
-                let output = '';
-                let i = 0;
-                while (i < text.length) {
-                    const thinkStart = text.indexOf('<think>', i);
-                    if (thinkStart === -1) {
-                        output += text.slice(i);
-                        break;
-                    }
-                    output += text.slice(i, thinkStart);
-                    const thinkEnd = text.indexOf('</think>', thinkStart + 7);
-                    if (thinkEnd === -1) {
-                        // Incomplete <think> block: show animation
-                        output += `<span class="thinking-dots"><span></span><span></span><span></span></span>`;
-                        break;
-                    }
-                    i = thinkEnd + 8;
-                }
-                return output;
             }
         }
 
+        function readStream() {
+            reader.read().then(({done, value}) => {
+                if (done) {
+                    console.log('Stream complete');
+                    return;
+                }
+                
+                const chunk = decoder.decode(value, {stream: true});
+                processChunk(chunk);
+                readStream();
+            }).catch(error => {
+                console.error('Error reading stream:', error);
+                showError('Error reading analysis stream');
+            });
+        }
+
+        readStream();
+    }
+
+    function showError(message) {
+        error.textContent = message;
+        error.classList.remove('hidden');
+        error.classList.add('text-red-500');
+        document.querySelector('.max-w-xl.mx-auto').style.display = 'block';
+        progressContainer.style.display = 'none';
+        // Hide chat button on error
+        document.getElementById('chatButton').style.display = 'flex';
+    }
+
+    // Drag and drop support
+    const dropZone = document.querySelector('.border-dashed');
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dropZone.classList.add('border-blue-500');
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('border-blue-500');
+    }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        document.getElementById('videoFile').files = files;
+    }
+
+    // Chat functionality
+    const chatButton = document.getElementById('chatButton');
+    const chatModal = document.getElementById('chatModal');
+    const closeChat = document.getElementById('closeChat');
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const chatMessages = document.getElementById('chatMessages');
+
+    // Chat UI handlers
+    chatButton.addEventListener('click', () => {
+        chatModal.classList.remove('hidden');
+    });
+
+    closeChat.addEventListener('click', () => {
+        chatModal.classList.add('hidden');
+    });
+
+    // Close modal when clicking outside
+    chatModal.addEventListener('click', (e) => {
+        if (e.target === chatModal) {
+            chatModal.classList.add('hidden');
+        }
+    });
+
+    // Toggle chat modal
+    function toggleChat() {
+        const modal = document.getElementById('chatModal');
+        modal.classList.toggle('hidden');
+    }
+
+    // Add message to chat
+    function addMessageToChat(role, content) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} mb-4`;
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = `max-w-[80%] rounded-lg p-3 ${
+            role === 'user' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-100 text-gray-800'
+        }`;
+        
+        // Store the raw text for assistant messages for toggling thinking
+        if (role === 'assistant') {
+            messageContent.setAttribute('data-original-text', content);
+            messageContent.innerHTML = renderAssistantText(content);
+        } else {
+            messageContent.textContent = content;
+        }
+        
+        messageDiv.appendChild(messageContent);
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return messageContent;
+    }
+
+    // Update the last message
+    function updateLastMessage(content) {
+        const lastMessage = chatMessages.lastElementChild?.querySelector('div');
+        if (lastMessage) {
+            lastMessage.setAttribute('data-original-text', content);
+            lastMessage.innerHTML = renderAssistantText(content);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    }
+
+    // Handle chat form submission
+    chatForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const question = document.getElementById('chatInput').value.trim();
+        if (!question) return;
+        
+        // Get cached credentials
+        const username = localStorage.getItem('username');
+        const pat = localStorage.getItem('pat');
+        
+        if (!username || !pat) {
+            showError('Please enter your credentials before using chat');
+            return;
+        }
+
+        // Add user message to chat
+        addMessageToChat('user', question);
+        document.getElementById('chatInput').value = '';
+        
+        // Add initial assistant message
+        const assistantMessage = addMessageToChat('assistant', 'Thinking...');
+        
+        try {
+            // First, store the question and results
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    question: question,
+                    analysis_results: currentAnalysisResults,
+                    username: username,
+                    pat: pat
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to send question');
+            }
+            
+            // Then start the stream
+            const streamResponse = await fetch(`/chat/stream/${encodeURIComponent(question)}`);
+            if (!streamResponse.ok) {
+                throw new Error('Failed to start chat stream');
+            }
+
+            const reader = streamResponse.body.getReader();
+            const decoder = new TextDecoder();
+            let responseText = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+                            if (data.chunk) {
+                                responseText += data.chunk;
+                                updateLastMessage(responseText);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing chunk:', e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            updateLastMessage('Sorry, I encountered an error. Please try again.');
+        }
+    });
+
+    // Update all assistant messages when toggling thinking
+    const showThinkingCheckbox = document.getElementById('showThinking');
+    showThinkingCheckbox.addEventListener('change', function() {
+        const assistantMessages = document.querySelectorAll('#chatMessages > div:not(.justify-end) > div');
+        assistantMessages.forEach(msg => {
+            const originalText = msg.getAttribute('data-original-text');
+            if (originalText) {
+                msg.innerHTML = renderAssistantText(originalText);
+            }
+        });
+    });
+
+    function renderAssistantText(text) {
+        const showThinking = document.getElementById('showThinking').checked;
+        if (showThinking) {
+            // Show everything, style <think>...</think>
+            const thinkingRegex = /<think>([\s\S]*?)<\/think>/g;
+            return text.replace(thinkingRegex, '<span class="text-blue-600 italic">$1</span>');
+        } else {
+            let output = '';
+            let i = 0;
+            while (i < text.length) {
+                const thinkStart = text.indexOf('<think>', i);
+                if (thinkStart === -1) {
+                    output += text.slice(i);
+                    break;
+                }
+                output += text.slice(i, thinkStart);
+                const thinkEnd = text.indexOf('</think>', thinkStart + 7);
+                if (thinkEnd === -1) {
+                    // Incomplete <think> block: show animation
+                    output += `<span class="thinking-dots"><span></span><span></span><span></span></span>`;
+                    break;
+                }
+                i = thinkEnd + 8;
+            }
+            return output;
+        }
+    }
+
+    const videoFileInput = document.getElementById('videoFile');
+    const selectedFileName = document.getElementById('selectedFileName');
+
+    videoFileInput.addEventListener('change', function() {
+        if (videoFileInput.files && videoFileInput.files.length > 0) {
+            selectedFileName.textContent = `Selected file: ${videoFileInput.files[0].name}`;
+        } else {
+            selectedFileName.textContent = '';
+        }
+    });
+
+    // Add this to your existing JavaScript
+    document.getElementById('newAnalysisBtn').addEventListener('click', function() {
+        // Clear all results
+        document.getElementById('resultsContent').innerHTML = '';
+        document.getElementById('summaryContent').innerHTML = '';
+        
+        // Reset the form and clear file input
+        document.getElementById('uploadForm').reset();
         const videoFileInput = document.getElementById('videoFile');
-        const selectedFileName = document.getElementById('selectedFileName');
+        videoFileInput.value = ''; // Clear the file input
+        document.getElementById('selectedFileName').textContent = ''; // Clear the filename display
+        
+        // Hide results and progress sections
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'none';
+        
+        // Show the upload container and form
+        document.querySelector('.max-w-xl.mx-auto').style.display = 'block';
+        document.getElementById('uploadForm').style.display = 'block';
+        
+        // Reset progress bar
+        document.getElementById('progressBar').textContent = '0%';
+        document.getElementById('progressBarFill').style.width = '0%';
+        
+        // Clear any existing video preview
+        const videoPreview = document.getElementById('videoPreview');
+        if (videoPreview) {
+            videoPreview.src = '';
+            videoPreview.style.display = 'none';
+        }
 
-        videoFileInput.addEventListener('change', function() {
-            if (videoFileInput.files && videoFileInput.files.length > 0) {
-                selectedFileName.textContent = `Selected file: ${videoFileInput.files[0].name}`;
-            } else {
-                selectedFileName.textContent = '';
-            }
-        });
-
-        // Add this to your existing JavaScript
-        document.getElementById('newAnalysisBtn').addEventListener('click', function() {
-            // Clear all results
-            document.getElementById('resultsContent').innerHTML = '';
-            document.getElementById('summaryContent').innerHTML = '';
-            
-            // Reset the form and clear file input
-            document.getElementById('uploadForm').reset();
-            const videoFileInput = document.getElementById('videoFile');
-            videoFileInput.value = ''; // Clear the file input
-            document.getElementById('selectedFileName').textContent = ''; // Clear the filename display
-            
-            // Hide results and progress sections
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('progressContainer').style.display = 'none';
-            
-            // Show the upload container and form
-            document.querySelector('.max-w-xl.mx-auto').style.display = 'block';
-            document.getElementById('uploadForm').style.display = 'block';
-            
-            // Reset progress bar
-            document.getElementById('progressBar').textContent = '0%';
-            document.getElementById('progressBarFill').style.width = '0%';
-            
-            // Clear any existing video preview
-            const videoPreview = document.getElementById('videoPreview');
-            if (videoPreview) {
-                videoPreview.src = '';
-                videoPreview.style.display = 'none';
-            }
-
-            // Clear chat history and reset chat state
-            document.getElementById('chatMessages').innerHTML = '';
-            currentAnalysisResults = null;
-            
-            // Hide chat button and modal
-            document.getElementById('chatButton').classList.add('hidden');
-            document.getElementById('chatModal').classList.add('hidden');
-        });
-    </script>
+        // Clear chat history and reset chat state
+        document.getElementById('chatMessages').innerHTML = '';
+        currentAnalysisResults = null;
+        
+        // Hide chat button and modal
+        document.getElementById('chatButton').classList.add('hidden');
+        document.getElementById('chatModal').classList.add('hidden');
+    });
+</script>
 </body>
 </html> 
