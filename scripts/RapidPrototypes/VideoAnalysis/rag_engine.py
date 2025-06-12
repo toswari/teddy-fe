@@ -29,32 +29,32 @@ class VideoAnalysisRAG:
         # Extract the actual results from the analysis_results structure
         if isinstance(results, dict) and 'results' in results:
             results = results['results']
-        
-        # Add duration if available
-        if 'duration' in results:
-            context_parts.append(f"Video Duration: {results['duration']} seconds")
-        
-        # Add frame-by-frame analysis
-        if 'frames' in results and results['frames']:
-            context_parts.append("\nDetailed Frame Analysis:")
-            for frame in results['frames']:
-                frame_info = []
-                if 'timestamp' in frame:
-                    frame_info.append(f"At {frame['timestamp']}s:")
-                if 'animal_behavior' in frame:
-                    frame_info.append(f"Animal Behavior: {frame['animal_behavior']}")
-                if 'event_type' in frame:
-                    frame_info.append(f"Event Type: {frame['event_type']}")
-                if 'performance' in frame:
-                    frame_info.append(f"Performance: {frame['performance']}")
-                if 'reasoning' in frame:
-                    frame_info.append(f"Reasoning: {frame['reasoning']}")
-                if 'score' in frame:
-                    frame_info.append(f"Score: {frame['score']}")
-                if frame_info:
-                    context_parts.append(" ".join(frame_info))
-                    context_parts.append("")  # Add blank line between frames
-        
+            
+            # Add duration if available
+            if 'duration' in results:
+                context_parts.append(f"Video Duration: {results['duration']} seconds")
+            
+            # Add frame-by-frame analysis
+            if 'frames' in results and results['frames']:
+                context_parts.append("\nDetailed Frame Analysis:")
+                for frame in results['frames']:
+                    frame_info = []
+                    if 'timestamp' in frame:
+                        frame_info.append(f"At {frame['timestamp']}s:")
+                    if 'animal_behavior' in frame:
+                        frame_info.append(f"Animal Behavior: {frame['animal_behavior']}")
+                    if 'event_type' in frame:
+                        frame_info.append(f"Event Type: {frame['event_type']}")
+                    if 'performance' in frame:
+                        frame_info.append(f"Performance: {frame['performance']}")
+                    if 'reasoning' in frame:
+                        frame_info.append(f"Reasoning: {frame['reasoning']}")
+                    if 'score' in frame:
+                        frame_info.append(f"Score: {frame['score']}")
+                    if frame_info:
+                        context_parts.append(" ".join(frame_info))
+                        context_parts.append("")  # Add blank line between frames
+            
         return "\n".join(context_parts)
 
     def _create_prompt(self, question: str, context: str) -> str:
@@ -111,7 +111,7 @@ Please provide a clear and concise answer based on the analysis above."""
                     yield chunk.text
                 else:
                     logger.warning(f"Unexpected chunk type: {type(chunk)}")
-                    
+                
         except Exception as e:
             logger.error(f"Error getting response from model: {str(e)}")
             logger.error(traceback.format_exc())
