@@ -254,17 +254,14 @@ def associate_line_to_yard(proto_lines, yard_boxes, yard_labels):
     if not line_yard_map.shape[0]:
         # no yard lines intersected, return empty map
         return line_yard_map, line_yard_imap
-    
-    # insert entries for proto lines that do not intersect any yard boxes
-    gaps = np.arange(line_yard_map[:,0].min() + 1, proto_lines.shape[0], 2)
-    if len(gaps) < line_yard_map.shape[0]:
-        gaps = [*gaps, *[-1 for _ in range(line_yard_map.shape[0] - len(gaps))]]
 
-    # for column stack, need exact length match
-    gaps = gaps[:line_yard_map.shape[0]]
+    # create map for all proto lines, with -1 for ones without a box
+    tmp_line_yard_map = np.hstack((np.arange(proto_lines.shape[0]).reshape(-1,1), -1*np.ones((proto_lines.shape[0],1))))
+    tmp_line_yard_map[line_yard_map[:,0], 1] = line_yard_map[:,1]
+    tmp_line_yard_map[tmp_line_yard_map[:,-1]==-1, 1] = np.interp(tmp_line_yard_map[tmp_line_yard_map[:,-1]==-1, 0], tmp_line_yard_map[tmp_line_yard_map[:,-1]!=-1, 0], tmp_line_yard_map[tmp_line_yard_map[:,-1]!=-1,1], left=-1, right=-1)
 
-    line_yard_map = np.column_stack((line_yard_map, gaps, np.interp(gaps, *line_yard_map.T, right=-1, left=-1))).reshape(-1,2)
-    line_yard_map = line_yard_map[line_yard_map[:,-1] != -1]
+    # line_yard_map = np.column_stack((line_yard_map, gaps, np.interp(gaps, *line_yard_map.T, right=-1, left=-1))).reshape(-1,2)
+    line_yard_map = tmp_line_yard_map[tmp_line_yard_map[:,-1] != -1]
 
     # get rid of peak at 50, just go from 0 = left goal line -> 100 = right goal line
     diffs = np.diff(line_yard_map[:,1])
@@ -638,9 +635,7 @@ def process_image(
     # Step 3: Deduplicate lines
     proto_lines, clustered, inner_to_upper = deduplicate_lines(yard_lines, inner_boxes)
 
-    # line_yard_map, line_yard_imap = associate_line_to_yard(proto_lines, yard_boxes, yard_labels)
-
-    # possible issues and fixes
+    # possible association issues and fixes
     # 1. Inconsistent yard line label: multiple numbers assigned to same line
     ## loop over all conflicts, dropping a conflicting box each time, minimize backprojection error
     ## or just take the most confident line for conflicted lines
@@ -823,12 +818,63 @@ def draw_up_edge_boxes(detected_img: np.ndarray, up_edge_boxes: np.ndarray):
         cv2.rectangle(detected_img, (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 2)
         cv2.putText(detected_img, 'up_edge', (int(x), int(y-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
 
+def field_to_pixel(x, y, field_img):
+    h, w = field_img.shape[:2]
+    scale_x, scale_y = w / FIELD_LENGTH, h / FIELD_WIDTH
+    scale = min(scale_x, scale_y)
+
+    field_origin = np.array([(w - FIELD_LENGTH * scale) // 2, (h - FIELD_WIDTH * scale) // 2])
+    return (field_origin + np.array([x, y]) * scale).astype(int)
+
+def gen_field(h, w):
+    field_img = np.zeros((h, w, 3), dtype=np.uint8)
+    field_img.fill(34)
+    
+    # Draw field outline
+    field_corners = [(0, 0), (FIELD_LENGTH, 0), (FIELD_LENGTH, FIELD_WIDTH), (0, FIELD_WIDTH)]
+    field_corners_px = [field_to_pixel(x, y, field_img) for x, y in field_corners]
+    cv2.polylines(field_img, [np.array(field_corners_px)], True, (255, 255, 255), 2)
+
+    # Draw yard lines every 10 yards
+    for x in range(10, FIELD_LENGTH - 10 + 1, 10):
+        p1 = field_to_pixel(x, 0, field_img)
+        p2 = field_to_pixel(x, FIELD_WIDTH, field_img)
+        cv2.line(field_img, p1, p2, (255, 255, 255), 1)
+
+        # Add yard numbers
+        if 20 <= x <= 100:
+            yard_num = min(x - 10, 110 - x)  # Distance from nearest goal line
+            cv2.putText(field_img, str(yard_num), 
+                    field_to_pixel(x - 2, FIELD_WIDTH/2, field_img), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            
+    # Draw hash marks for each league with corresponding color
+    for league_enum, hash_dist in hash_mark_distances.items():
+        color = {
+            'yellow': (0, 255, 255),
+            'tab:orange': (0, 165, 255),
+            'cyan': (255, 255, 0)
+        }[hash_mark_colors[league_enum]]
+
+        # Bottom edge hash marks
+        for x, _ in bottom_edge_hash_mark_coords:
+            px, py = field_to_pixel(x, hash_dist, field_img)
+            cv2.circle(field_img, (px, py), 3, color, -1)
+
+        # Top edge hash marks
+        for x, _ in top_edge_hash_mark_coords:
+            px, py = field_to_pixel(x, FIELD_WIDTH - hash_dist, field_img)
+            cv2.circle(field_img, (px, py), 3, color, -1)
+            
+    return field_img
+
 def main(image_path: str,
          league: League,
          clarifai_model_url: str,
          output_dir: str,
          verbose: bool = False,
-         config: ProcessingConfig = ProcessingConfig()):
+         config: ProcessingConfig = ProcessingConfig(),
+         burn_metrics: bool = False):
     print(f"Processing: {image_path}")
 
     print(f"Using remote detector at {clarifai_model_url}")
@@ -859,32 +905,7 @@ def main(image_path: str,
     hom_img = img.copy()
     
     h, w = hom_img.shape[:2]
-    field_img = np.zeros((h, w, 3), dtype=np.uint8)
-    field_img.fill(34)
-    scale_x, scale_y = w / FIELD_LENGTH, h / FIELD_WIDTH
-    scale = min(scale_x, scale_y)
-
-    field_origin = np.array([(w - FIELD_LENGTH * scale) // 2, (h - FIELD_WIDTH * scale) // 2])
-    def field_to_pixel(x, y):
-        return (field_origin + np.array([x, y]) * scale).astype(int)
-    
-    # Draw field outline
-    field_corners = [(0, 0), (FIELD_LENGTH, 0), (FIELD_LENGTH, FIELD_WIDTH), (0, FIELD_WIDTH)]
-    field_corners_px = [field_to_pixel(x, y) for x, y in field_corners]
-    cv2.polylines(field_img, [np.array(field_corners_px)], True, (255, 255, 255), 2)
-
-    # Draw yard lines every 10 yards
-    for x in range(10, FIELD_LENGTH - 10 + 1, 10):
-        p1 = field_to_pixel(x, 0)
-        p2 = field_to_pixel(x, FIELD_WIDTH)
-        cv2.line(field_img, p1, p2, (255, 255, 255), 1)
-
-        # Add yard numbers
-        if 20 <= x <= 100:
-            yard_num = min(x - 10, 110 - x)  # Distance from nearest goal line
-            cv2.putText(field_img, str(yard_num), 
-                    field_to_pixel(x - 2, FIELD_WIDTH/2), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+    field_img = gen_field(h, w)
     try:
         if not len(yard_boxes):
             raise ValueError("No yard lines detected in the image. Please check the image quality or configuration.")
@@ -925,17 +946,17 @@ def main(image_path: str,
         # and the homography may not be reliable (TODO)
         cond = np.linalg.cond(homography_result.matrix)
         if cond > 1e12:
-            warnings.append(HomographyError(
-                f"Homography matrix condition number is too high: {cond}",
-                all_lines=result.all_lines,
-                yard_lines=result.yard_lines,
-                proto_lines=result.proto_lines,
-                clustered=result.clustered,
-                inner_to_upper=result.inner_to_upper,
-                line_yard_map=result.line_yard_map,
-                inner_yard_map=result.inner_yard_map,
-                up_edge_yard_map=result.up_edge_yard_map
-            ))
+            # warnings.append(HomographyError(
+            #     f"Homography matrix condition number is too high: {cond}",
+            #     all_lines=result.all_lines,
+            #     yard_lines=result.yard_lines,
+            #     proto_lines=result.proto_lines,
+            #     clustered=result.clustered,
+            #     inner_to_upper=result.inner_to_upper,
+            #     line_yard_map=result.line_yard_map,
+            #     inner_yard_map=result.inner_yard_map,
+            #     up_edge_yard_map=result.up_edge_yard_map
+            # ))
             print(f"Warning: Homography matrix condition number is too high: {cond}")
 
         print(mse, len(warnings))
@@ -958,21 +979,21 @@ def main(image_path: str,
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
         for i, pt in enumerate(homography_result.field_points):
-            px, py = field_to_pixel(pt[0], pt[1])
+            px, py = field_to_pixel(pt[0], pt[1], field_img)
             cv2.circle(field_img, (px, py), 5, (0, 0, 255), -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
         for i, pt in enumerate(transform_points(homography_result.image_points, homography_result.matrix)):
-            px, py = field_to_pixel(pt[0], pt[1])
+            px, py = field_to_pixel(pt[0], pt[1], field_img)
             cv2.circle(field_img, (px, py), 5, (0, 255, 0), -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
         # TODO: check if field of view is convex
-        fov_pts = [field_to_pixel(*x) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
+        fov_pts = [field_to_pixel(*x, field_img) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
         # Check if fov_pts forms a convex polygon
         def is_convex_polygon(pts):
             pts = np.array(pts)
@@ -998,10 +1019,11 @@ def main(image_path: str,
             raise ValueError("Field of view is not convex")
         cv2.polylines(field_img, [np.array(fov_pts)], True, (0, 255, 0), 1)
 
-        cv2.putText(field_img, f'MSE: {mse:.2f}, Cond: {cond:.2f}', (10, 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
-        cv2.putText(field_img, f'Warn: {[type(w).__name__ for w in warnings]}', (10, 55),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
+        if burn_metrics:
+            cv2.putText(field_img, f'MSE: {mse:.2f}, Cond: {cond:.2f}', (10, 30), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
+            cv2.putText(field_img, f'Warn: {[type(w).__name__ for w in warnings]}', (10, 55),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
     except ValueError as e:
         print(f"ValueError processing image: {e}")
         traceback.print_exc()
@@ -1050,6 +1072,8 @@ if __name__ == "__main__":
                    help='URL of remote detector service for yard/hash boxes (overrides local JSONs)')
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose output')
+    parser.add_argument('--burn_metrics', action='store_true',
+                       help='Burn metrics into output images (for debugging)')
     
     args = parser.parse_args()
 
@@ -1073,7 +1097,8 @@ if __name__ == "__main__":
              args.clarifai_model_url,
              output_dir,
              verbose=args.verbose,
-             config=config)
+             config=config,
+             burn_metrics=args.burn_metrics)
     elif os.path.isdir(args.image_path):
         # Process all images in a directory
         for image_file in sorted(os.listdir(args.image_path)):
@@ -1085,7 +1110,8 @@ if __name__ == "__main__":
                         args.clarifai_model_url,
                         output_dir,
                         verbose=args.verbose,
-                        config=config)
+                        config=config,
+                        burn_metrics=args.burn_metrics)
                 except Exception as e:
                     # log but continue processing other images
                     print(f"Error processing {full_image_path}: {e}")
