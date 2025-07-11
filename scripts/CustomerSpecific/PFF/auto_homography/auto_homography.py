@@ -14,32 +14,82 @@ from typing import Optional, Tuple, Dict, List, NamedTuple, TypedDict
 
 logger = logging.getLogger(__name__)
 
-# Field dimensions in yards
-FIELD_LENGTH = 120  # 100 yards + 2x10 yard end zones
-FIELD_WIDTH = 53.3
+# # Field dimensions in yards
+# FIELD_LENGTH = 120  # 100 yards + 2x10 yard end zones
+# FIELD_WIDTH = 53.3
 
 class League(Enum):
     """Enumeration for football leagues."""
     NFL = 'NFL'
     NCAA = 'NCAA'
     HS = 'HS'
+    CFL = 'CFL'
+
+field_lengths = {
+    League.NFL: 120,
+    League.NCAA: 120,
+    League.HS: 120,
+    League.CFL: 150  # CFL field is longer
+}
+
+field_widths = {
+    League.NFL: 53.3,
+    League.NCAA: 53.3,
+    League.HS: 53.3,
+    League.CFL: 65  # CFL field is wider
+}
+
+end_zone_depths = {
+    League.NFL: 10,
+    League.NCAA: 10,
+    League.HS: 10,
+    League.CFL: 20  # CFL end zones are deeper
+}
 
 # Distances from each sideline (in yards)
 hash_mark_distances = {
     League.NFL: 23.7,
     League.NCAA: 20,
-    League.HS: 17.8
+    League.HS: 17.8,
+    League.CFL: 24
 }
 
 hash_mark_colors = {
-    League.NFL: 'yellow',
-    League.NCAA: 'tab:orange',
-    League.HS: 'cyan'
+    League.NFL: (0, 255, 255),
+    League.NCAA: (0, 165, 255),
+    League.HS: (255, 255, 0),
+    League.CFL: (128, 128, 128)  # Gray for CFL
 }
 
+# hash_mark_colors = {
+#     League.NFL: 'yellow',
+#     League.NCAA: 'tab:orange',
+#     League.HS: 'cyan',
+#     League.CFL: 'tab:green'
+# }
+
 # Collect bottom and top edge hash mark coordinates at 5-yard increments (excluding end zones)
-bottom_edge_hash_mark_coords = [[x, 0] for x in range(15, 110, 5)]
-top_edge_hash_mark_coords = [[x, FIELD_WIDTH] for x in range(15, 110, 5)]
+bottom_edge_hash_mark_coords = {
+    league: [
+        [x, 0] for x in range(
+            end_zone_depths[league] + 5,
+            field_lengths[league] - end_zone_depths[league],
+            5
+        )
+    ]
+    for league in League
+}
+
+top_edge_hash_mark_coords = {
+    league: [
+        [x, field_widths[league]] for x in range(
+            end_zone_depths[league] + 5,
+            field_lengths[league] - end_zone_depths[league],
+            5
+        )
+    ]
+    for league in League
+}
 
 class EdgeMethod(Enum):
     """Edge detection methods."""
@@ -449,8 +499,8 @@ def extract_correspondence_points(
             
             # Find corresponding field coordinate using league-specific hash mark distance
             hash_distance = hash_mark_distances[league]
-            field_y = hash_distance if inner_to_upper.get(inner_idx, False) else (FIELD_WIDTH - hash_distance)
-            field_points.append([yard_num+10, field_y])
+            field_y = hash_distance if inner_to_upper.get(inner_idx, False) else (field_widths[league] - hash_distance)
+            field_points.append([yard_num+end_zone_depths[league], field_y])
     
     # Add upper edge hash marks
     for up_idx, yard_num in up_edge_yard_map.items():
@@ -461,8 +511,8 @@ def extract_correspondence_points(
             image_points.append([center_x, center_y])
             
             # Upper edge is at field boundary
-            field_points.append([yard_num+10, 0])
-    
+            field_points.append([yard_num+end_zone_depths[league], 0])
+
     if len(image_points) < 4:
         raise ValueError(
             f"Not enough correspondence points found: {len(image_points)} < 4"
@@ -616,7 +666,7 @@ class ProcessingResult(NamedTuple):
 
 def process_image(
         image: np.ndarray, 
-        league: str, 
+        league: League, 
         yard_boxes: np.ndarray,
         yard_labels: np.ndarray,
         inner_boxes: np.ndarray,
@@ -818,52 +868,48 @@ def draw_up_edge_boxes(detected_img: np.ndarray, up_edge_boxes: np.ndarray):
         cv2.rectangle(detected_img, (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 2)
         cv2.putText(detected_img, 'up_edge', (int(x), int(y-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
 
-def field_to_pixel(x, y, field_img):
+def field_to_pixel(x, y, field_img, league):
     h, w = field_img.shape[:2]
-    scale_x, scale_y = w / FIELD_LENGTH, h / FIELD_WIDTH
+    scale_x, scale_y = w / field_lengths[league], h / field_widths[league]
     scale = min(scale_x, scale_y)
 
-    field_origin = np.array([(w - FIELD_LENGTH * scale) // 2, (h - FIELD_WIDTH * scale) // 2])
+    field_origin = np.array([(w - field_lengths[league] * scale) // 2, (h - field_widths[league] * scale) // 2])
     return (field_origin + np.array([x, y]) * scale).astype(int)
 
-def gen_field(h, w):
+def gen_field(h, w, league):
     field_img = np.zeros((h, w, 3), dtype=np.uint8)
     field_img.fill(34)
     
     # Draw field outline
-    field_corners = [(0, 0), (FIELD_LENGTH, 0), (FIELD_LENGTH, FIELD_WIDTH), (0, FIELD_WIDTH)]
-    field_corners_px = [field_to_pixel(x, y, field_img) for x, y in field_corners]
+    field_corners = [(0, 0), (field_lengths[league], 0), (field_lengths[league], field_widths[league]), (0, field_widths[league])]
+    field_corners_px = [field_to_pixel(x, y, field_img, league) for x, y in field_corners]
     cv2.polylines(field_img, [np.array(field_corners_px)], True, (255, 255, 255), 2)
 
     # Draw yard lines every 10 yards
-    for x in range(10, FIELD_LENGTH - 10 + 1, 10):
-        p1 = field_to_pixel(x, 0, field_img)
-        p2 = field_to_pixel(x, FIELD_WIDTH, field_img)
+    for x in range(end_zone_depths[league], field_lengths[league] - end_zone_depths[league] + 1, 10):
+        p1 = field_to_pixel(x, 0, field_img, league)
+        p2 = field_to_pixel(x, field_widths[league], field_img, league)
         cv2.line(field_img, p1, p2, (255, 255, 255), 1)
 
         # Add yard numbers
-        if 20 <= x <= 100:
-            yard_num = min(x - 10, 110 - x)  # Distance from nearest goal line
+        if end_zone_depths[league] < x < field_lengths[league] - end_zone_depths[league]:
+            yard_num = min(x - end_zone_depths[league], field_lengths[league] - end_zone_depths[league] - x)  # Distance from nearest goal line
             cv2.putText(field_img, str(yard_num), 
-                    field_to_pixel(x - 2, FIELD_WIDTH/2, field_img), 
+                    field_to_pixel(x - 2, field_widths[league] / 2, field_img, league), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
     # Draw hash marks for each league with corresponding color
     for league_enum, hash_dist in hash_mark_distances.items():
-        color = {
-            'yellow': (0, 255, 255),
-            'tab:orange': (0, 165, 255),
-            'cyan': (255, 255, 0)
-        }[hash_mark_colors[league_enum]]
+        color = hash_mark_colors[league_enum]
 
         # Bottom edge hash marks
-        for x, _ in bottom_edge_hash_mark_coords:
-            px, py = field_to_pixel(x, hash_dist, field_img)
+        for x, _ in bottom_edge_hash_mark_coords[league]:
+            px, py = field_to_pixel(x, hash_dist, field_img, league)
             cv2.circle(field_img, (px, py), 3, color, -1)
 
         # Top edge hash marks
-        for x, _ in top_edge_hash_mark_coords:
-            px, py = field_to_pixel(x, FIELD_WIDTH - hash_dist, field_img)
+        for x, _ in top_edge_hash_mark_coords[league]:
+            px, py = field_to_pixel(x, field_widths[league] - hash_dist, field_img, league)
             cv2.circle(field_img, (px, py), 3, color, -1)
             
     return field_img
@@ -905,7 +951,7 @@ def main(image_path: str,
     hom_img = img.copy()
     
     h, w = hom_img.shape[:2]
-    field_img = gen_field(h, w)
+    field_img = gen_field(h, w, league)
     try:
         if not len(yard_boxes):
             raise ValueError("No yard lines detected in the image. Please check the image quality or configuration.")
@@ -913,7 +959,7 @@ def main(image_path: str,
             raise ValueError("No inner hash marks detected in the image. Please check the image quality or configuration.")
         result = process_image(
             img,
-            league=League[league],
+            league=league,
             yard_boxes=np.array(yard_boxes, dtype=np.float32),
             yard_labels=np.array(yard_labels, dtype=np.int32),
             inner_boxes=np.array(inner_boxes, dtype=np.float32),
@@ -979,21 +1025,21 @@ def main(image_path: str,
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
         for i, pt in enumerate(homography_result.field_points):
-            px, py = field_to_pixel(pt[0], pt[1], field_img)
+            px, py = field_to_pixel(pt[0], pt[1], field_img, league)
             cv2.circle(field_img, (px, py), 5, (0, 0, 255), -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
 
         for i, pt in enumerate(transform_points(homography_result.image_points, homography_result.matrix)):
-            px, py = field_to_pixel(pt[0], pt[1], field_img)
+            px, py = field_to_pixel(pt[0], pt[1], field_img, league)
             cv2.circle(field_img, (px, py), 5, (0, 255, 0), -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
         # TODO: check if field of view is convex
-        fov_pts = [field_to_pixel(*x, field_img) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
+        fov_pts = [field_to_pixel(*x, field_img, league) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
         # Check if fov_pts forms a convex polygon
         def is_convex_polygon(pts):
             pts = np.array(pts)
@@ -1062,7 +1108,7 @@ if __name__ == "__main__":
     parser.add_argument('image_path', help='Path to input image')
     parser.add_argument('--output_dir', default=None,
                        help='Output directory for visualizations')
-    parser.add_argument('--league', default='NFL', choices=['NFL', 'NCAA', 'HS'],
+    parser.add_argument('--league', default='NFL', choices=League.__members__.values(), type=League,
                        help='Football league (affects hash mark positioning)')
     parser.add_argument('--edge_method', default='hls-canny-blur', choices=EdgeMethod.__members__.keys(),
                        help='Edge detection method')
