@@ -826,7 +826,7 @@ def field_to_pixel(x, y, field_img):
     field_origin = np.array([(w - FIELD_LENGTH * scale) // 2, (h - FIELD_WIDTH * scale) // 2])
     return (field_origin + np.array([x, y]) * scale).astype(int)
 
-def gen_field(h, w):
+def gen_field(h, w, exclude_hash_marks: bool = False) -> np.ndarray:
     field_img = np.zeros((h, w, 3), dtype=np.uint8)
     field_img.fill(34)
     
@@ -848,6 +848,9 @@ def gen_field(h, w):
                     field_to_pixel(x - 2, FIELD_WIDTH/2, field_img), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
+    if exclude_hash_marks:
+        return field_img
+    
     # Draw hash marks for each league with corresponding color
     for league_enum, hash_dist in hash_mark_distances.items():
         color = {
