@@ -530,6 +530,7 @@ class HomographyResult(NamedTuple):
     matrix: np.ndarray
     image_points: np.ndarray
     field_points: np.ndarray
+    mask: np.ndarray
 
 class HomographyError(Exception):
     pass
@@ -583,6 +584,7 @@ def compute_homography(
         matrix=H,
         image_points=image_points,
         field_points=field_points,
+        mask=mask,
     )
 
 def conflict_dfs(
@@ -749,7 +751,7 @@ def process_image(
         
         try:
             homography_result = compute_homography(image_points, field_points)
-
+            
             backproj = transform_points(
                 homography_result.field_points,
                 homography_result.matrix,
@@ -793,7 +795,8 @@ def process_image(
         homography=best_homography_result or HomographyResult(
             matrix=None,
             field_points=None,
-            image_points=None
+            image_points=None,
+            mask=None
         ),
         warnings=best_warnings
     )
@@ -995,11 +998,11 @@ def main(image_path: str,
             raise HomographyError("Failed to compute homography matrix. Not enough correspondence points or invalid data.")
 
         backproj = transform_points(
-            homography_result.field_points,
+            homography_result.field_points[homography_result.mask.ravel() > 0],
             homography_result.matrix,
             inverse=True
         )
-        se = np.square(homography_result.image_points - backproj)
+        se = np.square(homography_result.image_points[homography_result.mask.ravel() > 0] - backproj)
         mse = np.mean(se)
 
         # compute condition number of the homography matrix
@@ -1027,6 +1030,7 @@ def main(image_path: str,
                 'matrix': homography_result.matrix.tolist(),
                 'image_points': homography_result.image_points.tolist(),
                 'field_points': homography_result.field_points.tolist(),
+                'mask': homography_result.mask.ravel().tolist() if homography_result.mask is not None else None,
                 'squared_backprojection_errors': se.tolist(),
                 'mse': float(mse),
                 'warnings': [str(w) for w in warnings]
@@ -1034,19 +1038,21 @@ def main(image_path: str,
 
         for i, pt in enumerate(homography_result.image_points):
             px, py = tuple(pt.astype(int))
-            cv2.circle(hom_img, (px, py), 5, (0, 0, 255), -1)
+            color = (255, 0, 0) if homography_result.mask[i] else (0, 0, 255)
+            cv2.circle(hom_img, (px, py), 5, color, -1)
             cv2.putText(hom_img, f'{i}', 
                         (px + 5, py), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         for i, pt in enumerate(homography_result.field_points):
             px, py = field_to_pixel(pt[0], pt[1], field_img, league)
-            cv2.circle(field_img, (px, py), 5, (0, 0, 255), -1)
+            color = (255, 0, 0) if homography_result.mask[i] else (0, 0, 255)
+            cv2.circle(field_img, (px, py), 5, color, -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-        for i, pt in enumerate(transform_points(homography_result.image_points, homography_result.matrix)):
+        for i, pt in enumerate(transform_points(homography_result.image_points[homography_result.mask.ravel() > 0], homography_result.matrix)):
             px, py = field_to_pixel(pt[0], pt[1], field_img, league)
             cv2.circle(field_img, (px, py), 5, (0, 255, 0), -1)
             cv2.putText(field_img, f'{i}', 
