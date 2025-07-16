@@ -1124,9 +1124,9 @@ if __name__ == "__main__":
                        help='Output directory for visualizations')
     parser.add_argument('--league', default='NFL', choices=League.__members__.values(), type=League,
                        help='Football league (affects hash mark positioning)')
-    parser.add_argument('--edge_method', default='hls-canny-blur', choices=EdgeMethod.__members__.keys(),
+    parser.add_argument('--edge_method', default='hls-canny-blur', choices=[x.value for x in EdgeMethod.__members__.values()],
                        help='Edge detection method')
-    parser.add_argument('--line_method', default='hough', choices=LineMethod.__members__.keys(),
+    parser.add_argument('--line_method', default='hough', choices=[x.value for x in LineMethod.__members__.values()],
                        help='Line detection method')
     parser.add_argument('--clarifai_model_url', default=None,
                    help='URL of remote detector service for yard/hash boxes (overrides local JSONs)')
@@ -1134,7 +1134,7 @@ if __name__ == "__main__":
                        help='Enable verbose output')
     parser.add_argument('--burn_metrics', action='store_true',
                        help='Burn metrics into output images (for debugging)')
-    
+
     args = parser.parse_args()
 
     # Set up output directory
