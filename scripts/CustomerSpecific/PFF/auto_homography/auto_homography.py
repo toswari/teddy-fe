@@ -593,8 +593,11 @@ def conflict_dfs(
             conflict_dfs(proto_lines, new_boxes, new_labels, tuple(path + p), visited, out=out)
     elif not (column_0_mono and column_1_mono):
         return
-    elif len(line_yard_map) > 1 and np.diff(line_yard_map[:, 1]).max() > 5:
-        return
+    # check for yard difference of 5 yards
+    # this likely means a line that is misclassified but only has one box
+    # TODO: we need to drop such a box
+    # elif len(line_yard_map) > 1 and np.abs(np.diff(line_yard_map[:, 1]).max()) > 5:
+    #     return
     else:
         # No conflicts, we can return the mapping
         out.append((line_yard_map, line_yard_imap, boxes))
@@ -1023,7 +1026,8 @@ def main(image_path: str,
         cv2.polylines(field_img, [np.array(fov_pts)], True, (0, 255, 0), 1)
 
         if burn_metrics:
-            cv2.putText(field_img, f'MSE: {mse:.2f}, Cond: {cond:.2f}', (10, 30), 
+            singular_values = np.linalg.svd(homography_result.matrix, compute_uv=False)
+            cv2.putText(field_img, f'MSE: {mse:.2f}, Cond: {cond:.2f}, S[0]/S[1]: {singular_values[0] / singular_values[1]:.2f}', (10, 30), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
             cv2.putText(field_img, f'Warn: {[type(w).__name__ for w in warnings]}', (10, 55),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
