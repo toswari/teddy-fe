@@ -744,9 +744,27 @@ def process_image(
                 inner_yard_map=inner_yard_map,
                 up_edge_yard_map=up_edge_yard_map,
             ))
+            image_points = np.empty((0, 2), dtype=np.float32)
+            field_points = np.empty((0, 2), dtype=np.float32)
         
         try:
             homography_result = compute_homography(image_points, field_points)
+
+            backproj = transform_points(
+                homography_result.field_points,
+                homography_result.matrix,
+                inverse=True
+            )
+            mse = np.mean(np.square(homography_result.image_points - backproj))
+            if mse < best_backprojection_error:
+                best_line_yard_map = line_yard_map
+                best_line_yard_imap = line_yard_imap
+                best_line_yard_boxes = boxes
+                best_inner_yard_map = inner_yard_map
+                best_up_edge_yard_map = up_edge_yard_map
+                best_backprojection_error = mse
+                best_homography_result = homography_result
+                best_warnings = warnings
         except ValueError as e:
             # caught, but we have other candidate associations to try
             warnings.append(CorrespondenceError(
@@ -760,22 +778,6 @@ def process_image(
                 inner_yard_map=inner_yard_map,
                 up_edge_yard_map=up_edge_yard_map,
             ))
-        
-        backproj = transform_points(
-            homography_result.field_points,
-            homography_result.matrix,
-            inverse=True
-        )
-        mse = np.mean(np.square(homography_result.image_points - backproj))
-        if mse < best_backprojection_error:
-            best_line_yard_map = line_yard_map
-            best_line_yard_imap = line_yard_imap
-            best_line_yard_boxes = boxes
-            best_inner_yard_map = inner_yard_map
-            best_up_edge_yard_map = up_edge_yard_map
-            best_backprojection_error = mse
-            best_homography_result = homography_result
-            best_warnings = warnings
 
     return ProcessingResult(
         all_lines=all_lines,
