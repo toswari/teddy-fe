@@ -68,6 +68,11 @@ hash_mark_colors = {
 #     League.CFL: 'tab:green'
 # }
 
+inner_field_lengths = {
+    league: field_lengths[league] - 2 * end_zone_depths[league]
+    for league in League
+}
+
 # Collect bottom and top edge hash mark coordinates at 5-yard increments (excluding end zones)
 bottom_edge_hash_mark_coords = {
     league: [
@@ -295,7 +300,7 @@ def transverse_gap_fill(proto_lines, transverse, ratio_thr=2):
 # dedup-lib ends here
 
 # associate-lib
-def associate_line_to_yard(proto_lines, yard_boxes, yard_labels):
+def associate_line_to_yard(proto_lines, yard_boxes, yard_labels, inner_field_length: int):
     line_yard_intersect = line_intersects_box(proto_lines, yard_boxes, line_fmt='xym')
     line_yard_imap = np.stack(np.nonzero(line_yard_intersect), axis=1)
 
@@ -313,16 +318,16 @@ def associate_line_to_yard(proto_lines, yard_boxes, yard_labels):
     # line_yard_map = np.column_stack((line_yard_map, gaps, np.interp(gaps, *line_yard_map.T, right=-1, left=-1))).reshape(-1,2)
     line_yard_map = tmp_line_yard_map[tmp_line_yard_map[:,-1] != -1]
 
-    # get rid of peak at 50, just go from 0 = left goal line -> 100 = right goal line
+    # get rid of peak at midfield, just go from 0 = left goal line -> 100 / 110 = right goal line
     diffs = np.diff(line_yard_map[:,1])
     if not len(diffs):
         # only one known yard line in view...
         pass
     elif (np.max(diffs) > 0) == 0:
         # right side of field
-        line_yard_map[:,1] = 100 - line_yard_map[:,1]
+        line_yard_map[:,1] = inner_field_length - line_yard_map[:,1]
     else:
-        # straddling 50 or left side
+        # straddling midfield or left side
         line_yard_map[:,1] = line_yard_map[0,1] + np.cumsum([0,*np.abs(diffs)]) * (2*np.max(diffs > 0) - 1)
 
     return line_yard_map, line_yard_imap
@@ -584,6 +589,7 @@ def conflict_dfs(
         proto_lines: np.ndarray, 
         boxes: np.ndarray, 
         labels: np.ndarray, 
+        inner_field_length: int,
         path: tuple, 
         visited: set, 
         out: list
@@ -602,7 +608,7 @@ def conflict_dfs(
         return
     visited.add(path)
 
-    line_yard_map, line_yard_imap = associate_line_to_yard(proto_lines, boxes, labels)
+    line_yard_map, line_yard_imap = associate_line_to_yard(proto_lines, boxes, labels, inner_field_length)
 
     # Check if line_yard_map is monotonic in either column (0 or 1)
     column_0_mono = (np.all(np.diff(line_yard_map[:, 0]) >= 0) or np.all(np.diff(line_yard_map[:, 0]) <= 0))
@@ -624,7 +630,7 @@ def conflict_dfs(
             # Drop a conflicting box
             new_boxes = np.delete(boxes, p, axis=0)
             new_labels = np.delete(labels, p, axis=0)
-            conflict_dfs(proto_lines, new_boxes, new_labels, tuple(path + p), visited, out=out)
+            conflict_dfs(proto_lines, new_boxes, new_labels, inner_field_length, tuple(path + p), visited, out=out)
     elif len(np.unique(line_yard_map[:, 1])) != line_yard_map.shape[0]:
         # there are conflicts (multiple lines with same label), we need to drop boxes
         vals, index, counts = np.unique(line_yard_map[:, 1], return_counts=True, return_index=True)
@@ -640,7 +646,7 @@ def conflict_dfs(
             # Drop a conflicting box
             new_boxes = np.delete(boxes, p, axis=0)
             new_labels = np.delete(labels, p, axis=0)
-            conflict_dfs(proto_lines, new_boxes, new_labels, tuple(path + p), visited, out=out)
+            conflict_dfs(proto_lines, new_boxes, new_labels, inner_field_length, tuple(path + p), visited, out=out)
     elif not (column_0_mono and column_1_mono):
         return
     # check for yard difference of 5 yards
@@ -701,6 +707,7 @@ def process_image(
         proto_lines, 
         yard_boxes, 
         yard_labels, 
+        inner_field_length=inner_field_lengths[league],
         path=tuple(), 
         visited=set(), 
         out=candidate_associations
