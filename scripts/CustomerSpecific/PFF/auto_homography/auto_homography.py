@@ -1,22 +1,47 @@
 import cv2
+import functools
+import inspect
 import itertools
 import json
 import logging
 import numpy as np
 import os
-import pandas as pd
 import traceback
 
 from dataclasses import dataclass
 from enum import Enum
 from sklearn.cluster import DBSCAN
-from typing import Optional, Tuple, Dict, List, NamedTuple, TypedDict
+from typing import Optional, Tuple, Dict, List, NamedTuple
 
 logger = logging.getLogger(__name__)
 
-# # Field dimensions in yards
-# FIELD_LENGTH = 120  # 100 yards + 2x10 yard end zones
-# FIELD_WIDTH = 53.3
+class FieldInfo(NamedTuple):
+    """Field information for a specific league."""
+    length: int
+    width: int
+    end_zone_depth: int
+    inner_field_length: int
+    hash_mark_distance: int
+
+    @property
+    def bottom_edge_hash_mark_coords(self):
+        return [
+            [x, 0] for x in range(
+                self.end_zone_depth + 5,
+                self.length - self.end_zone_depth,
+                5
+            )
+        ]
+
+    @property
+    def top_edge_hash_mark_coords(self):
+        return [
+            [x, self.width] for x in range(
+                self.end_zone_depth + 5,
+                self.length - self.end_zone_depth,
+                5
+            )
+        ]
 
 class League(Enum):
     """Enumeration for football leagues."""
@@ -25,75 +50,35 @@ class League(Enum):
     HS = 'HS'
     CFL = 'CFL'
 
-field_lengths = {
-    League.NFL: 120,
-    League.NCAA: 120,
-    League.HS: 120,
-    League.CFL: 150  # CFL field is longer
-}
-
-field_widths = {
-    League.NFL: 53.3,
-    League.NCAA: 53.3,
-    League.HS: 53.3,
-    League.CFL: 65  # CFL field is wider
-}
-
-end_zone_depths = {
-    League.NFL: 10,
-    League.NCAA: 10,
-    League.HS: 10,
-    League.CFL: 20  # CFL end zones are deeper
-}
-
-# Distances from each sideline (in yards)
-hash_mark_distances = {
-    League.NFL: 23.7,
-    League.NCAA: 20,
-    League.HS: 17.8,
-    League.CFL: 24
-}
-
-hash_mark_colors = {
-    League.NFL: (0, 255, 255),
-    League.NCAA: (0, 165, 255),
-    League.HS: (255, 255, 0),
-    League.CFL: (128, 128, 128)  # Gray for CFL
-}
-
-# hash_mark_colors = {
-#     League.NFL: 'yellow',
-#     League.NCAA: 'tab:orange',
-#     League.HS: 'cyan',
-#     League.CFL: 'tab:green'
-# }
-
-inner_field_lengths = {
-    league: field_lengths[league] - 2 * end_zone_depths[league]
-    for league in League
-}
-
-# Collect bottom and top edge hash mark coordinates at 5-yard increments (excluding end zones)
-bottom_edge_hash_mark_coords = {
-    league: [
-        [x, 0] for x in range(
-            end_zone_depths[league] + 5,
-            field_lengths[league] - end_zone_depths[league],
-            5
-        )
-    ]
-    for league in League
-}
-
-top_edge_hash_mark_coords = {
-    league: [
-        [x, field_widths[league]] for x in range(
-            end_zone_depths[league] + 5,
-            field_lengths[league] - end_zone_depths[league],
-            5
-        )
-    ]
-    for league in League
+FIELD_INFOS = {
+    League.NFL: FieldInfo(
+        length=120,
+        width=53.3,
+        end_zone_depth=10,
+        inner_field_length=100,
+        hash_mark_distance=23.7
+    ),
+    League.NCAA: FieldInfo(
+        length=120,
+        width=53.3,
+        end_zone_depth=10,
+        inner_field_length=100,
+        hash_mark_distance=20
+    ),
+    League.HS: FieldInfo(
+        length=120,
+        width=53.3,
+        end_zone_depth=10,
+        inner_field_length=100,
+        hash_mark_distance=17.8
+    ),
+    League.CFL: FieldInfo(
+        length=150,
+        width=65,
+        end_zone_depth=20,
+        inner_field_length=110,
+        hash_mark_distance=24
+    )
 }
 
 class EdgeMethod(Enum):
@@ -113,18 +98,128 @@ class LineMethod(Enum):
 @dataclass(frozen=True)
 class ProcessingConfig:
     """Immutable configuration for football field line detection and analysis."""
-    edge_method: EdgeMethod = EdgeMethod.HLS_CANNY_BLUR
-    line_method: LineMethod = LineMethod.HOUGH
+    transforms: List[dict]
+    field_info: FieldInfo
+
+    directional_threshold: float = 0.995
+
+class Registry:
+    """Registry for processing functions."""
+    def __init__(self):
+        self._registry = {}
+
+    def register(self, name: str = None, build_func: callable = None):
+        """Register a processing function."""
+        def decorator(func, name=name, build_func=build_func):
+            if name is None:
+                name = func.__name__
+
+            if name in self._registry:
+                raise ValueError(f"Function '{name}' is already registered.")
+            
+            if build_func is None:
+                build_func = functools.partial if inspect.isfunction(func) else lambda f, *args, **kwargs: f(*args, **kwargs)
+
+            self._registry[name] = (func, build_func)
+        return decorator
+
+    def get(self, name: str, *args, **kwargs):
+        """Get a registered processing function."""
+        result = self._registry.get(name)
+        if result is None:
+            raise ValueError(f"Function '{name}' is not registered.")
+        func, build_func = result
+
+        if build_func is not None and (len(args) > 0 or (kwargs is not None and len(kwargs) > 0)):
+            func = build_func(func, *args, **kwargs)
+
+        return func
+    
+    def __repr__(self):
+        return f"Registry({self._registry})"
+    
+IMAGE_TRANSFORMS = Registry()
+
+@IMAGE_TRANSFORMS.register()
+def mean_blur_2d(img, kernel_size: int = 3) -> np.ndarray:
+    """Apply a 2D blur to the image."""
+    kernel = np.ones((kernel_size, kernel_size), np.float32) / (kernel_size ** 2)
+    return cv2.filter2D(img, -1, kernel)
+
+@IMAGE_TRANSFORMS.register()
+def luminosity_percentile(
+        img: np.ndarray, 
+        percentile: int = 90,
+    ) -> np.ndarray:
+    return hls_filter(img, percentile)
+
+@IMAGE_TRANSFORMS.register()
+class ExampleTransform:
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, img, *args, **kwargs):
+        print(self.args, self.kwargs)
+        return img
+    
+@IMAGE_TRANSFORMS.register()
+def cvtColor(img: np.ndarray, code: str) -> np.ndarray:
+    """Convert image color space using OpenCV."""
+    return cv2.cvtColor(img, getattr(cv2, f'COLOR_{code}'))
+
+@IMAGE_TRANSFORMS.register()
+def cvtGray(img: np.ndarray) -> np.ndarray:
+    """Convert image to grayscale using OpenCV."""
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+@IMAGE_TRANSFORMS.register()
+def canny_edge(img: np.ndarray, low_threshold: int = 50, high_threshold: int = 150) -> np.ndarray:
+    """Apply Canny edge detection to the image."""
+    return cv2.Canny(img, low_threshold, high_threshold)
+
+@IMAGE_TRANSFORMS.register()
+def hough_lines_xyxy(
+    img: np.ndarray, 
+    rho: float = 1, 
+    theta: float = np.pi/180,
+    threshold: int = 150,
+) -> np.ndarray:
+    """Detect lines in the image using Hough Transform."""
+    all_lines = cv2.HoughLines(img, rho, theta, threshold)
+    if all_lines is None:
+        return np.empty(shape=(0, 2), dtype=np.float32)
+    
+    result = [] 
+    for i in range(0, len(all_lines)):
+        rho = all_lines[i][0][0]
+        theta = all_lines[i][0][1]
+        a, b = np.cos(theta), np.sin(theta)
+        x, y = a*rho, b*rho
+        pt1 = (int(x + 1000*(-b)), int(y+1000*(a)))
+        pt2 = (int(x - 1000*(-b)), int(y-1000*(a)))
+        result.append([[*pt1, *pt2]])
+    all_lines = np.array([l[0] for l in result])
+    all_lines = all_lines[all_lines[:,0] != all_lines[:,2]]  # filter out vertical lines
+
+    return all_lines
+
+@IMAGE_TRANSFORMS.register()
+def hough_linesp(edges: np.ndarray, rho: float = 1, theta: float = np.pi/180, threshold: int = 200, minLineLength: int = 1, maxLineGap: int = 80) -> np.ndarray:
+    return cv2.HoughLinesP(edges, rho=rho, theta=theta,
+                               threshold=threshold,
+                               minLineLength=minLineLength,
+                               maxLineGap=maxLineGap)
 
 # line-detection-lib
-def hls_filter(image):
+def hls_filter(image, l_percentile=90):
     hls_image = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
     h, l, s = cv2.split(hls_image)
 
     h_min, h_max = 0, 179
     s_min, s_max = 0, 255
 
-    l_lower = int(np.percentile(l, 90))
+    l_lower = int(np.percentile(l, l_percentile))
     l_upper = 225
 
     lower_white = np.array([h_min, l_lower, s_min])
@@ -132,47 +227,6 @@ def hls_filter(image):
     white_mask = cv2.inRange(hls_image, lower_white, upper_white)
     result = cv2.bitwise_and(image, image, mask=white_mask)
     return result
-
-def get_edges(image, method):
-    kernel = np.ones((3,3), np.float32)/9
-    if method == EdgeMethod.GRAY_CANNY.value:
-        pass
-    elif method == EdgeMethod.GRAY_CANNY_BLUR.value:
-        image = cv2.filter2D(image, -1, kernel)
-    elif method == EdgeMethod.HLS_CANNY.value:
-        image = hls_filter(image)
-    elif method == EdgeMethod.HLS_CANNY_BLUR.value:
-        image = cv2.filter2D(image, -1, kernel)
-        image = hls_filter(image)
-    else:
-        raise ValueError(f"edge_method = {method} is not supported")
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 50, 150)
-    return edges
-
-def get_lines(edges, method, edge_method=None):
-    if method == LineMethod.HOUGHP.value:
-        all_lines = cv2.HoughLinesP(edges, rho=1, theta=np.pi/180,
-                               threshold=200 if 'hls' not in edge_method else 100,
-                               minLineLength=1,
-                               maxLineGap=80)
-    elif method == LineMethod.HOUGH.value:
-        all_lines = cv2.HoughLines(edges, 1, np.pi/180, 150, None, 0, 0)
-        if all_lines is not None:
-            result = []
-            for i in range(0, len(all_lines)):
-                rho = all_lines[i][0][0]
-                theta = all_lines[i][0][1]
-                a, b = np.cos(theta), np.sin(theta)
-                x, y = a*rho, b*rho
-                pt1 = (int(x + 1000*(-b)), int(y+1000*(a)))
-                pt2 = (int(x - 1000*(-b)), int(y-1000*(a)))
-                result.append([[*pt1, *pt2]])
-            all_lines = np.array(result)
-    else:
-        raise ValueError("invalid line method")
-
-    return [] if all_lines is None else all_lines
 # line-detection-lib ends here
 
 # comp-geo-lib
@@ -351,26 +405,6 @@ def associate_hash_to_yard(proto_lines, line_yard_dict, inner_boxes, up_edge_box
     return inner_yard_map, up_edge_yard_map
 # associate-lib ends here
 
-def detect_field_features(
-        image: np.ndarray,
-        config: ProcessingConfig
-):
-    """Detects field features (lines) in a given image using specified processing configuration.
-
-    Args:
-        image (np.ndarray): The input image as a NumPy array.
-        config (ProcessingConfig): Configuration object specifying edge and line detection methods.
-
-    Returns:
-        np.ndarray: An array of detected lines, where each line is represented by its endpoints.
-    """
-    edges = get_edges(image, config.edge_method.value)
-    all_lines = get_lines(edges, config.line_method.value)
-    all_lines = np.array([l[0] for l in all_lines])
-    all_lines = all_lines[all_lines[:,0] != all_lines[:,2]]
-
-    return all_lines
-
 def extract_yard_lines(
         all_lines: np.ndarray,
         yard_boxes: np.ndarray,
@@ -488,7 +522,7 @@ def extract_correspondence_points(
     inner_yard_map: Dict[int, int],
     up_edge_yard_map: Dict[int, int], 
     inner_to_upper: Dict[int, bool],
-    league: League
+    field_info: FieldInfo,
 ) -> Tuple[np.ndarray, np.ndarray]:
     image_points = []
     field_points = []
@@ -503,10 +537,10 @@ def extract_correspondence_points(
             image_points.append([center_x, center_y])
             
             # Find corresponding field coordinate using league-specific hash mark distance
-            hash_distance = hash_mark_distances[league]
-            field_y = hash_distance if inner_to_upper.get(inner_idx, False) else (field_widths[league] - hash_distance)
-            field_points.append([yard_num+end_zone_depths[league], field_y])
-    
+            hash_distance = field_info.hash_mark_distance
+            field_y = hash_distance if inner_to_upper.get(inner_idx, False) else (field_info.width - hash_distance)
+            field_points.append([yard_num+field_info.end_zone_depth, field_y])
+
     # Add upper edge hash marks
     for up_idx, yard_num in up_edge_yard_map.items():
         if up_idx < len(up_edge_boxes):
@@ -516,7 +550,7 @@ def extract_correspondence_points(
             image_points.append([center_x, center_y])
             
             # Upper edge is at field boundary
-            field_points.append([yard_num+end_zone_depths[league], 0])
+            field_points.append([yard_num+field_info.end_zone_depth, 0])
 
     if len(image_points) < 4:
         raise ValueError(
@@ -574,7 +608,7 @@ def compute_homography(
     H, mask = cv2.findHomography(
         image_points, field_points,
         method=method,
-        ransacReprojThreshold=1.0
+        ransacReprojThreshold=5.0
     )
 
     if H is None:
@@ -677,21 +711,26 @@ class ProcessingResult(NamedTuple):
 
 def process_image(
         image: np.ndarray, 
-        league: League, 
         yard_boxes: np.ndarray,
         yard_labels: np.ndarray,
         inner_boxes: np.ndarray,
         up_edge_boxes: np.ndarray,
-        config: ProcessingConfig = ProcessingConfig()
+        config: ProcessingConfig
 ) -> ProcessingResult:
     # Step 1: Detect field features
-    all_lines = detect_field_features(image, config)
+    # all_lines = detect_field_features(image, config)
+    img_pipeline = [IMAGE_TRANSFORMS.get(**step) for step in config.transforms]
 
+    x = image
+    for f in img_pipeline:
+        x = f(x)
+
+    all_lines = x
     if len(all_lines) == 0:
         raise ValueError("No lines detected in the image. Please check the image quality or configuration.")
 
     # Step 2: Extract yard lines
-    yard_lines, mask = extract_yard_lines(all_lines, yard_boxes, inner_boxes)
+    yard_lines, mask = extract_yard_lines(all_lines, yard_boxes, inner_boxes, directional_threshold=config.directional_threshold)
 
     # Step 3: Deduplicate lines
     proto_lines, clustered, inner_to_upper = deduplicate_lines(yard_lines, inner_boxes)
@@ -709,7 +748,7 @@ def process_image(
         proto_lines, 
         yard_boxes, 
         yard_labels, 
-        inner_field_length=inner_field_lengths[league],
+        inner_field_length=config.field_info.inner_field_length,
         path=tuple(), 
         visited=set(), 
         out=candidate_associations
@@ -731,7 +770,7 @@ def process_image(
 
         try:
             image_points, field_points = extract_correspondence_points(
-                inner_boxes, up_edge_boxes, inner_yard_map, up_edge_yard_map, inner_to_upper, league
+                inner_boxes, up_edge_boxes, inner_yard_map, up_edge_yard_map, inner_to_upper, config.field_info
             )
         except ValueError as e:
             # caught, but we have other candidate associations to try
@@ -883,61 +922,56 @@ def draw_up_edge_boxes(detected_img: np.ndarray, up_edge_boxes: np.ndarray):
         cv2.rectangle(detected_img, (int(x), int(y)), (int(x+w), int(y+h)), (0, 0, 255), 2)
         cv2.putText(detected_img, 'up_edge', (int(x), int(y-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
 
-def field_to_pixel(x, y, field_img, league):
+def field_to_pixel(x, y, field_img, field_info: FieldInfo) -> np.ndarray:
     h, w = field_img.shape[:2]
-    scale_x, scale_y = w / field_lengths[league], h / field_widths[league]
+    scale_x, scale_y = w / field_info.length, h / field_info.width
     scale = min(scale_x, scale_y)
 
-    field_origin = np.array([(w - field_lengths[league] * scale) // 2, (h - field_widths[league] * scale) // 2])
+    field_origin = np.array([(w - field_info.length * scale) // 2, (h - field_info.width * scale) // 2])
     return (field_origin + np.array([x, y]) * scale).astype(int)
 
-def gen_field(h, w, league, exclude_hash_marks: bool = False) -> np.ndarray:
+def gen_field(h, w, field_info: FieldInfo, exclude_hash_marks: bool = False) -> np.ndarray:
     field_img = np.zeros((h, w, 3), dtype=np.uint8)
     field_img.fill(34)
     
     # Draw field outline
-    field_corners = [(0, 0), (field_lengths[league], 0), (field_lengths[league], field_widths[league]), (0, field_widths[league])]
-    field_corners_px = [field_to_pixel(x, y, field_img, league) for x, y in field_corners]
+    field_corners = [(0, 0), (field_info.length, 0), (field_info.length, field_info.width), (0, field_info.width)]
+    field_corners_px = [field_to_pixel(x, y, field_img, field_info) for x, y in field_corners]
     cv2.polylines(field_img, [np.array(field_corners_px)], True, (255, 255, 255), 2)
 
     # Draw yard lines every 10 yards
-    for x in range(end_zone_depths[league], field_lengths[league] - end_zone_depths[league] + 1, 10):
-        p1 = field_to_pixel(x, 0, field_img, league)
-        p2 = field_to_pixel(x, field_widths[league], field_img, league)
+    for x in range(field_info.end_zone_depth, field_info.length - field_info.end_zone_depth + 1, 10):
+        p1 = field_to_pixel(x, 0, field_img, field_info)
+        p2 = field_to_pixel(x, field_info.width, field_img, field_info)
         cv2.line(field_img, p1, p2, (255, 255, 255), 1)
 
         # Add yard numbers
-        if end_zone_depths[league] < x < field_lengths[league] - end_zone_depths[league]:
-            yard_num = min(x - end_zone_depths[league], field_lengths[league] - end_zone_depths[league] - x)  # Distance from nearest goal line
+        if field_info.end_zone_depth < x < field_info.length - field_info.end_zone_depth:
+            yard_num = min(x - field_info.end_zone_depth, field_info.length - field_info.end_zone_depth - x)  # Distance from nearest goal line
             cv2.putText(field_img, str(yard_num), 
-                    field_to_pixel(x - 2, field_widths[league] / 2, field_img, league), 
+                    field_to_pixel(x - 2, field_info.width / 2, field_img, field_info), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             
     if exclude_hash_marks:
         return field_img
-    
-    # Draw hash marks for each league with corresponding color
-    for league_enum, hash_dist in hash_mark_distances.items():
-        color = hash_mark_colors[league_enum]
 
-        # Bottom edge hash marks
-        for x, _ in bottom_edge_hash_mark_coords[league]:
-            px, py = field_to_pixel(x, hash_dist, field_img, league)
-            cv2.circle(field_img, (px, py), 3, color, -1)
+    # Bottom edge hash marks
+    for x, _ in field_info.bottom_edge_hash_mark_coords:
+        px, py = field_to_pixel(x, field_info.hash_mark_distance, field_img, field_info)
+        cv2.circle(field_img, (px, py), 3, (0,255,255), -1)
 
-        # Top edge hash marks
-        for x, _ in top_edge_hash_mark_coords[league]:
-            px, py = field_to_pixel(x, field_widths[league] - hash_dist, field_img, league)
-            cv2.circle(field_img, (px, py), 3, color, -1)
+    # Top edge hash marks
+    for x, _ in field_info.top_edge_hash_mark_coords:
+        px, py = field_to_pixel(x, field_info.width - field_info.hash_mark_distance, field_img, field_info)
+        cv2.circle(field_img, (px, py), 3, (0,255,255), -1)
             
     return field_img
 
 def main(image_path: str,
-         league: League,
          clarifai_model_url: str,
          output_dir: str,
+         config: ProcessingConfig,
          verbose: bool = False,
-         config: ProcessingConfig = ProcessingConfig(),
          burn_metrics: bool = False):
     print(f"Processing: {image_path}")
 
@@ -969,7 +1003,8 @@ def main(image_path: str,
     hom_img = img.copy()
     
     h, w = hom_img.shape[:2]
-    field_img = gen_field(h, w, league)
+    field_info = config.field_info
+    field_img = gen_field(h, w, field_info, exclude_hash_marks=False)
     try:
         if not len(yard_boxes):
             raise ValueError("No yard lines detected in the image. Please check the image quality or configuration.")
@@ -977,7 +1012,6 @@ def main(image_path: str,
             raise ValueError("No inner hash marks detected in the image. Please check the image quality or configuration.")
         result = process_image(
             img,
-            league=league,
             yard_boxes=np.array(yard_boxes, dtype=np.float32),
             yard_labels=np.array(yard_labels, dtype=np.int32),
             inner_boxes=np.array(inner_boxes, dtype=np.float32),
@@ -1045,22 +1079,22 @@ def main(image_path: str,
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         for i, pt in enumerate(homography_result.field_points):
-            px, py = field_to_pixel(pt[0], pt[1], field_img, league)
+            px, py = field_to_pixel(pt[0], pt[1], field_img, field_info)
             color = (255, 0, 0) if homography_result.mask[i] else (0, 0, 255)
             cv2.circle(field_img, (px, py), 5, color, -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-        for i, pt in enumerate(transform_points(homography_result.image_points[homography_result.mask.ravel() > 0], homography_result.matrix)):
-            px, py = field_to_pixel(pt[0], pt[1], field_img, league)
+        for i, pt in enumerate(transform_points(homography_result.image_points, homography_result.matrix)):
+            px, py = field_to_pixel(pt[0], pt[1], field_img, field_info)
             cv2.circle(field_img, (px, py), 5, (0, 255, 0), -1)
             cv2.putText(field_img, f'{i}', 
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
         # TODO: check if field of view is convex
-        fov_pts = [field_to_pixel(*x, field_img, league) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
+        fov_pts = [field_to_pixel(*x, field_img, field_info) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
         # Check if fov_pts forms a convex polygon
         def is_convex_polygon(pts):
             pts = np.array(pts)
@@ -1123,6 +1157,7 @@ def main(image_path: str,
 
 if __name__ == "__main__":
     import argparse
+    import yaml
     from clarifai.client import Model
     from clarifai.runners.utils.data_types import Image
 
@@ -1132,16 +1167,14 @@ if __name__ == "__main__":
                        help='Output directory for visualizations')
     parser.add_argument('--league', default='NFL', choices=League.__members__.values(), type=League,
                        help='Football league (affects hash mark positioning)')
-    parser.add_argument('--edge_method', default='hls-canny-blur', choices=[x.value for x in EdgeMethod.__members__.values()],
-                       help='Edge detection method')
-    parser.add_argument('--line_method', default='hough', choices=[x.value for x in LineMethod.__members__.values()],
-                       help='Line detection method')
     parser.add_argument('--clarifai_model_url', default=None,
                    help='URL of remote detector service for yard/hash boxes (overrides local JSONs)')
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose output')
     parser.add_argument('--burn_metrics', action='store_true',
                        help='Burn metrics into output images (for debugging)')
+    parser.add_argument('--config', default=None,
+                       help='Path to custom configuration yaml file (optional)')
 
     args = parser.parse_args()
 
@@ -1153,15 +1186,31 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(output_dir, x), exist_ok=True)
         
     # Create configuration
-    config = ProcessingConfig(
-        edge_method=EdgeMethod(args.edge_method),
-        line_method=LineMethod(args.line_method)
-    )
+    if args.config:
+        with open(args.config, 'r') as f:
+            config_data = yaml.safe_load(f)
+        if 'field_info' not in config_data:
+            config_data['field_info'] = FIELD_INFOS[args.league]
+
+        config = ProcessingConfig(**config_data)
+    else:
+        config = ProcessingConfig(
+            transforms=[
+                dict(name='mean_blur_2d', kernel_size=3),
+                dict(name='luminosity_percentile', percentile=90),
+                dict(name='cvtGray'),
+                dict(name='canny_edge', low_threshold=50, high_threshold=150),
+                dict(name='hough_lines_xyxy', rho=1, theta=np.pi/180, threshold=150),
+            ],
+            directional_threshold=0.995,
+            field_info=FIELD_INFOS[args.league]
+        )
+
+    print(config)
 
     if os.path.isfile(args.image_path):
         # Process a single image
         main(args.image_path,
-             args.league,
              args.clarifai_model_url,
              output_dir,
              verbose=args.verbose,
@@ -1174,7 +1223,6 @@ if __name__ == "__main__":
                 full_image_path = os.path.join(args.image_path, image_file)
                 try:
                     main(full_image_path,
-                        args.league,
                         args.clarifai_model_url,
                         output_dir,
                         verbose=args.verbose,
