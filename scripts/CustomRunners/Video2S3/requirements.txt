@@ -1,0 +1,10 @@
+clarifai
+boto3
+ffmpeg-python
+httpx
+pydantic
+python-multipart
+aiofiles
+python-dotenv
+opencv-python
+numpy
