@@ -654,8 +654,8 @@ def conflict_dfs(
     # check for yard difference of 5 yards
     # this likely means a line that is misclassified but only has one box
     # TODO: we need to drop such a box
-    # elif len(line_yard_map) > 1 and np.abs(np.diff(line_yard_map[:, 1]).max()) > 5:
-    #     return
+    elif len(line_yard_map) > 1 and np.abs(np.diff(line_yard_map[:, 1]).max()) > 5:
+        return
     else:
         # No conflicts, we can return the mapping
         out.append((line_yard_map, line_yard_imap, boxes))
