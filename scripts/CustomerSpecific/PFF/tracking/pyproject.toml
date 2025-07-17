@@ -1,0 +1,33 @@
+[project]
+name = "clarifai-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "clarifai-grpc>=11.5.5",
+    "joblib>=1.5.1",
+    "motmetrics",
+    "numpy>=2.0.0",
+    "pillow>=11.2.1",
+    "scipy>=1.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "clarifai-tracker",
+    "pyright>=1.1.402",
+    "pytest>=8.4.1",
+]
+samples = [
+    "clarifai-tracker",
+    "clarifai>=11.5.4",
+    "opencv-python-headless>=4.11.0.86",
+    "torch>=2.7.1",
+    "torchvision>=0.22.1",
+    "tqdm>=4.67.1",
+]
+
+[tool.uv.sources]
+maven-tracker = { workspace = true }
+motmetrics = { git = "https://github.com/cheind/py-motmetrics.git" }
