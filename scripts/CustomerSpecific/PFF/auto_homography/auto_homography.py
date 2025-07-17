@@ -115,16 +115,17 @@ class ProcessingConfig:
     """Immutable configuration for football field line detection and analysis."""
     edge_method: EdgeMethod = EdgeMethod.HLS_CANNY_BLUR
     line_method: LineMethod = LineMethod.HOUGH
+    # line_detector: dict
 
 # line-detection-lib
-def hls_filter(image):
+def hls_filter(image, l_percentile=90):
     hls_image = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
     h, l, s = cv2.split(hls_image)
 
     h_min, h_max = 0, 179
     s_min, s_max = 0, 255
 
-    l_lower = int(np.percentile(l, 90))
+    l_lower = int(np.percentile(l, l_percentile))
     l_upper = 225
 
     lower_white = np.array([h_min, l_lower, s_min])
@@ -354,7 +355,7 @@ def associate_hash_to_yard(proto_lines, line_yard_dict, inner_boxes, up_edge_box
 def detect_field_features(
         image: np.ndarray,
         config: ProcessingConfig
-):
+) -> np.ndarray:
     """Detects field features (lines) in a given image using specified processing configuration.
 
     Args:
@@ -574,7 +575,7 @@ def compute_homography(
     H, mask = cv2.findHomography(
         image_points, field_points,
         method=method,
-        ransacReprojThreshold=1.0
+        ransacReprojThreshold=5.0
     )
 
     if H is None:
@@ -675,6 +676,109 @@ class ProcessingResult(NamedTuple):
     homography: HomographyResult
     warnings: List[CorrespondenceError]
 
+import functools
+import inspect
+class Registry:
+    """Registry for processing functions."""
+    def __init__(self):
+        self._registry = {}
+
+    def register(self, name: str = None, build_func: callable = None):
+        """Register a processing function."""
+        def decorator(func, name=name, build_func=build_func):
+            if name is None:
+                name = func.__name__
+
+            if name in self._registry:
+                raise ValueError(f"Function '{name}' is already registered.")
+            
+            if build_func is None:
+                build_func = functools.partial if inspect.isfunction(func) else lambda f, *args, **kwargs: f(*args, **kwargs)
+
+            self._registry[name] = (func, build_func)
+        return decorator
+
+    def get(self, name: str, *args, **kwargs):
+        """Get a registered processing function."""
+        result = self._registry.get(name)
+        if result is None:
+            raise ValueError(f"Function '{name}' is not registered.")
+        func, build_func = result
+
+        if build_func is not None and (len(args) > 0 or (kwargs is not None and len(kwargs) > 0)):
+            func = build_func(func, *args, **kwargs)
+
+        return func
+    
+    def __repr__(self):
+        return f"Registry({self._registry})"
+
+image_transforms = Registry()
+
+@image_transforms.register()
+def mean_blur_2d(img, kernel_size: int = 3) -> np.ndarray:
+    """Apply a 2D blur to the image."""
+    kernel = np.ones((kernel_size, kernel_size), np.float32) / (kernel_size ** 2)
+    return cv2.filter2D(img, -1, kernel)
+
+@image_transforms.register()
+def luminosity_percentile(
+        img: np.ndarray, 
+        l_percentile: int = 90,
+    ) -> np.ndarray:
+    return hls_filter(img, l_percentile)
+
+@image_transforms.register()
+class ExampleTransform:
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, img, *args, **kwargs):
+        print(self.args, self.kwargs)
+        return img
+    
+@image_transforms.register()
+def cvtColor(img: np.ndarray, code: str) -> np.ndarray:
+    """Convert image color space using OpenCV."""
+    return cv2.cvtColor(img, getattr(cv2, f'COLOR_{code}'))
+
+@image_transforms.register()
+def cvtGray(img: np.ndarray) -> np.ndarray:
+    """Convert image to grayscale using OpenCV."""
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+@image_transforms.register()
+def canny(img: np.ndarray, threshold1: int = 50, threshold2: int = 150) -> np.ndarray:
+    """Apply Canny edge detection to the image."""
+    return cv2.Canny(img, threshold1, threshold2)
+
+@image_transforms.register()
+def hough_lines_xyxy(
+    img: np.ndarray, 
+    rho: float = 1, 
+    theta: float = np.pi/180,
+    threshold: int = 150,
+) -> np.ndarray:
+    """Detect lines in the image using Hough Transform."""
+    all_lines = cv2.HoughLines(img, rho, theta, threshold)
+    if all_lines is None:
+        return np.empty(shape=(0, 2), dtype=np.float32)
+    
+    result = [] 
+    for i in range(0, len(all_lines)):
+        rho = all_lines[i][0][0]
+        theta = all_lines[i][0][1]
+        a, b = np.cos(theta), np.sin(theta)
+        x, y = a*rho, b*rho
+        pt1 = (int(x + 1000*(-b)), int(y+1000*(a)))
+        pt2 = (int(x - 1000*(-b)), int(y-1000*(a)))
+        result.append([[*pt1, *pt2]])
+    all_lines = np.array([l[0] for l in result])
+    all_lines = all_lines[all_lines[:,0] != all_lines[:,2]]  # filter out vertical lines
+
+    return all_lines
+
 def process_image(
         image: np.ndarray, 
         league: League, 
@@ -685,8 +789,20 @@ def process_image(
         config: ProcessingConfig = ProcessingConfig()
 ) -> ProcessingResult:
     # Step 1: Detect field features
-    all_lines = detect_field_features(image, config)
+    # all_lines = detect_field_features(image, config)
+    img_pipe = [
+        image_transforms.get('mean_blur_2d', kernel_size=3),
+        image_transforms.get('luminosity_percentile', l_percentile=90),
+        image_transforms.get('cvtGray'),
+        image_transforms.get('canny', threshold1=50, threshold2=150),
+        image_transforms.get('hough_lines_xyxy', rho=1, theta=np.pi/180, threshold=150),
+    ]
 
+    x = image
+    for f in img_pipe:
+        x = f(x)
+
+    all_lines = x
     if len(all_lines) == 0:
         raise ValueError("No lines detected in the image. Please check the image quality or configuration.")
 
@@ -1052,7 +1168,7 @@ def main(image_path: str,
                         (px + 5, py), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
-        for i, pt in enumerate(transform_points(homography_result.image_points[homography_result.mask.ravel() > 0], homography_result.matrix)):
+        for i, pt in enumerate(transform_points(homography_result.image_points, homography_result.matrix)):
             px, py = field_to_pixel(pt[0], pt[1], field_img, league)
             cv2.circle(field_img, (px, py), 5, (0, 255, 0), -1)
             cv2.putText(field_img, f'{i}', 
