@@ -154,6 +154,20 @@ def luminosity_percentile(
     return hls_filter(img, percentile)
 
 @IMAGE_TRANSFORMS.register()
+def gaussian_adaptive_threshold(
+        img: np.ndarray, 
+        block_size: int, 
+        c: int,
+    ) -> np.ndarray:
+    """Apply adaptive thresholding to the image."""
+    return cv2.adaptiveThreshold(
+        img, 255, 
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        cv2.THRESH_BINARY, 
+        block_size, c
+    )
+
+@IMAGE_TRANSFORMS.register()
 class ExampleTransform:
     def __init__(self, *args, **kwargs):
         self.args = args
@@ -1197,8 +1211,8 @@ if __name__ == "__main__":
         config = ProcessingConfig(
             transforms=[
                 dict(name='mean_blur_2d', kernel_size=3),
-                dict(name='luminosity_percentile', percentile=90),
                 dict(name='cvtGray'),
+                dict(name='gaussian_adaptive_threshold', block_size=129, c=-16),
                 dict(name='canny_edge', low_threshold=50, high_threshold=150),
                 dict(name='hough_lines_xyxy', rho=1, theta=np.pi/180, threshold=150),
             ],
