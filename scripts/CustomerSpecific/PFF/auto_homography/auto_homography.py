@@ -953,14 +953,16 @@ def gen_field(h, w, field_info: FieldInfo, exclude_hash_marks: bool = False) -> 
     field_corners_px = [field_to_pixel(x, y, field_img, field_info) for x, y in field_corners]
     cv2.polylines(field_img, [np.array(field_corners_px)], True, (255, 255, 255), 2)
 
-    # Draw yard lines every 10 yards
-    for x in range(field_info.end_zone_depth, field_info.length - field_info.end_zone_depth + 1, 10):
+    # Draw yard lines every 5 yards
+    for x in range(field_info.end_zone_depth, field_info.length - field_info.end_zone_depth + 1, 5):
         p1 = field_to_pixel(x, 0, field_img, field_info)
         p2 = field_to_pixel(x, field_info.width, field_img, field_info)
-        cv2.line(field_img, p1, p2, (255, 255, 255), 1)
+        # Draw yard lines, alternating color for odd multiples of 5
+        line_color = (175, 175, 175) if (x // 5) % 2 == 1 else (255, 255, 255)
+        cv2.line(field_img, p1, p2, line_color, 1)
 
         # Add yard numbers
-        if field_info.end_zone_depth < x < field_info.length - field_info.end_zone_depth:
+        if x % 10 == 0 and field_info.end_zone_depth < x < field_info.length - field_info.end_zone_depth:
             yard_num = min(x - field_info.end_zone_depth, field_info.length - field_info.end_zone_depth - x)  # Distance from nearest goal line
             cv2.putText(field_img, str(yard_num), 
                     field_to_pixel(x - 2, field_info.width / 2, field_img, field_info), 
@@ -986,7 +988,7 @@ def compute_camera_motion(
     img2: np.ndarray,
 ):
     """
-    Compute camera motion between two images using ORB feature matching.
+    Compute camera motion between two images using optical flow (Lucas-Kanade).
     
     Parameters
     ----------
@@ -1000,20 +1002,27 @@ def compute_camera_motion(
     motion : np.ndarray
         3x3 homography matrix representing the camera motion
     """
-    orb = cv2.ORB_create()
-    kp1, des1 = orb.detectAndCompute(img1, None)
-    kp2, des2 = orb.detectAndCompute(img2, None)
+    # Convert images to grayscale
+    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
-    
-    if len(matches) < 4:
-        raise ValueError("Not enough matches found to compute camera motion")
+    # Detect good features to track in the first image
+    pts1 = cv2.goodFeaturesToTrack(gray1, maxCorners=500, qualityLevel=0.01, minDistance=8)
+    if pts1 is None or len(pts1) < 4:
+        raise ValueError("Not enough features found in the first image to compute camera motion")
 
-    src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-    dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+    # Calculate optical flow (track features) to the second image
+    pts2, status, _ = cv2.calcOpticalFlowPyrLK(gray1, gray2, pts1, None)
 
-    motion, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
+    # Select only valid points
+    pts1_valid = pts1[status.ravel() == 1]
+    pts2_valid = pts2[status.ravel() == 1]
+
+    if len(pts1_valid) < 4 or len(pts2_valid) < 4:
+        raise ValueError("Not enough valid matches found to compute camera motion")
+
+    # Compute homography using matched points
+    motion, _ = cv2.findHomography(pts1_valid, pts2_valid, cv2.RANSAC)
 
     return motion
 

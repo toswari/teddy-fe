@@ -35,7 +35,7 @@ frame_homographies = {
 
 field_info = FIELD_INFOS[League.NCAA]
 
-field_img = gen_field(720, 1280, field_info, exclude_hash_marks=True)
+field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
 
 prev_frame = None
 prev_homography_matrix = None
@@ -43,18 +43,17 @@ prev_homography_matrix = None
 for frame, group in mot_df.groupby('frame'):
     video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame:04d}.jpg'))
     
-    group = group[group['object_id'].isin(args.object_ids)] if args.object_ids else group
-    
-    for _, row in group.iterrows():
-        color = object_colors.get(row['object_id'], (255, 0, 0))
-        cv2.rectangle(video_frame, (int(row['x']), int(row['y'])), (int(row['xx']), int(row['yy'])), color, 2)
-    
-    if frame not in frame_homographies:
-        if prev_homography_matrix is None or not args.camera_correction:
-            combined = np.hstack((video_frame, field_img))
-            cv2.imwrite(f'output_frame_{frame}.jpg', combined)
-            continue
-
+    if frame not in frame_homographies and not args.camera_correction:
+        # If no homography is available and camera correction is not requested, skip this frame
+        print(f"Skipping frame {frame} as no homography is available and camera correction is not requested.")
+        combined = np.hstack((video_frame, field_img))
+        cv2.imwrite(f'output_frame_{frame}.jpg', combined)
+        continue
+    elif frame not in frame_homographies and args.camera_correction:
+        # if prev_homography_matrix is None or not args.camera_correction:
+        #     combined = np.hstack((video_frame, field_img))
+        #     cv2.imwrite(f'output_frame_{frame}.jpg', combined)
+        #     continue
         camera_motion = compute_camera_motion(prev_frame, video_frame)
         homography_matrix = prev_homography_matrix @ np.linalg.inv(camera_motion)
     else:
@@ -70,7 +69,16 @@ for frame, group in mot_df.groupby('frame'):
             if lie_dist > 15:
                 homography_matrix = hyp_homography_matrix
     
+    prev_frame = video_frame.copy()
+    prev_homography_matrix = homography_matrix
+
+    group = group[group['object_id'].isin(args.object_ids)] if args.object_ids else group
+    
     for _, row in group.iterrows():
+        color = object_colors.get(row['object_id'], (255, 0, 0))
+        cv2.rectangle(video_frame, (int(row['x']), int(row['y'])), (int(row['xx']), int(row['yy'])), color, 2)
+
+    # for _, row in group.iterrows():
         # x, y = row['x'], row['y']
         # # Apply homography transformation
         # take middle of bottom of box
@@ -82,5 +90,3 @@ for frame, group in mot_df.groupby('frame'):
 
     combined = np.hstack((video_frame, field_img))
     cv2.imwrite(f'output_frame_{frame}.jpg', combined)
-    prev_frame = video_frame
-    prev_homography_matrix = homography_matrix
