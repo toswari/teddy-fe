@@ -981,12 +981,49 @@ def gen_field(h, w, field_info: FieldInfo, exclude_hash_marks: bool = False) -> 
             
     return field_img
 
+def compute_camera_motion(
+    img1: np.ndarray,
+    img2: np.ndarray,
+):
+    """
+    Compute camera motion between two images using ORB feature matching.
+    
+    Parameters
+    ----------
+    img1 : np.ndarray
+        First image
+    img2 : np.ndarray
+        Second image
+        
+    Returns
+    -------
+    motion : np.ndarray
+        3x3 homography matrix representing the camera motion
+    """
+    orb = cv2.ORB_create()
+    kp1, des1 = orb.detectAndCompute(img1, None)
+    kp2, des2 = orb.detectAndCompute(img2, None)
+
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+    
+    if len(matches) < 4:
+        raise ValueError("Not enough matches found to compute camera motion")
+
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+
+    motion, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC)
+
+    return motion
+
 def main(image_path: str,
          clarifai_model_url: str,
          output_dir: str,
          config: ProcessingConfig,
          verbose: bool = False,
-         burn_metrics: bool = False):
+         burn_metrics: bool = False,
+         camera_motion: Optional[np.ndarray] = None):
     print(f"Processing: {image_path}")
 
     print(f"Using remote detector at {clarifai_model_url}")
