@@ -12,15 +12,13 @@ p = argparse.ArgumentParser(description="Generate a field image with optional ha
 p.add_argument("MOT_CSV")
 p.add_argument("HOMOGRAPHY_JSON_DIR")
 p.add_argument("FRAMES_DIR")
-p.add_argument('--object_id', default=None, type=int)
+p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of object IDs to visualize. If not provided, all objects will be visualized.")
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
 args = p.parse_args()
 
 mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
 
 mot_df = mot_df[mot_df['label'].isin(['Player'])]
-if args.object_id is not None:
-    mot_df = mot_df[mot_df['object_id'] == args.object_id]
 
 objects = mot_df['object_id'].unique()
 
@@ -44,6 +42,8 @@ prev_homography_matrix = None
 
 for frame, group in mot_df.groupby('frame'):
     video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame:04d}.jpg'))
+    
+    group = group[group['object_id'].isin(args.object_ids)] if args.object_ids else group
     
     for _, row in group.iterrows():
         color = object_colors.get(row['object_id'], (255, 0, 0))
