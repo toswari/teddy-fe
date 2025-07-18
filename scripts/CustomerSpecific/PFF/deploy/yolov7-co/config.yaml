@@ -1,0 +1,35 @@
+model:
+  id: "hash-yard-letterbox"
+  user_id: "pff-org"
+  app_id: "labelstudio-unified"
+  model_type_id: "visual-detector"
+
+build_info:
+  python_version: "3.12"
+
+inference_compute_info:
+  cpu_limit: "10"
+  cpu_memory: "10Gi"
+  num_accelerators: 0
+  accelerator_type: ["NVIDIA-*"]
+  accelerator_memory: "6Gi"
+
+concepts:
+  - id: '10'
+    name: '10'
+  - id: '20'
+    name: '20'
+  - id: '30'
+    name: '30'
+  - id: '40'
+    name: '40'
+  - id: '50'
+    name: '50'
+  - id: 'goal_line'
+    name: 'goal_line'
+  - id: 'inner'
+    name: 'inner'
+  - id: 'low_edge'
+    name: 'low_edge'
+  - id: 'up_edge'
+    name: 'up_edge'

@@ -1,0 +1,6 @@
+clarifai==11.5.4
+numpy
+onnx
+onnxruntime
+pillow
+opencv-python
