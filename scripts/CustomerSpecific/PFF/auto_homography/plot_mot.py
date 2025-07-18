@@ -15,6 +15,7 @@ p.add_argument("FRAMES_DIR")
 p.add_argument("--classes", default=['Player'], type=str, nargs='+', help="List of classes to visualize. If not provided, all classes will be visualized.")
 p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of object IDs to visualize. If not provided, all objects will be visualized.")
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
+p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 args = p.parse_args()
 
 mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
@@ -42,6 +43,9 @@ prev_frame = None
 prev_homography_matrix = None
 
 for frame, group in mot_df.groupby('frame'):
+    if args.no_tracks:
+        field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
+        
     video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame:04d}.jpg'))
     
     if frame not in frame_homographies and not args.camera_correction:
@@ -90,4 +94,4 @@ for frame, group in mot_df.groupby('frame'):
         cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 5, color, -1)
 
     combined = np.hstack((video_frame, field_img))
-    cv2.imwrite(f'output_frame_{frame}.jpg', combined)
+    cv2.imwrite(f'output_frame_{frame:04d}.jpg', combined)
