@@ -12,13 +12,14 @@ p = argparse.ArgumentParser(description="Generate a field image with optional ha
 p.add_argument("MOT_CSV")
 p.add_argument("HOMOGRAPHY_JSON_DIR")
 p.add_argument("FRAMES_DIR")
+p.add_argument("--classes", default=['Player'], type=str, nargs='+', help="List of classes to visualize. If not provided, all classes will be visualized.")
 p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of object IDs to visualize. If not provided, all objects will be visualized.")
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
 args = p.parse_args()
 
 mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
 
-mot_df = mot_df[mot_df['label'].isin(['Player'])]
+mot_df = mot_df[mot_df['label'].isin(args.classes)]
 
 objects = mot_df['object_id'].unique()
 
