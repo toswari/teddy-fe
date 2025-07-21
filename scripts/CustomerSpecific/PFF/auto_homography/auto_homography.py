@@ -225,6 +225,19 @@ def hough_linesp(edges: np.ndarray, rho: float = 1, theta: float = np.pi/180, th
                                minLineLength=minLineLength,
                                maxLineGap=maxLineGap)
 
+@IMAGE_TRANSFORMS.register()
+def unioned(img: np.ndarray, branches: List[List[dict]]) -> np.ndarray:
+    pipelines = [[IMAGE_TRANSFORMS.get(**step) for step in branch] for branch in branches]
+
+    outs = []
+    for p in pipelines:
+        x = img
+        for f in p:
+            x = f(x)
+        outs.append(x)
+
+    return np.vstack(tuple(outs))
+
 # line-detection-lib
 def hls_filter(image, l_percentile=90):
     hls_image = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
@@ -1264,7 +1277,7 @@ if __name__ == "__main__":
                        help='Enable verbose output')
     parser.add_argument('--burn_metrics', action='store_true',
                        help='Burn metrics into output images (for debugging)')
-    parser.add_argument('--config', default=None,
+    parser.add_argument('--config', default='union_config.yaml',
                        help='Path to custom configuration yaml file (optional)')
 
     args = parser.parse_args()

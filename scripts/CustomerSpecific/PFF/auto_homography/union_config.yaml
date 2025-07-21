@@ -1,0 +1,29 @@
+transforms:
+  - name: unioned
+    branches:
+      - - name: mean_blur_2d
+          kernel_size: 3
+        - name: luminosity_percentile
+          percentile: 90
+        - name: cvtGray
+        - name: canny_edge
+          low_threshold: 50
+          high_threshold: 150
+        - name: hough_lines_xyxy
+          rho: 1
+          theta: 0.017453292519943295 # np.pi/180
+          threshold: 150
+      - - name: mean_blur_2d
+          kernel_size: 5
+        - name: cvtGray
+        - name: gaussian_adaptive_threshold
+          block_size: 129
+          c: -16
+        - name: canny_edge
+          low_threshold: 50
+          high_threshold: 150
+        - name: hough_lines_xyxy
+          rho: 1
+          theta: 0.017453292519943295 # np.pi/180
+          threshold: 150
+directional_threshold: 0.995
