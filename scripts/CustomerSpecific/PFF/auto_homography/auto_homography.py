@@ -663,7 +663,17 @@ def conflict_dfs(
     # Check if line_yard_map is monotonic in either column (0 or 1)
     column_0_mono = (np.all(np.diff(line_yard_map[:, 0]) >= 0) or np.all(np.diff(line_yard_map[:, 0]) <= 0))
     column_1_mono = (np.all(np.diff(line_yard_map[:, 1]) >= 0) or np.all(np.diff(line_yard_map[:, 1]) <= 0))
-    
+
+    gaps = np.abs(np.diff(line_yard_map[:, 1]))
+    if len(gaps) == 0:
+        max_gap = -1
+        max_gap_idx = -1
+        min_gap = 100
+        min_gap_idx = -1
+    else:
+        max_gap, max_gap_idx = gaps.max(), gaps.argmax()
+        min_gap, min_gap_idx = gaps.min(), gaps.argmin()
+
     if len(line_yard_map) <= 1:
         return
     elif len(np.unique(line_yard_map[:, 0])) != line_yard_map.shape[0]:
@@ -702,8 +712,29 @@ def conflict_dfs(
     # check for yard difference of 5 yards
     # this likely means a line that is misclassified but only has one box
     # TODO: we need to drop such a box
-    elif len(line_yard_map) > 1 and np.abs(np.diff(line_yard_map[:, 1]).max()) > 5:
-        return
+    elif len(line_yard_map) > 1 and max_gap > 5:
+        problem_gap_indices = np.where(gaps == max_gap)[0]
+        problem_line_indices = np.array([problem_gap_indices[0] - 1, *problem_gap_indices, problem_gap_indices[-1] + 1]).flatten()
+        problem_line_indices = np.clip(problem_line_indices, 0, line_yard_imap.shape[0] - 1)
+        problem_line_yard_imap = line_yard_imap[np.isin(line_yard_imap[:,0], line_yard_map[problem_line_indices]), :]
+        problem_box_indices = problem_line_yard_imap[:, 1].astype(int).tolist()
+        for box_ind in problem_box_indices:
+            new_path = tuple(path + (box_ind,))
+            new_boxes = np.delete(boxes, box_ind, axis=0)
+            new_labels = np.delete(labels, box_ind, axis=0)
+            conflict_dfs(proto_lines, new_boxes, new_labels, inner_field_length, new_path, visited, out=out)
+    elif len(line_yard_map) > 1 and min_gap < 5:
+        problem_gap_indices = np.where(gaps == min_gap)[0]
+        problem_line_indices = np.array([problem_gap_indices[0] - 1, *problem_gap_indices, problem_gap_indices[-1] + 1]).flatten()
+        problem_line_indices = np.clip(problem_line_indices, 0, line_yard_imap.shape[0] - 1)
+        # we have a problem, we need to drop boxes
+        problem_line_yard_imap = line_yard_imap[np.isin(line_yard_imap[:,0], line_yard_map[problem_line_indices]), :]
+        problem_box_indices = problem_line_yard_imap[:, 1].astype(int).tolist()
+        for box_ind in problem_box_indices:
+            new_path = tuple(path + (box_ind,))
+            new_boxes = np.delete(boxes, box_ind, axis=0)
+            new_labels = np.delete(labels, box_ind, axis=0)
+            conflict_dfs(proto_lines, new_boxes, new_labels, inner_field_length, new_path, visited, out=out)
     else:
         # No conflicts, we can return the mapping
         out.append((line_yard_map, line_yard_imap, boxes))
