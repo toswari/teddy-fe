@@ -15,7 +15,8 @@ p.add_argument("FRAMES_DIR")
 p.add_argument("--classes", default=['Player'], type=str, nargs='+', help="List of classes to visualize. If not provided, all classes will be visualized.")
 p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of object IDs to visualize. If not provided, all objects will be visualized.")
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
-p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
+# p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
+# p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 args = p.parse_args()
 
 mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
@@ -42,16 +43,21 @@ field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
 prev_frame = None
 prev_homography_matrix = None
 
+image_points = None
+field_points = None
+
 for frame, group in mot_df.groupby('frame'):
-    if args.no_tracks:
-        field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
-        
+    # if args.no_tracks:
+    field_img_no_tracks = gen_field(720, 1280, field_info, exclude_hash_marks=False)
+
+    hom_img = gen_field(720, 1280, field_info, exclude_hash_marks=True)
+
     video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame:04d}.jpg'))
     
     if frame not in frame_homographies and not args.camera_correction:
         # If no homography is available and camera correction is not requested, skip this frame
         print(f"Skipping frame {frame} as no homography is available and camera correction is not requested.")
-        combined = np.hstack((video_frame, field_img))
+        combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
         cv2.imwrite(f'output_frame_{frame}.jpg', combined)
         continue
     elif frame not in frame_homographies and args.camera_correction:
@@ -61,9 +67,15 @@ for frame, group in mot_df.groupby('frame'):
         #     continue
         camera_motion = compute_camera_motion(prev_frame, video_frame)
         homography_matrix = prev_homography_matrix @ np.linalg.inv(camera_motion)
+
+        image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points is not None else None
+        # image_points = transform_points(image_points, camera_motion) if image_points is not None else None
+        # field_points = transform_points(field_points, camera_motion, inverse=True) if field_points is not None else None
     else:
         homography = frame_homographies[frame]
         homography_matrix = np.array(homography['matrix'])
+        image_points = np.array(homography['image_points'])
+        field_points = np.array(homography['field_points'])
 
         if prev_frame is not None and prev_homography_matrix is not None and args.camera_correction:
             camera_motion = compute_camera_motion(prev_frame, video_frame)
@@ -73,6 +85,16 @@ for frame, group in mot_df.groupby('frame'):
             print(f"Frame {frame}: Lie distance = {lie_dist}")
             if lie_dist > 15:
                 homography_matrix = hyp_homography_matrix
+
+    for pt in image_points:
+        cv2.circle(video_frame, (int(pt[0]), int(pt[1])), 5, (255, 0, 0), -1)
+
+    for pt in field_points:
+        cv2.circle(hom_img, field_to_pixel(*pt, hom_img, field_info), 5, (0, 255, 0), -1)
+
+    fov_points = np.array([[0,0], [video_frame.shape[1], 0], [video_frame.shape[1], video_frame.shape[0]], [0, video_frame.shape[0]]])
+    fov_points_transformed = np.array([field_to_pixel(*pt, hom_img, field_info) for pt in transform_points(fov_points, homography_matrix)]).astype(int)
+    cv2.polylines(hom_img, [np.int32(fov_points_transformed)], isClosed=True, color=(0, 255, 0), thickness=2)
     
     prev_frame = video_frame.copy()
     prev_homography_matrix = homography_matrix
@@ -92,6 +114,7 @@ for frame, group in mot_df.groupby('frame'):
         transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 5, color, -1)
+        cv2.circle(field_img_no_tracks, field_to_pixel(*transformed_pt, field_img_no_tracks, field_info), 5, color, -1)
 
-    combined = np.hstack((video_frame, field_img))
+    combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
     cv2.imwrite(f'output_frame_{frame:04d}.jpg', combined)
