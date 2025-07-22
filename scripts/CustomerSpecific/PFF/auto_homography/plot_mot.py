@@ -6,6 +6,12 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 
+from clarifai_grpc.grpc.api.resources_pb2 import Frame
+from clarifai_tracker.reid import KalmanREID
+
+import warnings
+warnings.simplefilter('ignore', RuntimeWarning)
+
 from auto_homography import gen_field, field_to_pixel, transform_points, FIELD_INFOS, League, compute_camera_motion
 
 p = argparse.ArgumentParser(description="Generate a field image with optional hash marks.")
@@ -17,11 +23,36 @@ p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of 
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
+p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
 args = p.parse_args()
 
 mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
 
 mot_df = mot_df[mot_df['label'].isin(args.classes)]
+
+if args.tracker_config is not None:
+    mot_df['id'] = -1
+    with open(args.tracker_config, 'r') as f:
+        tracker_params = json.load(f)
+    # run tracker
+    tracker = KalmanREID(
+        **tracker_params,
+    )
+    tracker.init_state()
+    for frame, group in mot_df.groupby('frame'):
+        cf_frame = Frame()
+        for _, row in group.iterrows():
+            r = cf_frame.data.regions.add()
+            r.region_info.bounding_box.left_col = row['x'] / 1280
+            r.region_info.bounding_box.top_row = row['y'] / 720
+            r.region_info.bounding_box.right_col = row['xx'] / 1280
+            r.region_info.bounding_box.bottom_row = row['yy'] / 720
+            r.value = row['score']
+            r.data.concepts.add(name=row['label'], value=r.value)
+        tracker(cf_frame.data)
+        for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
+            mot_df.loc[i, 'id'] = int(region.track_id) if region.track_id != '' else -1
+    mot_df = mot_df[mot_df['id'] != -1]  # remove untracked detections
 
 objects = mot_df['object_id'].unique()
 

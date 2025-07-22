@@ -1,5 +1,6 @@
 import argparse
 import cv2
+import json
 import numpy as np
 import os
 
@@ -27,6 +28,7 @@ def parse_args():
     parser.add_argument('--output-formats', nargs='+', default=['mp4', 'mot'], choices=['mp4', 'mot'])
     parser.add_argument('--detections-only', action='store_true', help='Only run detections, do not track')
     parser.add_argument('--no-progress', action='store_true', help='Disable progress bar')
+    parser.add_argument('--tracker-config', type=str, default='tracker_config.json', help='Path to tracker configuration file')
     return parser.parse_args()
 
 def load_video_or_images(input_path: str) -> Tuple[cv2.VideoCapture, int, int, int]:
@@ -65,26 +67,28 @@ def main():
     cap, fps, width, height = load_video_or_images(args.input)
     model = Model(args.model_url)
 
-    tracker_params = {
-        "max_dead": 100,
-        "max_emb_distance": 0.0,
-        "var_tracker": "manorm",
-        "initialization_confidence": 0.65,
-        "min_confidence": 0.25,
-        "association_confidence": [0.25],
-        "min_visible_frames": 0,
-        "covariance_error": 100,
-        "observation_error": 10,
-        "max_distance": [0.6],
-        "max_disappeared": 8,
-        "distance_metric": "diou",
-        "track_aiid": ["players"],
-        "track_id_prefix": "0",
-        "use_detect_box": 0,
-        "project_track": 0,
-        "project_fix_box_size": 0,
-        "detect_box_fall_back": 0,
-    }
+    # tracker_params = {
+    #     "max_dead": 100,
+    #     "max_emb_distance": 0.0,
+    #     "var_tracker": "manorm",
+    #     "initialization_confidence": 0.65,
+    #     "min_confidence": 0.25,
+    #     "association_confidence": [0.25],
+    #     "min_visible_frames": 0,
+    #     "covariance_error": 100,
+    #     "observation_error": 10,
+    #     "max_distance": [0.6],
+    #     "max_disappeared": 8,
+    #     "distance_metric": "diou",
+    #     "track_aiid": ["players"],
+    #     "track_id_prefix": "0",
+    #     "use_detect_box": 0,
+    #     "project_track": 0,
+    #     "project_fix_box_size": 0,
+    #     "detect_box_fall_back": 0,
+    # }
+    with open(args.tracker_config, 'r') as f:
+        tracker_params = json.load(f)
     tracker = KalmanREID(**tracker_params)
     tracker.init_state()
 

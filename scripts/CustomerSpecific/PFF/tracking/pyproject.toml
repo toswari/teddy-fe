@@ -7,9 +7,11 @@ requires-python = ">=3.13"
 dependencies = [
     "clarifai-grpc>=11.5.5",
     "joblib>=1.5.1",
+    "matplotlib>=3.10.3",
     "motmetrics",
     "numpy>=2.0.0",
     "pillow>=11.2.1",
+    "scikit-learn>=1.7.1",
     "scipy>=1.16.0",
 ]
 
@@ -23,6 +25,7 @@ samples = [
     "clarifai-tracker",
     "clarifai>=11.5.4",
     "opencv-python-headless>=4.11.0.86",
+    "optuna>=4.4.0",
     "torch>=2.7.1",
     "torchvision>=0.22.1",
     "tqdm>=4.67.1",

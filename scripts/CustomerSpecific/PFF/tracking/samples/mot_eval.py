@@ -1,8 +1,15 @@
+import json
 import motmetrics as mm
 import numpy as np
 import os
 import pandas as pd
+
+from clarifai_grpc.grpc.api.resources_pb2 import Frame
+from clarifai_tracker.reid import KalmanREID
 from tqdm import tqdm
+
+import warnings
+warnings.simplefilter('ignore', RuntimeWarning)
 
 if __name__ == '__main__':
     import argparse
@@ -11,6 +18,8 @@ if __name__ == '__main__':
     p.add_argument('dataset_folder', type=str, help='folder containing gt and det files. Seq_id/[det|gt].txt where det/gt.txt are frame, id, x, y, xx, yy, conf, category')
     p.add_argument('--assoc_threshold', type=float, default=0.25, help='Association threshold for IoU (default: 0.25)')
     p.add_argument('--include_classes', nargs='+', default=None, help='List of classes to include in evaluation (default: all classes)')
+    p.add_argument('--det-file', type=str, default='det.txt', help='Name of the detection file (default: det.txt)')
+    p.add_argument('--tracker-config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
     args = p.parse_args()
 
     metrics = ['num_frames',
@@ -36,7 +45,7 @@ if __name__ == '__main__':
     hota_summaries = []
     for seq in tqdm(sequences, desc='Processing sequences'):
         gt_file = os.path.join(args.dataset_folder, seq, 'gt.txt')
-        det_file = os.path.join(args.dataset_folder, seq, 'det.txt')
+        det_file = os.path.join(args.dataset_folder, seq, args.det_file)
 
         if not os.path.exists(gt_file) or not os.path.exists(det_file):
             print(f"Skipping {seq}: missing gt or det file.")
@@ -61,6 +70,30 @@ if __name__ == '__main__':
         gt['height'] = gt['yy'] - gt['y']
         det['width'] = det['xx'] - det['x']
         det['height'] = det['yy'] - det['y']
+
+        if args.tracker_config is not None:
+            det['id'] = -1
+            with open(args.tracker_config, 'r') as f:
+                tracker_params = json.load(f)
+            # run tracker
+            tracker = KalmanREID(
+                **tracker_params,
+            )
+            tracker.init_state()
+            for frame, group in det.groupby('frame'):
+                cf_frame = Frame()
+                for _, row in group.iterrows():
+                    r = cf_frame.data.regions.add()
+                    r.region_info.bounding_box.left_col = row['x'] / 1280
+                    r.region_info.bounding_box.top_row = row['y'] / 720
+                    r.region_info.bounding_box.right_col = row['xx'] / 1280
+                    r.region_info.bounding_box.bottom_row = row['yy'] / 720
+                    r.value = row['conf']
+                    r.data.concepts.add(name=row['category'], value=r.value)
+                tracker(cf_frame.data)
+                for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
+                    det.loc[i, 'id'] = int(region.track_id) if region.track_id != '' else -1
+            det = det[det['id'] != -1]  # remove untracked detections
 
         # Create accumulator
         acc = mm.MOTAccumulator(auto_id=True)
