@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument('--max-frames', type=int, default=-1, help="Maximum number of frames to track")
     #parser.add_argument('--conf_thresh', type=float, default=0.5, help='Detection confidence threshold')
     parser.add_argument('--output-formats', nargs='+', default=['mp4', 'mot'], choices=['mp4', 'mot'])
+    parser.add_argument('--detections-only', action='store_true', help='Only run detections, do not track')
     return parser.parse_args()
 
 def load_video_or_images(input_path: str) -> Tuple[cv2.VideoCapture, int, int, int]:
@@ -92,9 +93,12 @@ def main():
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    output_mp4_name = f"{sequence_id}.mp4"
-    output_mp4 = os.path.join(output_dir, output_mp4_name)
-    out = cv2.VideoWriter(output_mp4, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    if 'mp4' in args.output_formats:
+        output_mp4_name = f"{sequence_id}.mp4"
+        output_mp4 = os.path.join(output_dir, output_mp4_name)
+        out = cv2.VideoWriter(output_mp4, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    else:
+        out = None
 
     mot_tracks = []
 
@@ -123,7 +127,8 @@ def main():
             rp.CopyFrom(r.to_proto())
             rp.value = r.concepts[0].value
 
-        tracker(cf_frame.data)
+        if not args.detections_only:
+            tracker(cf_frame.data)
 
         tracked_regions = [Region.from_proto(r) for r in cf_frame.data.regions]
         tracked_regions = [
@@ -138,14 +143,18 @@ def main():
             if r[5] != -1
         ])
 
-        frame = draw_tracks(frame, tracked_regions)
-        out.write(frame)
+        if out is not None:
+            frame = draw_tracks(frame, tracked_regions)
+            out.write(frame)
+            
         frame_idx += 1
         pbar.update(1)
 
     if isinstance(cap, cv2.VideoCapture):
         cap.release()
-    out.release()
+
+    if out is not None:
+        out.release()
 
     if 'mot' in args.output_formats:
         # MOT format
