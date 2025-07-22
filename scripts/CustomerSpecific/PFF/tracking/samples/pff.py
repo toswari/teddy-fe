@@ -26,6 +26,7 @@ def parse_args():
     #parser.add_argument('--conf_thresh', type=float, default=0.5, help='Detection confidence threshold')
     parser.add_argument('--output-formats', nargs='+', default=['mp4', 'mot'], choices=['mp4', 'mot'])
     parser.add_argument('--detections-only', action='store_true', help='Only run detections, do not track')
+    parser.add_argument('--no-progress', action='store_true', help='Disable progress bar')
     return parser.parse_args()
 
 def load_video_or_images(input_path: str) -> Tuple[cv2.VideoCapture, int, int, int]:
@@ -102,7 +103,7 @@ def main():
 
     mot_tracks = []
 
-    pbar = tqdm()
+    pbar = tqdm(disable=args.no_progress, desc='Processing frames')
     frame_idx = 0
     while True:
         if args.max_frames > 0 and frame_idx > args.max_frames:
@@ -146,7 +147,7 @@ def main():
         if out is not None:
             frame = draw_tracks(frame, tracked_regions)
             out.write(frame)
-            
+
         frame_idx += 1
         pbar.update(1)
 
