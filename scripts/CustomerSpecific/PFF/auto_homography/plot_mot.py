@@ -24,6 +24,7 @@ p.add_argument('--camera_correction', action='store_true', help="Apply camera co
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
+p.add_argument('--embeddings', action='store_true', help='Use embeddings for tracking')
 args = p.parse_args()
 
 mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
@@ -31,7 +32,7 @@ mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x'
 mot_df = mot_df[mot_df['label'].isin(args.classes)]
 
 if args.tracker_config is not None:
-    mot_df['id'] = -1
+    mot_df['object_id'] = -1
     with open(args.tracker_config, 'r') as f:
         tracker_params = json.load(f)
     # run tracker
@@ -39,7 +40,10 @@ if args.tracker_config is not None:
         **tracker_params,
     )
     tracker.init_state()
+    new_dfs = []
     for frame, group in mot_df.groupby('frame'):
+        video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame:04d}.jpg'))
+
         cf_frame = Frame()
         for _, row in group.iterrows():
             r = cf_frame.data.regions.add()
@@ -49,18 +53,44 @@ if args.tracker_config is not None:
             r.region_info.bounding_box.bottom_row = row['yy'] / 720
             r.value = row['score']
             r.data.concepts.add(name=row['label'], value=r.value)
+            if args.embeddings:
+                crop = video_frame[int(row['y']):int(row['yy']), int(row['x']):int(row['xx'])]
+                embedding = crop.mean(axis=(0, 1)).flatten()  # Simple mean embedding
+                emb = r.data.embeddings.add()
+                emb.vector.extend(embedding)
         tracker(cf_frame.data)
-        for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
-            mot_df.loc[i, 'id'] = int(region.track_id) if region.track_id != '' else -1
-    mot_df = mot_df[mot_df['id'] != -1]  # remove untracked detections
+        new_dfs.append(
+            pd.DataFrame.from_records(
+                [
+                    {
+                        'frame': frame,
+                        'object_id': int(region.track_id) if region.track_id != '' else -1,
+                        'x': region.region_info.bounding_box.left_col * 1280,
+                        'y': region.region_info.bounding_box.top_row * 720,
+                        'xx': region.region_info.bounding_box.right_col * 1280,
+                        'yy': region.region_info.bounding_box.bottom_row * 720,
+                        'score': region.value,
+                        'label': region.data.concepts[0].name if region.data.concepts else ''
+                    } 
+                for region in cf_frame.data.regions if region.track_id != ''
+                ]
+            )
+        )
+    #     if len(group) != len(cf_frame.data.regions):
+    #         breakpoint()
+    #     for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
+    #         mot_df.loc[i, 'object_id'] = int(region.track_id) if region.track_id != '' else -1
+    mot_df = pd.concat(new_dfs, ignore_index=True)
+    mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
 
 objects = mot_df['object_id'].unique()
 
 import matplotlib.pyplot as plt
+import itertools
 
 # Generate a color map for up to 25 unique objects
-cmap = plt.get_cmap('tab20b', 25)
-object_colors = {obj_id: tuple(int(255 * c) for c in cmap(i)[:3]) for i, obj_id in enumerate(objects)}
+cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
+object_colors = {obj_id: tuple(int(255 * c) for c in cmap[i][:3]) for i, obj_id in enumerate(objects)}
 
 frame_homographies = {
     int(x.split('_')[0]): json.load(open(os.path.join(args.HOMOGRAPHY_JSON_DIR, x)))
@@ -144,8 +174,17 @@ for frame, group in mot_df.groupby('frame'):
 
         transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
         color = object_colors.get(row['object_id'], (255, 0, 0))
-        cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 5, color, -1)
-        cv2.circle(field_img_no_tracks, field_to_pixel(*transformed_pt, field_img_no_tracks, field_info), 5, color, -1)
+        cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
+        cv2.putText(
+            field_img_no_tracks,
+            str(row['object_id']),
+            field_to_pixel(*transformed_pt, field_img_no_tracks, field_info),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            color,
+            2,
+            cv2.LINE_AA
+        )
 
     combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
     cv2.imwrite(f'output_frame_{frame:04d}.jpg', combined)

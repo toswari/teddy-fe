@@ -168,7 +168,7 @@ class KFTracker(AbstractMotionTracker):
                              [height]])
       if len(region.data.embeddings):
         self.embeddings.append(
-            region.data.embeddings[0].float_array)  #TODO handle multiple embeddings?
+            region.data.embeddings[0].vector)  #TODO handle multiple embeddings?
       else:
         self.embeddings.append([])
       self.confidences.append(region.value)
@@ -220,7 +220,7 @@ class KFTracker(AbstractMotionTracker):
       for track_id in self.tracker.unassigned_tracks:
         track = self.tracker.tracks[track_id]
         if self.show_track(track):
-          region = frame_data.region.add()
+          region = frame_data.regions.add()
           region.CopyFrom(track.last_detection)
           region.track_id = self.track_id_prefix + str(track_id)
           if track.skipped_frames >= self.use_detect_box:

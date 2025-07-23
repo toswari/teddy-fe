@@ -34,3 +34,6 @@ samples = [
 [tool.uv.sources]
 maven-tracker = { workspace = true }
 motmetrics = { git = "https://github.com/cheind/py-motmetrics.git" }
+
+[tool.setuptools]
+py-modules = ["clarifai_tracker"]
