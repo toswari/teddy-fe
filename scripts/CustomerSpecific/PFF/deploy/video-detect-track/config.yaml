@@ -1,0 +1,15 @@
+model:
+  id: "video_streaming_test"
+  user_id: "pff-org"
+  app_id: "labelstudio-unified"
+  model_type_id: "any-to-any"  # TODO?
+
+build_info:
+  python_version: "3.12"
+
+inference_compute_info:
+  cpu_limit: "4"
+  cpu_memory: "4Gi"
+  num_accelerators: 1
+  accelerator_type: ["NVIDIA-*"]
+  accelerator_memory: "6Gi"
