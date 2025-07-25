@@ -6,7 +6,7 @@ import threading
 import requests
 
 import av
-import stream_utils
+from . import stream as stream_utils
 
 
 def stream_frames_from_url(url, download_ok=True):
