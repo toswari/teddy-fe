@@ -9,9 +9,14 @@ p = argparse.ArgumentParser(description="Run video detection and tracking model.
 p.add_argument("video_path", type=str, help="Path to the video file.")
 p.add_argument("--max_frames", type=int, default=60, help="Maximum number of frames to process from the video.")
 p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test", help="URL of the model to use.")
+p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 args = p.parse_args()
 
-model = Model(url=args.model_url)
+model_kwargs = {}
+if args.deployment_id:
+    model_kwargs['deployment_id'] = args.deployment_id
+
+model = Model(url=args.model_url, deployment_id=args.deployment_id, deployment_user_id="pff-org")
 
 video_path = args.video_path
 if video_path.startswith('http://') or video_path.startswith('https://'):
