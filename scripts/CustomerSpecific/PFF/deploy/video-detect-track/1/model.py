@@ -1,5 +1,3 @@
-import video_utils
-
 from typing import Iterator
 
 from clarifai.runners.models.model_class import ModelClass
@@ -7,7 +5,7 @@ from clarifai_grpc.grpc.api import service_pb2
 from clarifai_grpc.grpc.api.status import status_code_pb2
 
 
-from clarifai.runners.utils.data_types.data_types import Video, Region, Concept, Frame
+from clarifai.runners.utils.data_types.data_types import Video, Region, Concept
 from typing import List, Optional
 
 import onnx
@@ -19,6 +17,7 @@ import numpy as np
 import logging
 from time import perf_counter_ns
 
+import clarifai_pff.utils.video as video_utils
 from clarifai_pff.tracking.reid import KalmanREID
 from clarifai_grpc.grpc.api.resources_pb2 import Frame
 

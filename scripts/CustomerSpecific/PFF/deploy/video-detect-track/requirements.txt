@@ -1,7 +1,7 @@
 clarifai
 numpy
 onnx
-onnxruntime-gpu
+onnxruntime
 pillow
 opencv-python
 av
