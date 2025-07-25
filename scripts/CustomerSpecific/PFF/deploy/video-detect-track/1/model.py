@@ -67,7 +67,7 @@ class VideoStreamModel(ModelClass):
 
     self.id2label = {i: c['name'] for i,c in enumerate([dict(name='players'), dict(name='referee')])}
 
-  def predict_frame(self, frame):
+  def predict_frame(self, frame) -> List[Region]:
     # Process each frame
     frame_array = frame.to_ndarray(format="rgb24")
     ori_size = frame_array.shape[:2][::-1]  # (width, height)
@@ -108,7 +108,7 @@ class VideoStreamModel(ModelClass):
     return result[0]
 
   @ModelClass.method
-  def predict(self, video: Video, tracker_params: dict = None) -> List[List[Region]]:
+  def predict(self, video: Video, tracker_params: dict = None, max_frames: int = None) -> List[List[Region]]:
     results = []
     def _bytes_iterator():
       for v in [video]:
@@ -117,7 +117,9 @@ class VideoStreamModel(ModelClass):
     if tracker_params is not None:
       tracker = KalmanREID(**tracker_params)
       tracker.init_state()
-    for frame in video_utils.stream_frames_from_bytes(_bytes_iterator()):
+    for i, frame in enumerate(video_utils.stream_frames_from_bytes(_bytes_iterator())):
+        if max_frames is not None and i >= max_frames:
+          break
         result = self.predict_frame(frame)
         if tracker_params is not None:
           frame_array = frame.to_ndarray(format="rgb24")
