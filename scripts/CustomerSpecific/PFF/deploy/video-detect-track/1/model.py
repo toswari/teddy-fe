@@ -19,7 +19,7 @@ import numpy as np
 import logging
 from time import perf_counter_ns
 
-from clarifai_tracker.reid import KalmanREID
+from clarifai_pff.tracking.reid import KalmanREID
 from clarifai_grpc.grpc.api.resources_pb2 import Frame
 
 logger = logging.getLogger(__name__)

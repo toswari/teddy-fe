@@ -12,7 +12,7 @@ from clarifai_tracker.reid import KalmanREID
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
 
-from auto_homography import gen_field, field_to_pixel, transform_points, FIELD_INFOS, League, compute_camera_motion
+from clarifai_pff.auto_homography import gen_field, field_to_pixel, transform_points, FIELD_INFOS, League, compute_camera_motion
 
 p = argparse.ArgumentParser(description="Generate a field image with optional hash marks.")
 p.add_argument("MOT_CSV")

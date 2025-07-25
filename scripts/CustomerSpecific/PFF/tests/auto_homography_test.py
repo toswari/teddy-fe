@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from auto_homography import associate_line_to_yard, conflict_dfs
+from clarifai_pff.auto_homography import associate_line_to_yard, conflict_dfs
 
 @pytest.fixture
 def sample_proto_lines():

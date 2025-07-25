@@ -5,4 +5,4 @@ onnxruntime-gpu
 pillow
 opencv-python
 av
-pff @ /home/nonroot/dist/pff-0.1.0.tar.gz
+clarifai_pff @ /home/nonroot/dist/clarifai_pff-0.1.0.tar.gz
