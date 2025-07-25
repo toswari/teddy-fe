@@ -7,9 +7,11 @@ import cv2
 
 p = argparse.ArgumentParser(description="Run video detection and tracking model.")
 p.add_argument("video_path", type=str, help="Path to the video file.")
+p.add_argument("--max_frames", type=int, default=60, help="Maximum number of frames to process from the video.")
+p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test", help="URL of the model to use.")
 args = p.parse_args()
 
-model = Model(url='https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test')
+model = Model(url=args.model_url)
 
 video_path = args.video_path
 if video_path.startswith('http://') or video_path.startswith('https://'):
@@ -74,6 +76,6 @@ fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 height, width = video_frames[0].shape[:2]
 out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
 
-for frame in video_frames:
+for frame, frame_regions in zip(video_frames, result):
     out.write(frame)
 out.release()
