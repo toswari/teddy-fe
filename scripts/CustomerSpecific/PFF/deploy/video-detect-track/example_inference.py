@@ -12,10 +12,13 @@ args = p.parse_args()
 model = Model(url='https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test')
 
 video_path = args.video_path
-with open(video_path, 'rb') as f:
-    video_bytes = f.read()
+if video_path.startswith('http://') or video_path.startswith('https://'):
+    video = Video(url=video_path)
+else:
+    with open(video_path, 'rb') as f:
+        video_bytes = f.read()
 
-video = Video(bytes=video_bytes)
+    video = Video(bytes=video_bytes)
 
 
 tracker_params = {

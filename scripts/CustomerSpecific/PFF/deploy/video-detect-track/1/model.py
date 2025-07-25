@@ -110,14 +110,24 @@ class VideoStreamModel(ModelClass):
   @ModelClass.method
   def predict(self, video: Video, tracker_params: dict = None, max_frames: int = None) -> List[List[Region]]:
     results = []
+
     def _bytes_iterator():
       for v in [video]:
         yield v.bytes  # not actually base64, but the raw bytes
 
+    if not video.bytes and not video.url:
+      raise ValueError("Video must have either bytes or url set.")
+    elif video.url:
+       stream = video_utils.stream_frames_from_url(video.url, download_ok=True)
+    elif video.bytes:
+       stream = video_utils.stream_frames_from_bytes(_bytes_iterator())
+    else:
+      raise ValueError("Video must have either bytes or url set.")
+
     if tracker_params is not None:
       tracker = KalmanREID(**tracker_params)
       tracker.init_state()
-    for i, frame in enumerate(video_utils.stream_frames_from_bytes(_bytes_iterator())):
+    for i, frame in enumerate(stream):
         if max_frames is not None and i >= max_frames:
           break
         result = self.predict_frame(frame)
