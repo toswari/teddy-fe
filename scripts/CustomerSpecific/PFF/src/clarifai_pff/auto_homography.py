@@ -1142,23 +1142,20 @@ def main(image_path: str,
         )
         se = np.square(homography_result.image_points[homography_result.mask.ravel() > 0] - backproj)
         mse = np.mean(se)
+        if mse > 10:
+            warnings.append(HomographyError(
+                f"High backprojection error: {mse}"
+            ))
+            print(f"Warning: High backprojection error: {mse}")
 
         # compute condition number of the homography matrix
         # if the condition number is too high, it indicates numerical instability
         # and the homography may not be reliable (TODO)
         cond = np.linalg.cond(homography_result.matrix)
         if cond > 1e12:
-            # warnings.append(HomographyError(
-            #     f"Homography matrix condition number is too high: {cond}",
-            #     all_lines=result.all_lines,
-            #     yard_lines=result.yard_lines,
-            #     proto_lines=result.proto_lines,
-            #     clustered=result.clustered,
-            #     inner_to_upper=result.inner_to_upper,
-            #     line_yard_map=result.line_yard_map,
-            #     inner_yard_map=result.inner_yard_map,
-            #     up_edge_yard_map=result.up_edge_yard_map
-            # ))
+            warnings.append(HomographyError(
+                f"Homography matrix condition number is too high: {cond}"
+            ))
             print(f"Warning: Homography matrix condition number is too high: {cond}")
 
         print(mse, len(warnings))
