@@ -11,6 +11,7 @@ p.add_argument("video_path", type=str, help="Path to the video file.")
 p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test", help="URL of the model to use.")
 p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 p.add_argument("--output_suffix", type=str, default="_output.mp4", help="Suffix for the output video file.")
+p.add_argument("--max_frames", type=int, default=None, help="Maximum number of frames to process. Default is None (process all frames).")
 args = p.parse_args()
 
 model_kwargs = {}
@@ -51,7 +52,7 @@ tracker_params = {
 }
 
 start = perf_counter_ns()
-result = model.predict(video=video, tracker_params=tracker_params)
+result = model.predict(video=video, tracker_params=tracker_params, max_frames=args.max_frames)
 end = perf_counter_ns()
 print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 
