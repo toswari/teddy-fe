@@ -4,12 +4,13 @@ from time import perf_counter_ns
 
 import argparse
 import cv2
+import os
 
 p = argparse.ArgumentParser(description="Run video detection and tracking model.")
 p.add_argument("video_path", type=str, help="Path to the video file.")
-p.add_argument("--max_frames", type=int, default=60, help="Maximum number of frames to process from the video.")
 p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test", help="URL of the model to use.")
 p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
+p.add_argument("--output_suffix", type=str, default="_output.mp4", help="Suffix for the output video file.")
 args = p.parse_args()
 
 model_kwargs = {}
@@ -63,7 +64,7 @@ while True:
     frames.append(frame)
 fps = cap.get(cv2.CAP_PROP_FPS)
 cap.release()
-print(f"Frames: {len(frames)}, 'FPS': {len(frames) / (end - start) * 1e9}")
+print(f"Frames: {len(result)}, 'FPS': {len(result) / (end - start) * 1e9}")
 
 video_frames = frames
 
@@ -76,7 +77,7 @@ for frame_regions, video_frame in zip(result, video_frames):
         y2 = int(yy * video_frame.shape[0])
         cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0) if region.track_id else (0, 0, 255), 2)
 
-out_path = 'output.mp4'
+out_path = os.path.basename(args.video_path).replace('.mp4', args.output_suffix)
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 height, width = video_frames[0].shape[:2]
 out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
