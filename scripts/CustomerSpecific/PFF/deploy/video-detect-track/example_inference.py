@@ -26,8 +26,11 @@ model = Model(url=args.model_url, deployment_id=args.deployment_id, deployment_u
 
 video_path = args.video_path
 if video_path.startswith('http://') or video_path.startswith('https://'):
+    # assuming s3 presigned url
+    video_id = video_path.split('.mp4')[0].split('/')[-1]
     video = Video(url=video_path)
 else:
+    video_id = os.path.basename(args.video_path).replace('.mp4', '')
     with open(video_path, 'rb') as f:
         video_bytes = f.read()
 
@@ -103,12 +106,11 @@ if not os.path.exists(args.out_dir):
     os.makedirs(args.out_dir)
 
 if 'pb' in args.output_formats:
-    video_id = os.path.basename(args.video_path).replace('.mp4', '')
-    with open(os.path.join(args.out_dir, f'{video_id}.pb'), 'wb') as f:
+    with open(os.path.join(args.out_dir, f'{video_id}_det.pb'), 'wb') as f:
         f.write(data.SerializeToString())
 
 if 'mp4' in args.output_formats:
-    out_path = os.path.join(args.out_dir, os.path.basename(args.video_path).replace('.mp4', args.output_suffix))
+    out_path = os.path.join(args.out_dir, f'{video_id}{args.output_suffix}')
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     height, width = video_frames[0].shape[:2]
     out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))

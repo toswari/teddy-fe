@@ -6,7 +6,7 @@ import os
 import optuna.storages.journal
 import pandas as pd
 
-from clarifai_grpc.grpc.api.resources_pb2 import Frame
+from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.tracking.reid import KalmanREID
 from functools import partial
 
@@ -44,12 +44,12 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
         "association_confidence": [association_confidence],
     })
 
-    sequences = os.listdir(mot_dir)
+    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(args.dataset_folder, '*_gt.pb'))]
     processed_sequences = []
     all_accumulators = []
     for seq in sequences:
-        gt_file = os.path.join(mot_dir, seq, 'gt.txt')
-        det_file = os.path.join(mot_dir, seq, 'det.txt')
+        gt_file = os.path.join(args.dataset_folder, f'{seq}_gt.pb')
+        det_file = os.path.join(args.dataset_folder, f'{seq}_det.pb')
 
         if not os.path.exists(gt_file) or not os.path.exists(det_file):
             print(f"Skipping {seq}: missing gt or det file.")
@@ -57,14 +57,48 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
         processed_sequences.append(seq)
 
         # Load ground truth and detections
-        gt = pd.read_csv(gt_file, sep=',', header=None, names=['frame', 'id', 'x', 'y', 'xx', 'yy', 'conf', 'category'])
-        det = pd.read_csv(det_file, sep=',', header=None, names=['frame', 'id', 'x', 'y', 'xx', 'yy', 'conf', 'category'])
+        with open(gt_file, 'rb') as f:
+            gt_data = Data.FromString(f.read())
+        with open(det_file, 'rb') as f:
+            det_data = Data.FromString(f.read())
 
-        gt_cats, det_cats = gt.category.unique(), det.category.unique()
+        h, w = gt_data.frames[0].data.image.image_info.height, gt_data.frames[0].data.image.image_info.width
+
+        gt_cats, det_cats = set((r.data.concepts[0].name for f in gt_data.frames for r in f.data.regions)), set((r.data.concepts[0].name for f in det_data.frames for r in f.data.regions))
         if set(gt_cats) != set(det_cats):
             print(f"Warning: Categories in ground truth and detections do not match for sequence {seq}.")
             print(f"Ground truth categories: {gt_cats}")
             print(f"Detection categories: {det_cats}")
+
+        gt = []
+        det = []
+        for fi, f in enumerate(gt_data.frames):
+            for r in f.data.regions:
+                gt.append({
+                    'frame': fi + 1,  # MOT frames are 1-indexed
+                    'id': int(r.track_id) if r.track_id else -1,  # Use -1 for untracked regions
+                    'x': r.region_info.bounding_box.left_col * w,
+                    'y': r.region_info.bounding_box.top_row * h,
+                    'xx': r.region_info.bounding_box.right_col * w,
+                    'yy': r.region_info.bounding_box.bottom_row * h,
+                    'conf': r.value,
+                    'category': r.data.concepts[0].name
+                })
+        for fi, f in enumerate(det_data.frames):
+            for r in f.data.regions:
+                det.append({
+                    'frame': fi + 1,  # MOT frames are 1-indexed
+                    'id': int(r.track_id) if r.track_id else -1,  # Use -1 for untracked regions
+                    'x': r.region_info.bounding_box.left_col * w,
+                    'y': r.region_info.bounding_box.top_row * h,
+                    'xx': r.region_info.bounding_box.right_col * w,
+                    'yy': r.region_info.bounding_box.bottom_row * h,
+                    'conf': r.value,
+                    'category': r.data.concepts[0].name
+                })
+        
+        gt = pd.DataFrame.from_records(gt)
+        det = pd.DataFrame.from_records(det)
 
         if target_class is not None:
             gt = gt[gt['category'].isin([target_class])]
@@ -81,6 +115,7 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
             **tracker_params,
         )
         tracker.init_state()
+        new_dets = []
         for frame, group in det.groupby('frame'):
             cf_frame = Frame()
             for _, row in group.iterrows():
@@ -92,8 +127,26 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
                 r.value = row['conf']
                 r.data.concepts.add(name=row['category'], value=r.value)
             tracker(cf_frame.data)
-            for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
-                det.loc[i, 'id'] = int(region.track_id) if region.track_id != '' else -1
+            new_dets.append(
+                pd.DataFrame.from_records(
+                    [
+                        {
+                            'frame': frame,
+                            'id': int(region.track_id) if region.track_id != '' else -1,
+                            'x': region.region_info.bounding_box.left_col * w,
+                            'y': region.region_info.bounding_box.top_row * h,
+                            'xx': region.region_info.bounding_box.right_col * w,
+                            'yy': region.region_info.bounding_box.bottom_row * h,
+                            'conf': region.value,
+                            'category': region.data.concepts[0].name if region.data.concepts else ''
+                        } 
+                    for region in cf_frame.data.regions if region.track_id != ''
+                    ]
+                )
+            )
+        det = pd.concat(new_dets, ignore_index=True)
+        det = det[det['id'] != -1]  # remove untracked detections
+        det[['width', 'height']] = det[['xx', 'yy']].to_numpy() - det[['x', 'y']].to_numpy()
 
         # Create accumulator
         acc = mm.MOTAccumulator(auto_id=True)

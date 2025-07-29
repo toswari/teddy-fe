@@ -11,7 +11,7 @@
     "max_distance": [0.5],
     "max_disappeared": 8,
     "distance_metric": "diou",
-    "track_aiid": ["Player"],
+    "track_aiid": ["players"],
     "track_id_prefix": "0",
     "use_detect_box": 0,
     "project_track": 0,

@@ -21,6 +21,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "awscli>=1.41.16",
     "motmetrics",
     "opencv-python>=4.11.0.86",
     "optuna>=4.4.0",
