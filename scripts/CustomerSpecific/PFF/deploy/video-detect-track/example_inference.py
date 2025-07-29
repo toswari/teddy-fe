@@ -4,6 +4,7 @@ from time import perf_counter_ns
 
 import argparse
 import cv2
+import json
 import os
 
 p = argparse.ArgumentParser(description="Run video detection and tracking model.")
@@ -12,6 +13,9 @@ p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/la
 p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 p.add_argument("--output_suffix", type=str, default="_output.mp4", help="Suffix for the output video file.")
 p.add_argument("--max_frames", type=int, default=None, help="Maximum number of frames to process. Default is None (process all frames).")
+p.add_argument("--tracker_config", type=str, default=None, help="Path to a JSON file with tracker parameters. If not provided, tracking is disabled.")
+p.add_argument("--out_dir", type=str, default=os.getcwd(), help="Directory to save the output video and result file. Default is current working directory.")
+p.add_argument("--output_formats", nargs='+', default=['pb', 'mp4'], choices=['pb', 'mp4'], help="Output formats to save the results. Default is ['pb', 'mp4'].")
 args = p.parse_args()
 
 model_kwargs = {}
@@ -50,6 +54,11 @@ tracker_params = {
     "project_fix_box_size": 0,
     "detect_box_fall_back": 0
 }
+if not args.tracker_config:
+    tracker_params = None
+else:
+    with open(args.tracker_config, 'r') as f:
+        tracker_params = json.load(f)
 
 start = perf_counter_ns()
 result = model.predict(video=video, tracker_params=tracker_params, max_frames=args.max_frames)
@@ -69,20 +78,41 @@ print(f"Frames: {len(result)}, 'FPS': {len(result) / (end - start) * 1e9}")
 
 video_frames = frames
 
+import itertools
+import matplotlib.pyplot as plt
+cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
+
+from clarifai_grpc.grpc.api import resources_pb2
+data = resources_pb2.Data()
 for frame_regions, video_frame in zip(result, video_frames):
+    f = data.frames.add()
     for region in frame_regions:
+        r = f.data.regions.add()
+        r.CopyFrom(region.to_proto())
+        r.value = region.concepts[0].value
+
         x, y, xx, yy = region.box
         x1 = int(x * video_frame.shape[1])
         y1 = int(y * video_frame.shape[0])
         x2 = int(xx * video_frame.shape[1])
         y2 = int(yy * video_frame.shape[0])
-        cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0) if region.track_id else (0, 0, 255), 2)
+        color = tuple(map(lambda c: int(255*c), cmap[int(region.track_id) % len(cmap)][:3])) if region.track_id else (0, 0, 255)
+        cv2.rectangle(video_frame, (x1, y1), (x2, y2), color, 2)
 
-out_path = os.path.basename(args.video_path).replace('.mp4', args.output_suffix)
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-height, width = video_frames[0].shape[:2]
-out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+if not os.path.exists(args.out_dir):
+    os.makedirs(args.out_dir)
 
-for frame, frame_regions in zip(video_frames, result):
-    out.write(frame)
-out.release()
+if 'pb' in args.output_formats:
+    video_id = os.path.basename(args.video_path).replace('.mp4', '')
+    with open(os.path.join(args.out_dir, f'{video_id}.pb'), 'wb') as f:
+        f.write(data.SerializeToString())
+
+if 'mp4' in args.output_formats:
+    out_path = os.path.join(args.out_dir, os.path.basename(args.video_path).replace('.mp4', args.output_suffix))
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    height, width = video_frames[0].shape[:2]
+    out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
+
+    for frame, frame_regions in zip(video_frames, result):
+        out.write(frame)
+    out.release()

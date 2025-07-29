@@ -104,22 +104,23 @@ class VideoStreamModel(ModelClass):
         if max_frames is not None and i >= max_frames:
           break
         result = self.predict_frame(frame)
+
+        frame_array = frame.to_ndarray(format="rgb24")
+        frame_size = frame_array.shape[:2][::-1]  # (width, height)
+        for region in result:
+          x, y, xx, yy = [x*y for x,y in zip(region.box, [*frame_size]*2)]
+          crop = frame_array[int(y):int(yy), int(x):int(xx)]
+          embedding = crop.mean(axis=(0, 1)).flatten()  # Simple mean embedding
+          emb = region.proto.data.embeddings.add()
+          emb.vector.extend(embedding)
+        
         if tracker_params is not None:
-          frame_array = frame.to_ndarray(format="rgb24")
-          frame_size = frame_array.shape[:2][::-1]  # (width, height)
           cf_frame = Frame()
           for region in result:
               r = cf_frame.data.regions.add()
               r.CopyFrom(region.to_proto())
               # to_proto does not set this, but the tracker expects it
               r.value = region.concepts[0].value
-
-              x, y, xx, yy = [x*y for x,y in zip(region.box, [*frame_size]*2)]
-              crop = frame_array[int(y):int(yy), int(x):int(xx)]
-              embedding = crop.mean(axis=(0, 1)).flatten()  # Simple mean embedding
-              emb = r.data.embeddings.add()
-              emb.vector.extend(embedding)
-              
           tracker(cf_frame.data)
 
           result = []
