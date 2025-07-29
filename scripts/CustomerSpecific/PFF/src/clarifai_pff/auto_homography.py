@@ -635,7 +635,7 @@ def compute_homography(
     H, mask = cv2.findHomography(
         image_points, field_points,
         method=method,
-        ransacReprojThreshold=5.0
+        ransacReprojThreshold=1.0
     )
 
     if H is None:

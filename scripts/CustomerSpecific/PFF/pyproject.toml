@@ -21,6 +21,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "motmetrics",
     "opencv-python>=4.11.0.86",
     "optuna>=4.4.0",
     "pandas>=2.3.1",
