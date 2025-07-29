@@ -4,6 +4,7 @@
 1. `uv sync`
 
 ## Structure
+- `config/` - some useful configurations / hyper-parameter sets
 - `deploy/` - anything deployment related (e.g., runner file trees)
 - `scripts/` - some useful scripts for mot eval, tuning, plotting
 - `src/clarifai_pff/` - source tree for the package, importable by runners due to `make` recipes
