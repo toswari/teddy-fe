@@ -7,7 +7,7 @@ import pandas as pd
 import scipy.linalg
 
 from clarifai_grpc.grpc.api.resources_pb2 import Frame
-from clarifai_tracker.reid import KalmanREID
+from clarifai_pff.tracking.reid import KalmanREID
 
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)

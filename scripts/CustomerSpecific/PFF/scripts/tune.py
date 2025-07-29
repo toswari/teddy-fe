@@ -7,7 +7,7 @@ import optuna.storages.journal
 import pandas as pd
 
 from clarifai_grpc.grpc.api.resources_pb2 import Frame
-from clarifai_tracker.reid import KalmanREID
+from clarifai_pff.tracking.reid import KalmanREID
 from functools import partial
 
 def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
