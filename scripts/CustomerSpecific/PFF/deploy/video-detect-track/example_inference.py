@@ -101,6 +101,16 @@ for frame_regions, video_frame in zip(result, video_frames):
         y2 = int(yy * video_frame.shape[0])
         color = tuple(map(lambda c: int(255*c), cmap[int(region.track_id) % len(cmap)][:3])) if region.track_id else (0, 0, 255)
         cv2.rectangle(video_frame, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(
+            video_frame,
+            f"{r.value:.2f}",
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            color,
+            2,
+            cv2.LINE_AA
+        )
 
 if not os.path.exists(args.out_dir):
     os.makedirs(args.out_dir)
