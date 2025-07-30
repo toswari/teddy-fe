@@ -16,7 +16,7 @@ if __name__ == '__main__':
     import argparse
 
     p = argparse.ArgumentParser(description='Evaluate MOT results using MOT metrics.')
-    p.add_argument('dataset_folder', type=str, help='folder containing gt and det files. Seq_id/[det|gt].txt where det/gt.txt are frame, id, x, y, xx, yy, conf, category')
+    p.add_argument('dataset_folder', type=str, help='folder containing gt and det files. Seq_id_{det,gt}.pb')
     p.add_argument('--assoc_threshold', type=float, default=0.25, help='Association threshold for IoU (default: 0.25)')
     p.add_argument('--include_classes', nargs='+', default=None, help='List of classes to include in evaluation (default: all classes)')
     # p.add_argument('--det-file', type=str, default='det.txt', help='Name of the detection file (default: det.txt)')

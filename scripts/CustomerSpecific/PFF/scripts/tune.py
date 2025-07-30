@@ -10,11 +10,16 @@ from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.tracking.reid import KalmanREID
 from functools import partial
 
+import warnings
+warnings.simplefilter('ignore', RuntimeWarning)
+
 def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
     initial_confidence = trial.suggest_float("initialization_confidence", 0.65, 1)
     min_confidence = trial.suggest_float("min_confidence", 0.5, initial_confidence)
     max_distance = trial.suggest_float("max_distance", 0, 1)
     association_confidence = trial.suggest_float("association_confidence", 0, 1)
+    max_emb_distance = trial.suggest_float("max_emb_distance", 0, 1)
+    max_disappeared = trial.suggest_int("max_disappeared", 1, 30)
 
     tracker_params = {
         "max_dead": 100,
@@ -42,14 +47,16 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
         "min_confidence": min_confidence,
         "max_distance": [max_distance],
         "association_confidence": [association_confidence],
+        "max_emb_distance": max_emb_distance,
+        "max_disappeared": max_disappeared,
     })
 
-    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(args.dataset_folder, '*_gt.pb'))]
+    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(mot_dir, '*_gt.pb'))]
     processed_sequences = []
     all_accumulators = []
     for seq in sequences:
-        gt_file = os.path.join(args.dataset_folder, f'{seq}_gt.pb')
-        det_file = os.path.join(args.dataset_folder, f'{seq}_det.pb')
+        gt_file = os.path.join(mot_dir, f'{seq}_gt.pb')
+        det_file = os.path.join(mot_dir, f'{seq}_det.pb')
 
         if not os.path.exists(gt_file) or not os.path.exists(det_file):
             print(f"Skipping {seq}: missing gt or det file.")

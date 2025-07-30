@@ -9,7 +9,7 @@
     "covariance_error": 100,
     "observation_error": 10,
     "max_distance": [0.5],
-    "max_disappeared": 8,
+    "max_disappeared": 25,
     "distance_metric": "diou",
     "track_aiid": ["players"],
     "track_id_prefix": "0",
