@@ -116,22 +116,15 @@ if __name__ == '__main__':
             )
             tracker.init_state()
             new_dets = []
-            for frame, group in det.groupby('frame'):
-                cf_frame = Frame()
-                for _, row in group.iterrows():
-                    r = cf_frame.data.regions.add()
-                    r.region_info.bounding_box.left_col = row['x'] / w
-                    r.region_info.bounding_box.top_row = row['y'] / h
-                    r.region_info.bounding_box.right_col = row['xx'] / w
-                    r.region_info.bounding_box.bottom_row = row['yy'] / h
-                    r.value = row['conf']
-                    r.data.concepts.add(name=row['category'], value=r.value)
-                tracker(cf_frame.data)
+            for frame_idx, frame in enumerate(det_data.frames, 1):
+                for region in frame.data.regions:
+                    region.track_id = ''
+                tracker(frame.data)
                 new_dets.append(
                     pd.DataFrame.from_records(
                         [
                             {
-                                'frame': frame,
+                                'frame': frame_idx,
                                 'id': int(region.track_id) if region.track_id != '' else -1,
                                 'x': region.region_info.bounding_box.left_col * w,
                                 'y': region.region_info.bounding_box.top_row * h,
@@ -140,7 +133,7 @@ if __name__ == '__main__':
                                 'conf': region.value,
                                 'category': region.data.concepts[0].name if region.data.concepts else ''
                             } 
-                        for region in cf_frame.data.regions if region.track_id != ''
+                        for region in frame.data.regions if region.track_id != ''
                         ]
                     )
                 )

@@ -123,22 +123,15 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
         )
         tracker.init_state()
         new_dets = []
-        for frame, group in det.groupby('frame'):
-            cf_frame = Frame()
-            for _, row in group.iterrows():
-                r = cf_frame.data.regions.add()
-                r.region_info.bounding_box.left_col = row['x'] / 1280
-                r.region_info.bounding_box.top_row = row['y'] / 720
-                r.region_info.bounding_box.right_col = row['xx'] / 1280
-                r.region_info.bounding_box.bottom_row = row['yy'] / 720
-                r.value = row['conf']
-                r.data.concepts.add(name=row['category'], value=r.value)
-            tracker(cf_frame.data)
+        for frame_idx, frame in enumerate(det_data.frames, 1):
+            for region in frame.data.regions:
+                region.track_id = ''
+            tracker(frame.data)
             new_dets.append(
                 pd.DataFrame.from_records(
                     [
                         {
-                            'frame': frame,
+                            'frame': frame_idx,
                             'id': int(region.track_id) if region.track_id != '' else -1,
                             'x': region.region_info.bounding_box.left_col * w,
                             'y': region.region_info.bounding_box.top_row * h,
@@ -146,13 +139,16 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
                             'yy': region.region_info.bounding_box.bottom_row * h,
                             'conf': region.value,
                             'category': region.data.concepts[0].name if region.data.concepts else ''
-                        } 
-                    for region in cf_frame.data.regions if region.track_id != ''
+                        }
+                    for region in frame.data.regions if region.track_id != ''
                     ]
                 )
             )
         det = pd.concat(new_dets, ignore_index=True)
-        det = det[det['id'] != -1]  # remove untracked detections
+        try:
+            det = det[det['id'] != -1]  # remove untracked detections
+        except KeyError:
+            return [0.0] * len(metrics)
         det[['width', 'height']] = det[['xx', 'yy']].to_numpy() - det[['x', 'y']].to_numpy()
 
         # Create accumulator

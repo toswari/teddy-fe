@@ -24,7 +24,6 @@ p.add_argument('--camera_correction', action='store_true', help="Apply camera co
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
-p.add_argument('--embeddings', action='store_true', help='Use embeddings for tracking')
 args = p.parse_args()
 
 # mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
@@ -58,29 +57,14 @@ if args.tracker_config is not None:
     )
     tracker.init_state()
     new_dfs = []
-    for frame, group in mot_df.groupby('frame'):
-        video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame:04d}.jpg'))
-
-        cf_frame = Frame()
-        for _, row in group.iterrows():
-            r = cf_frame.data.regions.add()
-            r.region_info.bounding_box.left_col = row['x'] / 1280
-            r.region_info.bounding_box.top_row = row['y'] / 720
-            r.region_info.bounding_box.right_col = row['xx'] / 1280
-            r.region_info.bounding_box.bottom_row = row['yy'] / 720
-            r.value = row['score']
-            r.data.concepts.add(name=row['label'], value=r.value)
-            if args.embeddings:
-                crop = video_frame[int(row['y']):int(row['yy']), int(row['x']):int(row['xx'])]
-                embedding = crop.mean(axis=(0, 1)).flatten()  # Simple mean embedding
-                emb = r.data.embeddings.add()
-                emb.vector.extend(embedding)
-        tracker(cf_frame.data)
+    for frame_idx, frame in enumerate(mot_data.frames, 1):
+        video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame_idx:04d}.jpg'))
+        tracker(frame.data)
         new_dfs.append(
             pd.DataFrame.from_records(
                 [
                     {
-                        'frame': frame,
+                        'frame': frame_idx,
                         'object_id': int(region.track_id) if region.track_id != '' else -1,
                         'x': region.region_info.bounding_box.left_col * 1280,
                         'y': region.region_info.bounding_box.top_row * 720,
@@ -89,7 +73,7 @@ if args.tracker_config is not None:
                         'score': region.value,
                         'label': region.data.concepts[0].name if region.data.concepts else ''
                     } 
-                for region in cf_frame.data.regions if region.track_id != ''
+                for region in frame.data.regions if region.track_id != ''
                 ]
             )
         )
