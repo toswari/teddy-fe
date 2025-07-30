@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import scipy.linalg
 
-from clarifai_grpc.grpc.api.resources_pb2 import Frame
+from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.tracking.reid import KalmanREID
 
 import warnings
@@ -15,10 +15,10 @@ warnings.simplefilter('ignore', RuntimeWarning)
 from clarifai_pff.auto_homography import gen_field, field_to_pixel, transform_points, FIELD_INFOS, League, compute_camera_motion
 
 p = argparse.ArgumentParser(description="Generate a field image with optional hash marks.")
-p.add_argument("MOT_CSV")
+p.add_argument("MOT_PB")
 p.add_argument("HOMOGRAPHY_JSON_DIR")
 p.add_argument("FRAMES_DIR")
-p.add_argument("--classes", default=['Player'], type=str, nargs='+', help="List of classes to visualize. If not provided, all classes will be visualized.")
+p.add_argument("--classes", default=['players'], type=str, nargs='+', help="List of classes to visualize. If not provided, all classes will be visualized.")
 p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of object IDs to visualize. If not provided, all objects will be visualized.")
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
@@ -27,7 +27,24 @@ p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker
 p.add_argument('--embeddings', action='store_true', help='Use embeddings for tracking')
 args = p.parse_args()
 
-mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
+# mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
+with open(args.MOT_PB, 'rb') as f:
+    mot_data = Data.FromString(f.read())
+
+mot_df = pd.DataFrame.from_records(
+    [
+        {
+            'frame': i,
+            'object_id': int(region.track_id) if region.track_id != '' else -1,
+            'x': region.region_info.bounding_box.left_col * 1280,
+            'y': region.region_info.bounding_box.top_row * 720,
+            'xx': region.region_info.bounding_box.right_col * 1280,
+            'yy': region.region_info.bounding_box.bottom_row * 720,
+            'score': region.value,
+            'label': region.data.concepts[0].name if region.data.concepts else ''
+        } for i, frame in enumerate(mot_data.frames, 1) for region in frame.data.regions
+    ]
+)
 
 mot_df = mot_df[mot_df['label'].isin(args.classes)]
 
@@ -81,7 +98,7 @@ if args.tracker_config is not None:
     #     for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
     #         mot_df.loc[i, 'object_id'] = int(region.track_id) if region.track_id != '' else -1
     mot_df = pd.concat(new_dfs, ignore_index=True)
-    mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
+    # mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
 
 objects = mot_df['object_id'].unique()
 
@@ -91,6 +108,7 @@ import itertools
 # Generate a color map for up to 25 unique objects
 cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
 object_colors = {obj_id: tuple(int(255 * c) for c in cmap[i][:3]) for i, obj_id in enumerate(objects)}
+object_colors[-1] = (0,0,255)
 
 frame_homographies = {
     int(x.split('_')[0]): json.load(open(os.path.join(args.HOMOGRAPHY_JSON_DIR, x)))
