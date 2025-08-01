@@ -88,6 +88,7 @@ objects = mot_df['object_id'].unique()
 
 import matplotlib.pyplot as plt
 import itertools
+from scipy.interpolate import splprep, splev
 
 # Generate a color map for up to 25 unique objects
 cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
@@ -108,6 +109,8 @@ prev_homography_matrix = None
 
 image_points = None
 field_points = None
+
+object_traces = {obj_id: [] for obj_id in objects}
 
 for frame, group in mot_df.groupby('frame'):
     # if args.no_tracks:
@@ -175,6 +178,9 @@ for frame, group in mot_df.groupby('frame'):
         pt = (row['x'] + row['xx']) / 2, row['yy']
 
         transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
+
+        object_traces[row['object_id']].append(transformed_pt)
+
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
         cv2.putText(
@@ -187,6 +193,43 @@ for frame, group in mot_df.groupby('frame'):
             2,
             cv2.LINE_AA
         )
+
+    if frame == mot_df['frame'].max():
+        # Fit B-splines to object traces
+        field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
+        for obj_id, trace in object_traces.items():
+            if len(trace) > 3:  # Need at least 4 points for cubic spline
+                # Convert trace to numpy array and transpose for splprep
+                trace_array = np.array(trace)
+                x = trace_array[:, 0]
+                y = trace_array[:, 1]
+                
+                # Create parameter array (time)
+                t = np.arange(len(trace))
+                
+                # Calculate variance in x and y coordinates to determine smoothing parameter
+                var_y = np.var(np.diff(y))
+                total_variance = var_y
+                print(f"Object {obj_id}: Variance in y = {var_y}, Total Variance = {total_variance}")
+                # Scale smoothing parameter based on variance (higher variance = more smoothing)
+                s = 500 * total_variance # 55
+                
+                # Fit B-spline
+                tck, u = splprep([x, y], u=t, s=s, k=min(3, len(trace)-1))
+                
+                # Generate smooth curve
+                u_new = np.linspace(0, len(trace)-1, len(trace)*5)
+                x_smooth, y_smooth = splev(u_new, tck)
+
+                # Draw smooth trajectory on field image
+                color = object_colors.get(obj_id, (255, 0, 0))
+                for i in range(len(x_smooth)-1):
+                    pt1 = x_smooth[i], y_smooth[i]
+                    pt2 = x_smooth[i+1], y_smooth[i+1]
+                    cv2.line(field_img, 
+                            field_to_pixel(*pt1, field_img, field_info),
+                            field_to_pixel(*pt2, field_img, field_info),
+                            color, 2)
 
     combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
     cv2.imwrite(f'output_frame_{frame:04d}.jpg', combined)
