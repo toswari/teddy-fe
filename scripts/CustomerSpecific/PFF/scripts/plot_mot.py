@@ -24,6 +24,8 @@ p.add_argument('--camera_correction', action='store_true', help="Apply camera co
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
+p.add_argument('--max_frames', type=int, default=None, help='Maximum number of frames to process (for testing purposes)')
+p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
 args = p.parse_args()
 
 # mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
@@ -88,7 +90,7 @@ objects = mot_df['object_id'].unique()
 
 import matplotlib.pyplot as plt
 import itertools
-from scipy.interpolate import splprep, splev
+from scipy.interpolate import make_splprep, splev
 
 # Generate a color map for up to 25 unique objects
 cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
@@ -149,7 +151,7 @@ for frame, group in mot_df.groupby('frame'):
 
             lie_dist = np.linalg.norm(scipy.linalg.logm(homography_matrix) - scipy.linalg.logm(hyp_homography_matrix))
             print(f"Frame {frame}: Lie distance = {lie_dist}")
-            if lie_dist > 15:
+            if lie_dist > 5: #15:
                 homography_matrix = hyp_homography_matrix
 
     for pt in image_points:
@@ -171,8 +173,6 @@ for frame, group in mot_df.groupby('frame'):
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.rectangle(video_frame, (int(row['x']), int(row['y'])), (int(row['xx']), int(row['yy'])), color, 2)
 
-    # for _, row in group.iterrows():
-        # x, y = row['x'], row['y']
         # # Apply homography transformation
         # take middle of bottom of box
         pt = (row['x'] + row['xx']) / 2, row['yy']
@@ -194,8 +194,9 @@ for frame, group in mot_df.groupby('frame'):
             cv2.LINE_AA
         )
 
-    if frame == mot_df['frame'].max():
+    if args.smooth and (frame == mot_df['frame'].max() or (args.max_frames is not None and frame == args.max_frames)):
         # Fit B-splines to object traces
+        # TODO(rizzi): fix smoothing parameter formula (diff(y) is occasionally to aggressive)
         field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
         for obj_id, trace in object_traces.items():
             if len(trace) > 3:  # Need at least 4 points for cubic spline
@@ -215,11 +216,11 @@ for frame, group in mot_df.groupby('frame'):
                 s = 500 * total_variance # 55
                 
                 # Fit B-spline
-                tck, u = splprep([x, y], u=t, s=s, k=min(3, len(trace)-1))
+                spl, u = make_splprep([x, y], u=t, s=s, k=min(3, len(trace)-1))
                 
                 # Generate smooth curve
                 u_new = np.linspace(0, len(trace)-1, len(trace)*5)
-                x_smooth, y_smooth = splev(u_new, tck)
+                x_smooth, y_smooth = spl(u_new)
 
                 # Draw smooth trajectory on field image
                 color = object_colors.get(obj_id, (255, 0, 0))
@@ -233,3 +234,6 @@ for frame, group in mot_df.groupby('frame'):
 
     combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
     cv2.imwrite(f'output_frame_{frame:04d}.jpg', combined)
+
+    if args.max_frames is not None and frame == args.max_frames:
+        break
