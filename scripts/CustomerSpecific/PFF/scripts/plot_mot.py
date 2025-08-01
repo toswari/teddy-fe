@@ -91,6 +91,7 @@ objects = mot_df['object_id'].unique()
 import matplotlib.pyplot as plt
 import itertools
 from scipy.interpolate import make_splprep, splev
+from scipy.interpolate import interp1d
 
 # Generate a color map for up to 25 unique objects
 cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
@@ -197,7 +198,7 @@ for frame, group in mot_df.groupby('frame'):
     if args.smooth and (frame == mot_df['frame'].max() or (args.max_frames is not None and frame == args.max_frames)):
         # Fit B-splines to object traces
         # TODO(rizzi): fix smoothing parameter formula (diff(y) is occasionally to aggressive)
-        field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
+        # field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
         for obj_id, trace in object_traces.items():
             if len(trace) > 3:  # Need at least 4 points for cubic spline
                 # Convert trace to numpy array and transpose for splprep
@@ -207,16 +208,47 @@ for frame, group in mot_df.groupby('frame'):
                 
                 # Create parameter array (time)
                 t = np.arange(len(trace))
+
+                # Compute upper envelope of y signal
+
+                # Find local maxima for upper envelope
+                def find_upper_envelope(t, y):
+                    # Find local maxima
+                    maxima_indices = []
+                    maxima_indices.append(0)  # Include first point
+                    
+                    for i in range(1, len(y)-1):
+                        if y[i] >= y[i-1] and y[i] >= y[i+1]:
+                            maxima_indices.append(i)
+                    
+                    maxima_indices.append(len(y)-1)  # Include last point
+                    
+                    # Extract maxima points
+                    t_maxima = t[maxima_indices]
+                    y_maxima = y[maxima_indices]
+                    
+                    # Interpolate upper envelope
+                    if len(t_maxima) > 1:
+                        envelope_func = interp1d(t_maxima, y_maxima, kind='linear', 
+                                               bounds_error=False, fill_value='extrapolate')
+                        y_envelope = envelope_func(t)
+                    else:
+                        y_envelope = np.full_like(y, y_maxima[0])
+                    
+                    return y_envelope
+
+                y_upper_envelope = find_upper_envelope(t, y)
                 
                 # Calculate variance in x and y coordinates to determine smoothing parameter
                 var_y = np.var(np.diff(y))
                 total_variance = var_y
                 print(f"Object {obj_id}: Variance in y = {var_y}, Total Variance = {total_variance}")
                 # Scale smoothing parameter based on variance (higher variance = more smoothing)
-                s = 500 * total_variance # 55
+                # s = 500 * total_variance # 55
+                s = 20
                 
                 # Fit B-spline
-                spl, u = make_splprep([x, y], u=t, s=s, k=min(3, len(trace)-1))
+                spl, u = make_splprep([x, y_upper_envelope], u=t, s=s, k=min(3, len(trace)-1))
                 
                 # Generate smooth curve
                 u_new = np.linspace(0, len(trace)-1, len(trace)*5)
