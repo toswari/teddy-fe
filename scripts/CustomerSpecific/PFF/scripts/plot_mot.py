@@ -26,6 +26,7 @@ p.add_argument('--camera_correction', action='store_true', help="Apply camera co
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
 p.add_argument('--max_frames', type=int, default=None, help='Maximum number of frames to process (for testing purposes)')
 p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
+p.add_argument('--show_untracked', action='store_true', help='Show untracked objects in the output frames')
 args = p.parse_args()
 
 # mot_df = pd.read_csv(args.MOT_CSV, header=None, names=['frame', 'object_id', 'x', 'y', 'xx', 'yy', 'score', 'label'])
@@ -84,7 +85,9 @@ if args.tracker_config is not None:
     #     for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
     #         mot_df.loc[i, 'object_id'] = int(region.track_id) if region.track_id != '' else -1
     mot_df = pd.concat(new_dfs, ignore_index=True)
-    # mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
+
+if not args.show_untracked:
+    mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
 
 objects = mot_df['object_id'].unique()
 

@@ -201,9 +201,10 @@ if __name__ == "__main__":
     parser.add_argument("mot_dir", type=str, default="mot_data", help="Directory containing MOT data")
     parser.add_argument("--study-name", type=str, default="mot_tuning", help="Name of the study")
     parser.add_argument("--metrics", type=str, nargs="+", default=["idf1"], help="Metrics to optimize (space separated)")
+    parser.add_argument("--association-threshold", type=float, default=0.25, help="Association threshold for IOU")
     args = parser.parse_args()
 
     storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend('optuna.log'))
 
     study = optuna.create_study(study_name=args.study_name, directions=["maximize"]*len(args.metrics), load_if_exists=True, storage=storage)
-    study.optimize(partial(obj, mot_dir=args.mot_dir, target_class=args.target_class, metrics=args.metrics), n_trials=args.num_trials)
+    study.optimize(partial(obj, mot_dir=args.mot_dir, target_class=args.target_class, metrics=args.metrics, association_threshold=args.association_threshold), n_trials=args.num_trials)
