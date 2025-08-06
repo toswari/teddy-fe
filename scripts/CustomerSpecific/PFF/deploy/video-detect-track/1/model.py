@@ -129,16 +129,17 @@ class VideoStreamModel(ModelClass):
           crops.append(crop)
         crops = np.array(crops).astype(np.float32)
 
-        embedding_start = perf_counter_ns()
-        embeddings = self.embedder_session.run(
-            None,
-            {self.embedder_session.get_inputs()[0].name: crops}
-        )[0]
-        logger.info("embedding took {} ns".format(perf_counter_ns() - embedding_start))
-        logger.info("embeddings shape: {}".format(embeddings[0].shape))
-        for region, embedding in zip(result, embeddings):
-          emb = region.proto.data.embeddings.add()
-          emb.vector.extend(embedding.tolist())
+        if len(crops) > 0:
+          embedding_start = perf_counter_ns()
+          embeddings = self.embedder_session.run(
+              None,
+              {self.embedder_session.get_inputs()[0].name: crops}
+          )[0]
+          logger.info("embedding took {} ns".format(perf_counter_ns() - embedding_start))
+          logger.info("embeddings shape: {}".format(embeddings[0].shape))
+          for region, embedding in zip(result, embeddings):
+            emb = region.proto.data.embeddings.add()
+            emb.vector.extend(embedding.tolist())
         
         if tracker_params is not None:
           cf_frame = Frame()
