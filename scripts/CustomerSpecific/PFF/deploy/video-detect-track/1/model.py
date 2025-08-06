@@ -124,12 +124,11 @@ class VideoStreamModel(ModelClass):
           x, y, xx, yy = [x*y for x,y in zip(region.box, [*frame_size]*2)]
           crop = frame_array[int(y):int(yy), int(x):int(xx)]
           crop = cv2.resize(crop, (self.embedder_im_xy[0], self.embedder_im_xy[1]))
-          crop = np.ascontiguousarray(crop, dtype=np.float32)
           crop = np.moveaxis(crop, -1, 0)  # Change from HWC to CHW format
           crop = crop / 255.0  # Normalize to [0, 1] for ONNX model input
           crops.append(crop)
-        crops = np.array(crops)
-        
+        crops = np.array(crops).astype(np.float32)
+
         embedding_start = perf_counter_ns()
         embeddings = self.embedder_session.run(
             None,
