@@ -38,6 +38,13 @@ class VideoStreamModel(ModelClass):
     self.im_xy = input_yx[::-1]
     self.session = ort.InferenceSession(model_path, providers=['CUDAExecutionProvider'])
 
+    embedder_path = os.path.join(model_folder, '1', 'embedder.onnx')
+    m = onnx.load(embedder_path)
+    input_yx = [x.dim_value for x in m.graph.input[0].type.tensor_type.shape.dim[-2:]]
+
+    self.embedder_im_xy = input_yx[::-1]
+    self.embedder_session = ort.InferenceSession(embedder_path, providers=['CUDAExecutionProvider'])
+
     self.id2label = {i: c['name'] for i,c in enumerate([dict(name='players'), dict(name='referee')])}
 
   def predict_frame(self, frame) -> List[Region]:
@@ -81,7 +88,12 @@ class VideoStreamModel(ModelClass):
     return result[0]
 
   @ModelClass.method
-  def predict(self, video: Video, tracker_params: dict = None, max_frames: int = None) -> List[List[Region]]:
+  def predict(
+     self, 
+     video: Video, 
+     tracker_params: dict = None,
+     max_frames: int = None
+  ) -> List[List[Region]]:
     results = []
 
     def _bytes_iterator():
@@ -107,12 +119,27 @@ class VideoStreamModel(ModelClass):
 
         frame_array = frame.to_ndarray(format="rgb24")
         frame_size = frame_array.shape[:2][::-1]  # (width, height)
+        crops = []
         for region in result:
           x, y, xx, yy = [x*y for x,y in zip(region.box, [*frame_size]*2)]
           crop = frame_array[int(y):int(yy), int(x):int(xx)]
-          embedding = crop.mean(axis=(0, 1)).flatten()  # Simple mean embedding
+          crop = cv2.resize(crop, (self.embedder_im_xy[0], self.embedder_im_xy[1]))
+          crop = np.ascontiguousarray(crop, dtype=np.float32)
+          crop = np.moveaxis(crop, -1, 0)  # Change from HWC to CHW format
+          crop = crop / 255.0  # Normalize to [0, 1] for ONNX model input
+          crops.append(crop)
+        crops = np.array(crops)
+        
+        embedding_start = perf_counter_ns()
+        embeddings = self.embedder_session.run(
+            None,
+            {self.embedder_session.get_inputs()[0].name: crops}
+        )[0]
+        logger.info("embedding took {} ns".format(perf_counter_ns() - embedding_start))
+        logger.info("embeddings shape: {}".format(embeddings[0].shape))
+        for region, embedding in zip(result, embeddings):
           emb = region.proto.data.embeddings.add()
-          emb.vector.extend(embedding)
+          emb.vector.extend(embedding.tolist())
         
         if tracker_params is not None:
           cf_frame = Frame()
