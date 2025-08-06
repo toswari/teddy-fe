@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  clarifai-iphone-layout-mcp:
+    build: .
+    ports:
+      - "8083:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    container_name: clarifai-iphone-layout-mcp
