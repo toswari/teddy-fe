@@ -1,0 +1,21 @@
+{
+    "max_dead": 100,
+    "max_emb_distance": 0.90,
+    "var_tracker": "manorm",
+    "initialization_confidence": 0.85,
+    "min_confidence": 0.51,
+    "association_confidence": [0.11],
+    "min_visible_frames": 0,
+    "covariance_error": 100,
+    "observation_error": 10,
+    "max_distance": [0.59],
+    "max_disappeared": 0,
+    "distance_metric": "vdiou",
+    "track_aiid": ["players"],
+    "track_id_prefix": "0",
+    "use_detect_box": 0,
+    "project_track": 0,
+    "project_fix_box_size": 0,
+    "detect_box_fall_back": 0,
+    "reid_model_path": "reid.skl"
+}

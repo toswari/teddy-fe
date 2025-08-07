@@ -209,5 +209,8 @@ distances = {
         MahalanobisDistance(),
 
     "mahalanobis_distance2":
-        MahalanobisDistance2()
+        MahalanobisDistance2(),
+    "vdiou":
+        DistanceAggregator([IoUDistance(), NormalizedCentroidDistance(),
+                            NormalizedEuclideanDistance()], [0.5, 0.1, 0.4]),
 }

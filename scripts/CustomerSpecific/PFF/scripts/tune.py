@@ -33,7 +33,7 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
         "observation_error": 10,
         "max_distance": [0.6],
         "max_disappeared": 8,
-        "distance_metric": "diou",
+        "distance_metric": "vdiou",
         "track_aiid": [target_class],
         "track_id_prefix": "",
         "use_detect_box": 0,
