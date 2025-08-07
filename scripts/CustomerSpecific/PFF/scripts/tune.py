@@ -13,7 +13,7 @@ from functools import partial
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
 
-def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
+def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.25, reid_model_path=None):
     initial_confidence = trial.suggest_float("initialization_confidence", 0.65, 1)
     min_confidence = trial.suggest_float("min_confidence", 0.5, initial_confidence)
     max_distance = trial.suggest_float("max_distance", 0, 1)
@@ -50,12 +50,14 @@ def obj(trial, mot_dir, target_class, metrics, association_threshold=0.25):
         "max_emb_distance": max_emb_distance,
         "max_disappeared": max_disappeared,
     })
+    if reid_model_path is not None:
+        tracker_params["reid_model_path"] = reid_model_path
 
-    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(mot_dir, '*_gt.pb'))]
+    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(gt_dir, '*_gt.pb'))]
     processed_sequences = []
     all_accumulators = []
     for seq in sequences:
-        gt_file = os.path.join(mot_dir, f'{seq}_gt.pb')
+        gt_file = os.path.join(gt_dir, f'{seq}_gt.pb')
         det_file = os.path.join(mot_dir, f'{seq}_det.pb')
 
         if not os.path.exists(gt_file) or not os.path.exists(det_file):
@@ -199,12 +201,14 @@ if __name__ == "__main__":
     parser.add_argument("--num_trials", type=int, default=10, help="Number of samples to run")
     parser.add_argument("target_class", type=str, help="Classes to include in evaluation")
     parser.add_argument("mot_dir", type=str, default="mot_data", help="Directory containing MOT data")
+    parser.add_argument("gt_dir", type=str, default="mot_data", help="Directory containing ground truth data")
     parser.add_argument("--study-name", type=str, default="mot_tuning", help="Name of the study")
     parser.add_argument("--metrics", type=str, nargs="+", default=["idf1"], help="Metrics to optimize (space separated)")
     parser.add_argument("--association-threshold", type=float, default=0.25, help="Association threshold for IOU")
+    parser.add_argument("--reid-model-path", type=str, default=None, help="Path to the reid model file")
     args = parser.parse_args()
 
     storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend('optuna.log'))
 
     study = optuna.create_study(study_name=args.study_name, directions=["maximize"]*len(args.metrics), load_if_exists=True, storage=storage)
-    study.optimize(partial(obj, mot_dir=args.mot_dir, target_class=args.target_class, metrics=args.metrics, association_threshold=args.association_threshold), n_trials=args.num_trials)
+    study.optimize(partial(obj, mot_dir=args.mot_dir, gt_dir=args.gt_dir, target_class=args.target_class, metrics=args.metrics, association_threshold=args.association_threshold, reid_model_path=args.reid_model_path), n_trials=args.num_trials)

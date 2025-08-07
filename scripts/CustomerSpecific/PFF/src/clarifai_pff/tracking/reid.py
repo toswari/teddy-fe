@@ -144,7 +144,6 @@ class KalmanREID(KFTracker):
                                       np.expand_dims(new_track_confidences, axis=-1),
                                       np.expand_dims(dead_track_confidences, axis=-1),
                                       new_track_embeddings, dead_track_embeddings, None)
-      # NOTE: setting kf_states to None for now - not used in the distance functions (clean up later)
       features[:, :, distance_index] = association_error
 
     distances = np.zeros((len(new_track_embeddings), len(dead_track_embeddings)))

@@ -97,8 +97,8 @@ from scipy.interpolate import make_splprep, splev
 from scipy.interpolate import interp1d
 
 # Generate a color map for up to 25 unique objects
-cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
-object_colors = {obj_id: tuple(int(255 * c) for c in cmap[i][:3]) for i, obj_id in enumerate(objects)}
+cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors, plt.get_cmap('tab20').colors))
+object_colors = {obj_id: tuple(int(255 * c) for c in cmap[i % len(cmap)][:3]) for i, obj_id in enumerate(objects)}
 object_colors[-1] = (0,0,255)
 
 frame_homographies = {
