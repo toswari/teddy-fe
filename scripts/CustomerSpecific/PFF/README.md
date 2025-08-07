@@ -15,3 +15,7 @@
 - `tests/` - directory for tests
 - `utils/` - some utilities
 - `Makefile` - Makefile for repeatable tasks (e.g., preflight local docker builds, deployments)
+
+## Training ReID
+1. Generate data in protobuf format for ground truth and detection / embeddings in separate folders
+1. `make reid DB_FOLDER=<> GT_FOLDER=<>`

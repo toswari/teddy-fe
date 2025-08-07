@@ -31,6 +31,17 @@ deploy-video-detect-track:
 	cp -r models/ deploy/video-detect-track/1/
 	clarifai model upload --skip_dockerfile deploy/video-detect-track/
 
+reid:
+	@echo "Training ReID model..."
+	python scripts/train_reid.py \
+		--databatch-folder $(DB_FOLDER) \
+		--gt-folder $(GT_FOLDER) \
+		--output models \
+		--tag reid.skl \
+		--min-frames 2 \
+		--max-frames 30 \
+		--skip-frames 2
+
 clean:
 	@echo "Cleaning up..."
 	rm -rf dist/
