@@ -28,6 +28,7 @@ deploy-video-detect-track-preflight:
 deploy-video-detect-track:
 	@echo "Deploying video detect track..."
 	uv build --sdist -o deploy/video-detect-track/dist
+	cp -r models/ deploy/video-detect-track/1/
 	clarifai model upload --skip_dockerfile deploy/video-detect-track/
 
 clean:
@@ -35,3 +36,5 @@ clean:
 	rm -rf dist/
 	rm -rf deploy/yolov7-co/dist/
 	rm -rf deploy/video-detect-track/dist/
+	rm -rf deploy/video-detect-track/1/*.onnx
+	rm -rf deploy/video-detect-track/1/*.skl
