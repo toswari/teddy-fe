@@ -335,9 +335,16 @@ class Tracker:
 
     if not self.initialization_confidence:
       unassigned_detect_inds = np.where(~assigned_detect_booleans)[0]
+      self.uninitialized_detect_inds = np.empty(0, dtype=int)
     elif confidences is not None:
+      initializable = confidences > self.initialization_confidence
       unassigned_detect_inds = np.where(~assigned_detect_booleans &
-                                        (confidences > self.initialization_confidence))[0]
+                                        (initializable))[0]
+      
+      self.uninitialized_detect_inds = np.where(~assigned_detect_booleans & ~initializable)[0]
+      self.uninitialized_detect_embeddings = detection_embeddings[self.uninitialized_detect_inds]
+      self.uninitialized_detect_confidences = confidences[self.uninitialized_detect_inds]
+      self.uninitialized_detect_locations = detections[self.uninitialized_detect_inds]
     else:
       raise ValueError("Initialization confidence specified but no confidence values passed")
 

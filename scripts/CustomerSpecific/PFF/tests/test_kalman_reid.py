@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from context import api
+import clarifai_pff.tracking as api
 from clarifai_grpc.grpc.api.resources_pb2 import Frame
 
 class TestKalmanREIDTracker(unittest.TestCase):
