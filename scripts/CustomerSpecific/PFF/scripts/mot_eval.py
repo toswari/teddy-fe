@@ -16,11 +16,13 @@ if __name__ == '__main__':
     import argparse
 
     p = argparse.ArgumentParser(description='Evaluate MOT results using MOT metrics.')
-    p.add_argument('dataset_folder', type=str, help='folder containing gt and det files. Seq_id_{det,gt}.pb')
+    p.add_argument('gt_dir', type=str, help='folder containing gt files. Seq_id_gt.pb')
+    p.add_argument('det_dir', type=str, help='folder containing det files. Seq_id_det.pb')
     p.add_argument('--assoc_threshold', type=float, default=0.25, help='Association threshold for IoU (default: 0.25)')
     p.add_argument('--include_classes', nargs='+', default=None, help='List of classes to include in evaluation (default: all classes)')
     # p.add_argument('--det-file', type=str, default='det.txt', help='Name of the detection file (default: det.txt)')
     p.add_argument('--tracker-config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
+    p.add_argument('--output-file', type=str, default='mot-metrics.csv', help='Output file for metrics (default: mot-metrics.csv)')
     args = p.parse_args()
 
     metrics = ['num_frames',
@@ -38,15 +40,15 @@ if __name__ == '__main__':
                  'num_unique_objects',
                  ]
 
-    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(args.dataset_folder, '*_gt.pb'))]
+    sequences = [os.path.splitext(os.path.basename(x))[0].replace('_gt', '') for x in glob.glob(os.path.join(args.gt_dir, '*_gt.pb'))]
     assoc_threshold = args.assoc_threshold
 
     processed_sequences = []
     all_accumulators = []
     hota_summaries = []
     for seq in tqdm(sequences, desc='Processing sequences'):
-        gt_file = os.path.join(args.dataset_folder, f'{seq}_gt.pb')
-        det_file = os.path.join(args.dataset_folder, f'{seq}_det.pb')
+        gt_file = os.path.join(args.gt_dir, f'{seq}_gt.pb')
+        det_file = os.path.join(args.det_dir, f'{seq}_det.pb')
 
         if not os.path.exists(gt_file) or not os.path.exists(det_file):
             print(f"Skipping {seq}: missing gt or det file.")
@@ -199,6 +201,13 @@ if __name__ == '__main__':
     )
     full_summary = pd.DataFrame(hota_summaries).join(summary, how='outer').round(2)
     print(full_summary.to_markdown())
-    full_summary.to_csv('mot-metrics.csv')
-    with open('mot-metrics.md', 'w') as f:
-        f.write(full_summary.to_markdown())
+    if args.output_file.endswith('.json'):
+        full_summary.to_json(args.output_file, orient='records', indent=4)
+    elif args.output_file.endswith('.csv'):
+        full_summary.to_csv(args.output_file)
+    elif args.output_file.endswith('.md'):
+        with open('mot-metrics.md', 'w') as f:
+            f.write(full_summary.to_markdown())
+    else:
+        print("Unsupported output file format. Please use .json, .csv, or .md.")
+        exit(1)

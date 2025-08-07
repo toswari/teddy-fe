@@ -17,5 +17,5 @@
     "project_track": 0,
     "project_fix_box_size": 0,
     "detect_box_fall_back": 0,
-    "reid_model_path": "reid.skl"
+    "reid_model_path": "models/reid.skl"
 }

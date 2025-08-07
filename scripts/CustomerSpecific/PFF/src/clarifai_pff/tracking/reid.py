@@ -45,6 +45,7 @@ class KalmanREID(KFTracker):
                max_dead: float = float('inf'),
                var_tracker: str = "na",
                reid_model_path: str = "",
+               reid_min_confidence: float = 0.0,
                *args,
                **kwargs):
     """ __init__ docstring
@@ -63,6 +64,7 @@ class KalmanREID(KFTracker):
     self.reid_model = VisualReID() if self.reid_model_path == "" else load(self.reid_model_path)
     self.distance_dict = distances
     self.max_dead = max_dead
+    self.reid_min_confidence = reid_min_confidence
 
     super().__init__(*args, **kwargs)
     self.tracker.track_constructor = TrackConstructor(self.var_tracker)
@@ -128,11 +130,16 @@ class KalmanREID(KFTracker):
 
     if len(candidate_locations) == 0:
       return
-    
-    candidate_locations = np.array(candidate_locations)
-    candidate_embeddings = np.array(candidate_embeddings)
+
     candidate_confidences = np.array(candidate_confidences)
-    candidate_track_ids = np.array(candidate_track_ids)
+    confident_mask = candidate_confidences >= self.reid_min_confidence
+    if not np.any(confident_mask):
+      return
+
+    candidate_confidences = np.array(candidate_confidences)[confident_mask]
+    candidate_locations = np.array(candidate_locations)[confident_mask]
+    candidate_embeddings = np.array(candidate_embeddings)[confident_mask]
+    candidate_track_ids = np.array(candidate_track_ids)[confident_mask]
 
     for i in np.where(candidate_track_ids == -1)[0]:
       track = self.tracker.track_constructor(
@@ -186,9 +193,6 @@ class KalmanREID(KFTracker):
     distances = np.zeros((len(candidate_embeddings), len(dead_track_embeddings)))
     for candidate_idx in range(len(features)):
       distances[candidate_idx] = self.reid_model.predict_proba(features[candidate_idx])[:, 0]
-
-    # if 35 in candidate_track_ids:
-    #   breakpoint()
 
     # linear sum assignment
     assigned_rows, assigned_columns = linear_sum_assignment(distances)
