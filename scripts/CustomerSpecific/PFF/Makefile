@@ -9,8 +9,6 @@ build-container:
 
 deploy-yolo-preflight:
 	@echo "yolov7 preflight"
-    # Add deployment commands here, e.g.:
-    # ./deploy.sh --profile $(PROFILE)
 	uv build --sdist -o deploy/yolov7-co/dist
 	@echo "Trying docker build..."
 	$(MAKE) build-container TAG=yolov7:preflight CONTEXT=deploy/yolov7-co
