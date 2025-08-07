@@ -3,6 +3,4 @@ __pycache__/
 *.mp4
 *.egg-info
 .DS_Store
-*.onnx
-*.skl
 *.log
