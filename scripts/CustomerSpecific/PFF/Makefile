@@ -18,12 +18,13 @@ deploy-yolo:
 	uv build --sdist -o deploy/yolov7-co/dist
 	clarifai model upload --skip_dockerfile deploy/yolov7-co/
 
-deploy-video-detect-track-preflight:
+deploy-video-detect-track-preflight: models/
 	@echo "Deploying video detect..."
 	uv build --sdist -o deploy/video-detect-track/dist
+	cp -r models/ deploy/video-detect-track/1/
 	$(MAKE) build-container TAG=video-detect-track:preflight CONTEXT=deploy/video-detect-track/
 
-deploy-video-detect-track:
+deploy-video-detect-track: models/
 	@echo "Deploying video detect track..."
 	uv build --sdist -o deploy/video-detect-track/dist
 	cp -r models/ deploy/video-detect-track/1/
@@ -32,7 +33,7 @@ deploy-video-detect-track:
 reid:
 	@echo "Training ReID model..."
 	python scripts/train_reid.py \
-		--databatch-folder $(DB_FOLDER) \
+		--databatch-folder $(DET_FOLDER) \
 		--gt-folder $(GT_FOLDER) \
 		--output models \
 		--tag reid.skl \
