@@ -22,7 +22,7 @@ if __name__ == '__main__':
     p.add_argument('--include_classes', nargs='+', default=None, help='List of classes to include in evaluation (default: all classes)')
     # p.add_argument('--det-file', type=str, default='det.txt', help='Name of the detection file (default: det.txt)')
     p.add_argument('--tracker-config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
-    p.add_argument('--output-file', type=str, default='mot-metrics.csv', help='Output file for metrics (default: mot-metrics.csv)')
+    p.add_argument('--output-formats', nargs='+', type=str, default=['csv'], help='Output file formats for metrics (default: csv)')
     args = p.parse_args()
 
     metrics = ['num_frames',
@@ -201,12 +201,14 @@ if __name__ == '__main__':
     )
     full_summary = pd.DataFrame(hota_summaries).join(summary, how='outer').round(2)
     print(full_summary.to_markdown())
-    if args.output_file.endswith('.json'):
-        full_summary.to_json(args.output_file, orient='records', indent=4)
-    elif args.output_file.endswith('.csv'):
-        full_summary.to_csv(args.output_file)
-    elif args.output_file.endswith('.md'):
-        with open('mot-metrics.md', 'w') as f:
+
+    tracker_id = os.path.splitext(os.path.basename(args.tracker_config))[0] if args.tracker_config else 'default_tracker'
+    if 'json' in args.output_formats:
+        full_summary.to_json(f'{tracker_id}.json', orient='records', indent=4)
+    elif 'csv' in args.output_formats:
+        full_summary.to_csv(f'{tracker_id}.csv')
+    elif 'md' in args.output_formats:
+        with open(f'{tracker_id}.md', 'w') as f:
             f.write(full_summary.to_markdown())
     else:
         print("Unsupported output file format. Please use .json, .csv, or .md.")

@@ -13,13 +13,13 @@ from functools import partial
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
 
-def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.25, reid_model_path=None):
-    initial_confidence = trial.suggest_float("initialization_confidence", 0.65, 1)
-    min_confidence = trial.suggest_float("min_confidence", 0.5, initial_confidence)
-    max_distance = trial.suggest_float("max_distance", 0, 1)
-    association_confidence = trial.suggest_float("association_confidence", 0, 1)
+def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.25, reid_model_path=None, tracker_seed:dict =None):
+    # initial_confidence = trial.suggest_float("initialization_confidence", 0.65, 1)
+    # min_confidence = trial.suggest_float("min_confidence", 0.5, initial_confidence)
+    # max_distance = trial.suggest_float("max_distance", 0, 1)
+    # association_confidence = trial.suggest_float("association_confidence", 0, 1)
     max_emb_distance = trial.suggest_float("max_emb_distance", 0, 1)
-    max_disappeared = trial.suggest_int("max_disappeared", 1, 30)
+    # max_disappeared = trial.suggest_int("max_disappeared", 0, 30)
 
     tracker_params = {
         "max_dead": 100,
@@ -32,7 +32,7 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
         "covariance_error": 100,
         "observation_error": 10,
         "max_distance": [0.6],
-        "max_disappeared": 8,
+        "max_disappeared": 0,
         "distance_metric": "vdiou",
         "track_aiid": [target_class],
         "track_id_prefix": "",
@@ -41,14 +41,16 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
         "project_fix_box_size": 0,
         "detect_box_fall_back": 0,
     }
+    if tracker_seed is not None:
+        tracker_params.update(tracker_seed)
     
     tracker_params.update({
-        "initialization_confidence": initial_confidence,
-        "min_confidence": min_confidence,
-        "max_distance": [max_distance],
-        "association_confidence": [association_confidence],
+        # "initialization_confidence": initial_confidence,
+        # "min_confidence": min_confidence,
+        # "max_distance": [max_distance],
+        # "association_confidence": [association_confidence],
         "max_emb_distance": max_emb_distance,
-        "max_disappeared": max_disappeared,
+        # "max_disappeared": max_disappeared,
     })
     if reid_model_path is not None:
         tracker_params["reid_model_path"] = reid_model_path
@@ -206,9 +208,15 @@ if __name__ == "__main__":
     parser.add_argument("--metrics", type=str, nargs="+", default=["idf1"], help="Metrics to optimize (space separated)")
     parser.add_argument("--association-threshold", type=float, default=0.25, help="Association threshold for IOU")
     parser.add_argument("--reid-model-path", type=str, default=None, help="Path to the reid model file")
+    parser.add_argument("--tracker-seed", type=str, default=None, help="Path to a JSON file with tracker seed parameters")
     args = parser.parse_args()
+
+    if args.tracker_seed:
+        import json
+        with open(args.tracker_seed, 'r') as f:
+            tracker_seed = json.load(f)
 
     storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend('optuna.log'))
 
     study = optuna.create_study(study_name=args.study_name, directions=["maximize"]*len(args.metrics), load_if_exists=True, storage=storage)
-    study.optimize(partial(obj, mot_dir=args.mot_dir, gt_dir=args.gt_dir, target_class=args.target_class, metrics=args.metrics, association_threshold=args.association_threshold, reid_model_path=args.reid_model_path), n_trials=args.num_trials)
+    study.optimize(partial(obj, mot_dir=args.mot_dir, gt_dir=args.gt_dir, target_class=args.target_class, metrics=args.metrics, association_threshold=args.association_threshold, reid_model_path=args.reid_model_path, tracker_seed=tracker_seed), n_trials=args.num_trials)
