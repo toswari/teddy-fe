@@ -1,0 +1,6 @@
+__pycache__/
+*.jpg
+*.mp4
+*.egg-info
+.DS_Store
+*.log
