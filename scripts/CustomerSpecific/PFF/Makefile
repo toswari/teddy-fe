@@ -18,13 +18,13 @@ deploy-yolo:
 	uv build --sdist -o deploy/yolov7-co/dist
 	clarifai model upload --skip_dockerfile deploy/yolov7-co/
 
-deploy-video-detect-track-preflight: models/
+deploy-video-detect-track-preflight: models/model.onnx models/embedder.onnx models/reid.skl
 	@echo "Deploying video detect..."
 	uv build --sdist -o deploy/video-detect-track/dist
 	cp -r models/ deploy/video-detect-track/1/
 	$(MAKE) build-container TAG=video-detect-track:preflight CONTEXT=deploy/video-detect-track/
 
-deploy-video-detect-track: models/
+deploy-video-detect-track: models/model.onnx models/embedder.onnx models/reid.skl
 	@echo "Deploying video detect track..."
 	uv build --sdist -o deploy/video-detect-track/dist
 	cp -r models/ deploy/video-detect-track/1/

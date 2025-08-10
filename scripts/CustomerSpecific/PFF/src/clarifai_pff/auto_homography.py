@@ -391,13 +391,21 @@ def associate_line_to_yard(proto_lines, yard_boxes, yard_labels, inner_field_len
         # no yard lines intersected, return empty map
         return line_yard_map, line_yard_imap
 
+    for i in np.arange(proto_lines.shape[0]):
+        if i not in line_yard_map[:,0]:
+            line_yard_map = np.array([
+                *line_yard_map,
+                [i, -1]
+            ])
+    line_yard_map = line_yard_map[np.argsort(line_yard_map[:,0])]
+
     # create map for all proto lines, with -1 for ones without a box
-    tmp_line_yard_map = np.hstack((np.arange(proto_lines.shape[0]).reshape(-1,1), -1*np.ones((proto_lines.shape[0],1))))
-    tmp_line_yard_map[line_yard_map[:,0], 1] = line_yard_map[:,1]
-    tmp_line_yard_map[tmp_line_yard_map[:,-1]==-1, 1] = np.interp(tmp_line_yard_map[tmp_line_yard_map[:,-1]==-1, 0], tmp_line_yard_map[tmp_line_yard_map[:,-1]!=-1, 0], tmp_line_yard_map[tmp_line_yard_map[:,-1]!=-1,1], left=-1, right=-1)
+    # tmp_line_yard_map = np.hstack((np.arange(proto_lines.shape[0]).reshape(-1,1), -1*np.ones((proto_lines.shape[0],1))))
+    # tmp_line_yard_map[line_yard_map[:,0], 1] = line_yard_map[:,1]
+    line_yard_map[line_yard_map[:,-1]==-1, 1] = np.interp(line_yard_map[line_yard_map[:,-1]==-1, 0], line_yard_map[line_yard_map[:,-1]!=-1, 0], line_yard_map[line_yard_map[:,-1]!=-1,1], left=-1, right=-1)
 
     # line_yard_map = np.column_stack((line_yard_map, gaps, np.interp(gaps, *line_yard_map.T, right=-1, left=-1))).reshape(-1,2)
-    line_yard_map = tmp_line_yard_map[tmp_line_yard_map[:,-1] != -1]
+    line_yard_map = line_yard_map[line_yard_map[:,-1] != -1]
 
     # get rid of peak at midfield, just go from 0 = left goal line -> 100 / 110 = right goal line
     diffs = np.diff(line_yard_map[:,1])
@@ -686,7 +694,7 @@ def conflict_dfs(
     else:
         max_gap, max_gap_idx = gaps.max(), gaps.argmax()
         min_gap, min_gap_idx = gaps.min(), gaps.argmin()
-
+        
     if len(line_yard_map) <= 1:
         return
     elif len(np.unique(line_yard_map[:, 0])) != line_yard_map.shape[0]:
