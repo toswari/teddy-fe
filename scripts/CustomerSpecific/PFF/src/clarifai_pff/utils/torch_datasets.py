@@ -90,6 +90,7 @@ class ClarifaiTorchGrpcDataset(Dataset):
         pat,
         app_id,
         dataset_id: str,
+        dataset_version: str = None,
         transform=None,
         target_transform=None,
         cache_dir=None,
@@ -102,7 +103,11 @@ class ClarifaiTorchGrpcDataset(Dataset):
         self.app_id = app_id
         self.dataset_id = dataset_id
         self.cache_dir = cache_dir
-        self.cache_path = os.path.join(self.cache_dir, f"{self.dataset_id}-cache.zip")
+        self.dataset_version = dataset_version
+        if self.dataset_version is None:
+            self.cache_path = os.path.join(self.cache_dir, f"{self.dataset_id}-cache.zip")
+        else:
+            self.cache_path = os.path.join(self.cache_dir, f"{self.dataset_id}-{self.dataset_version}-cache.zip")
 
         self.requests_session = requests.Session()
         self.requests_session.headers.update({"Authorization": f"Key {pat}"})
@@ -121,7 +126,10 @@ class ClarifaiTorchGrpcDataset(Dataset):
         elif not os.path.exists(self.cache_path):
             print("generating cache")
             os.makedirs(self.cache_dir, exist_ok=True)
-            ds = User(self.user_id, pat=self._api_key).app(self.app_id).dataset(self.dataset_id)
+            dataset_kwargs = dict(dataset_id=self.dataset_id)
+            if self.dataset_version:
+                dataset_kwargs["dataset_version"] = self.dataset_version
+            ds = User(self.user_id, pat=self._api_key).app(self.app_id).dataset(**dataset_kwargs)
             zip_url = ds.archive_zip(wait=True)
             resp = self.requests_session.get(zip_url)
             with open(self.cache_path, "wb") as f:

@@ -56,6 +56,7 @@ if __name__ == "__main__":
         pat=os.environ["CLARIFAI_PAT"],
         app_id="labelstudio-unified",
         dataset_id="train",
+        dataset_version="dataset-version-1753276463119",
         transform=v2.Compose(
             [
                 v2.ToImage(),
