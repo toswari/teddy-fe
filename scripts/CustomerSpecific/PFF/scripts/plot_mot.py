@@ -183,7 +183,7 @@ for frame, group in mot_df.groupby('frame'):
 
         transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
 
-        object_traces[row['object_id']].append(transformed_pt)
+        object_traces[row['object_id']].append((frame, *transformed_pt))
 
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
@@ -206,11 +206,9 @@ for frame, group in mot_df.groupby('frame'):
             if len(trace) > 3:  # Need at least 4 points for cubic spline
                 # Convert trace to numpy array and transpose for splprep
                 trace_array = np.array(trace)
-                x = trace_array[:, 0]
-                y = trace_array[:, 1]
-                
-                # Create parameter array (time)
-                t = np.arange(len(trace))
+                t = trace_array[:, 0].astype(int)
+                x = trace_array[:, 1]
+                y = trace_array[:, 2]
 
                 # Compute upper envelope of y signal
 
