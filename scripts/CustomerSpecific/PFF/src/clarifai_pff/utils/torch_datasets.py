@@ -127,7 +127,7 @@ class ClarifaiTorchGrpcDataset(Dataset):
             print("generating cache")
             os.makedirs(self.cache_dir, exist_ok=True)
             dataset_kwargs = dict(dataset_id=self.dataset_id)
-            if self.dataset_version:
+            if self.dataset_version is not None:
                 dataset_kwargs["dataset_version"] = self.dataset_version
             ds = User(self.user_id, pat=self._api_key).app(self.app_id).dataset(**dataset_kwargs)
             zip_url = ds.archive_zip(wait=True)
