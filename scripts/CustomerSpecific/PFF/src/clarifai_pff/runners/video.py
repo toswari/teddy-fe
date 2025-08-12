@@ -33,15 +33,15 @@ class VideoStreamModel(ModelClass):
     self.folder = folder
 
   def load_model(self):
-    model_folder = getattr(self, 'folder', False) or os.path.dirname(os.path.dirname(__file__))
-    model_path = os.path.join(model_folder, '1', 'model.onnx')
+    self.model_folder = getattr(self, 'folder', False) or os.path.dirname(os.path.dirname(__file__))
+    model_path = os.path.join(self.model_folder, '1', 'model.onnx')
     m = onnx.load(model_path)
     input_yx = [x.dim_value for x in m.graph.input[0].type.tensor_type.shape.dim[-2:]]
 
     self.im_xy = input_yx[::-1]
     self.session = ort.InferenceSession(model_path, providers=['CUDAExecutionProvider'])
 
-    embedder_path = os.path.join(model_folder, '1', 'embedder.onnx')
+    embedder_path = os.path.join(self.model_folder, '1', 'embedder.onnx')
     m = onnx.load(embedder_path)
     input_yx = [x.dim_value for x in m.graph.input[0].type.tensor_type.shape.dim[-2:]]
 
@@ -113,7 +113,7 @@ class VideoStreamModel(ModelClass):
       raise ValueError("Video must have either bytes or url set.")
 
     if tracker_params is not None:
-      tracker_params["reid_model_path"] = os.path.join(os.path.dirname(__file__), '1', 'reid.skl')
+      tracker_params["reid_model_path"] = os.path.join(self.model_folder, '1', 'reid.skl')
       tracker = KalmanREID(**tracker_params)
       tracker.init_state()
     for i, frame in enumerate(stream):
