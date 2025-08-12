@@ -7,10 +7,15 @@ __pycache__/
 .coverage
 .python-version
 
+*.mp4
+*.pb
+
 # Model files
 *.onnx
 *.skl
 *.pt
+*.safetensors
 !models/*.onnx
 !models/*.skl
 !models/*.pt
+!models/*.safetensors
