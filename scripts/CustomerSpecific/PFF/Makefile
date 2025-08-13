@@ -30,6 +30,13 @@ deploy-video-detect-track: models/model.onnx models/embedder.onnx models/reid.sk
 	cp -r models/ deploy/video-detect-track/1/
 	clarifai model upload --skip_dockerfile deploy/video-detect-track/
 
+mot-gt-pb:
+	@echo "Generating MOT GT data..."
+	mkdir -p data/mot-gt-pb
+	python scripts/make_mot_data.py \
+		data/mot-gt-pb \
+		--image-size 720 1280
+
 reid:
 	@echo "Training ReID model..."
 	python scripts/train_reid.py \

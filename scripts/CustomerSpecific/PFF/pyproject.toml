@@ -27,6 +27,7 @@ gpu = [
 dev = [
     "awscli>=1.41.16",
     "isort>=6.0.1",
+    "label-studio-sdk>=1.0.5",
     "motmetrics",
     "opencv-python>=4.11.0.86",
     "optuna>=4.4.0",
