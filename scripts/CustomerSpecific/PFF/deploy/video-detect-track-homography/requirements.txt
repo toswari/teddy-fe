@@ -1,0 +1,8 @@
+clarifai
+numpy
+onnx
+onnxruntime-gpu
+pillow
+opencv-python
+av
+clarifai_pff @ /home/nonroot/dist/clarifai_pff-0.1.0.tar.gz
