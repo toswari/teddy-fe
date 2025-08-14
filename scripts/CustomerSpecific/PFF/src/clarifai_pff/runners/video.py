@@ -21,7 +21,8 @@ import cv2
 import numpy as np
 
 from clarifai.runners.models.model_class import ModelClass
-from clarifai.runners.utils.data_types.data_types import Video, Region, Concept
+from clarifai.runners.utils.data_types.data_types import Video, Region, Concept, Frame as dtFrame
+import clarifai.utils.logging as logging_utils
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from google.protobuf.struct_pb2 import Struct
 
@@ -33,8 +34,7 @@ from clarifai_pff.auto_homography import (
     FIELD_INFOS, League
 )
 
-logger = logging.getLogger(__name__)
-
+logger = logging_utils.get_logger(logging.INFO, name=__name__)
 
 @dataclass
 class ModelConfig:
@@ -328,8 +328,8 @@ class VideoStreamModel(ModelClass):
         )[0]
         embedding_time = perf_counter_ns() - start_time
 
-        logger.info(f"Embedding computation took {embedding_time} ns")
         logger.info(f"Embeddings shape: {embeddings.shape}")
+        logger.info(f"Embedding computation took {embedding_time} ns")
 
         return embeddings
 
@@ -448,17 +448,17 @@ class VideoStreamModel(ModelClass):
         Returns:
             Combined result data
         """
-        result_data = Data()
+        result_data = Frame()
 
         # Add regions
         for region in detections:
-            r = result_data.regions.add()
+            r = result_data.data.regions.add()
             r.CopyFrom(region.to_proto())
 
         # Add metadata
-        result_data.metadata.CopyFrom(metadata)
+        result_data.data.metadata.CopyFrom(metadata)
 
-        return result_data
+        return dtFrame(proto_frame=result_data)
 
     def _setup_video_stream(self, video: Video) -> Iterator:
         """
@@ -499,7 +499,7 @@ class VideoStreamModel(ModelClass):
             return None
 
         # Add reid model path to tracker params
-        reid_model_path = os.path.join(os.path.dirname(__file__), '1', 'reid.skl')
+        reid_model_path = os.path.join(self._get_model_folder(), '1', 'reid.skl')
         tracker_params["reid_model_path"] = reid_model_path
 
         # Initialize tracker
@@ -515,7 +515,7 @@ class VideoStreamModel(ModelClass):
         tracker_params: dict = None,
         homography_params: dict = None,
         max_frames: int = None
-    ) -> List[List[Region]]:
+    ) -> List[dtFrame]:
         """
         Process video and return detection results with tracking and homography.
 
@@ -561,7 +561,10 @@ class VideoStreamModel(ModelClass):
                 player_detections = self._apply_tracking(player_detections, tracker)
 
             # Compute homography
+            start = perf_counter_ns()
             homography_result = self._compute_homography(frame, hash_yard_detections,homography_params)
+            end = perf_counter_ns()
+            logger.info(f"Homography computation took {end - start} ns")
 
             # Create metadata
             metadata = self._create_metadata(homography_result)

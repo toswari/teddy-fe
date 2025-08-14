@@ -65,9 +65,6 @@ else:
 
 start = perf_counter_ns()
 result = model.predict(video=video, tracker_params=tracker_params, max_frames=args.max_frames)
-print(f"Processed {len(result)} frames.")
-print(f"Result: {len(result[0])}")
-raise Exception("This is a test run, not a real inference run.")
 end = perf_counter_ns()
 print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 
@@ -90,14 +87,13 @@ cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c'
 
 from clarifai_grpc.grpc.api import resources_pb2
 data = resources_pb2.Data()
-for frame_regions, video_frame in zip(result, video_frames):
+for frame, video_frame in zip(result, video_frames):
     f = data.frames.add()
-    for region in frame_regions:
+    for region in frame.proto.data.regions:
         r = f.data.regions.add()
-        r.CopyFrom(region.to_proto())
-        r.value = region.concepts[0].value
+        r.CopyFrom(region)
 
-        x, y, xx, yy = region.box
+        x, y, xx, yy = r.region_info.bounding_box.left_col, r.region_info.bounding_box.top_row, r.region_info.bounding_box.right_col, r.region_info.bounding_box.bottom_row
         x1 = int(x * video_frame.shape[1])
         y1 = int(y * video_frame.shape[0])
         x2 = int(xx * video_frame.shape[1])
