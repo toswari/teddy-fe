@@ -1,3 +1,6 @@
+clarifai-aws:
+	python scripts/make_aws.py
+
 build:
 	@echo "Building the project..."
 	uv build

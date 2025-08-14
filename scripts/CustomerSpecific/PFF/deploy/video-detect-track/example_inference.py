@@ -8,7 +8,7 @@ import json
 import os
 
 p = argparse.ArgumentParser(description="Run video detection and tracking model.")
-p.add_argument("video_path", type=str, help="Path to the video file.")
+p.add_argument("video_path", type=str, help="Path to the video file (local or presigned s3 url).")
 p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test", help="URL of the model to use.")
 p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 p.add_argument("--output_suffix", type=str, default="_output.mp4", help="Suffix for the output video file.")
