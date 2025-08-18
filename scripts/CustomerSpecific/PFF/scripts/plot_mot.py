@@ -25,6 +25,7 @@ p.add_argument('--camera_correction', action='store_true', help="Apply camera co
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
+p.add_argument('--player_recognition_config', type=str, default='config/player_recognition/base_config.json', help='Path to player recognition configuration file')
 p.add_argument('--max_frames', type=int, default=None, help='Maximum number of frames to process (for testing purposes)')
 p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
 p.add_argument('--show_untracked', action='store_true', help='Show untracked objects in the output frames')
@@ -44,18 +45,26 @@ mot_df = pd.DataFrame.from_records(
             'xx': region.region_info.bounding_box.right_col * 1280,
             'yy': region.region_info.bounding_box.bottom_row * 720,
             'score': region.value,
-            'label': region.data.concepts[0].name if region.data.concepts else ''
+            'label': region.data.concepts[0].name if region.data.concepts else '',
+            'uuid': region.id
         } for i, frame in enumerate(mot_data.frames, 1) for region in frame.data.regions
     ]
 )
 
 mot_df = mot_df[mot_df['label'].isin(args.classes)]
 
+# Load player recognition config
+with open(args.player_recognition_config, 'r') as f:
+    player_recognition_params = json.load(f)
+
 player_recognitions = {}
-# TODO: use detection UUID to match player_recognitions to mot_df
 for frame_idx, frame in enumerate(mot_data.frames, 1): # frame_idx begin at 1 for the first frame
     video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame_idx:04d}.jpg')) # loads images in BGR format 
-    player_recognitions[frame_idx] = recognize_player_numbers(video_frame, frame.data.regions)
+    player_recognitions[frame_idx] = recognize_player_numbers(
+        video_frame, 
+        frame.data.regions, 
+        min_detect_confidence=player_recognition_params['min_detect_confidence']
+    )
     break # TODO: remove break to apply player recognition to all frames
 
 if args.tracker_config is not None:
@@ -82,7 +91,8 @@ if args.tracker_config is not None:
                         'xx': region.region_info.bounding_box.right_col * 1280,
                         'yy': region.region_info.bounding_box.bottom_row * 720,
                         'score': region.value,
-                        'label': region.data.concepts[0].name if region.data.concepts else ''
+                        'label': region.data.concepts[0].name if region.data.concepts else '',
+                        'uuid': region.id
                     } 
                 for region in frame.data.regions if region.track_id != ''
                 ]

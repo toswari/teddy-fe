@@ -5,12 +5,14 @@ from PIL import Image
 from collections import defaultdict, Counter
 
 
-def extract_player_regions(frame, detections):
+def extract_player_regions(frame, detections, min_detect_confidence):
     player_crops = []
-    player_boxes = []
+    player_uuids = []
     
     for region in detections:
-        if hasattr(region, 'data') and region.data.concepts and region.data.concepts[0].name == 'players':
+        if (hasattr(region, 'data') and region.data.concepts and 
+            region.data.concepts[0].name == 'players' and
+            region.value >= min_detect_confidence):
             x1 = region.region_info.bounding_box.left_col * frame.shape[1]
             y1 = region.region_info.bounding_box.top_row * frame.shape[0]
             x2 = region.region_info.bounding_box.right_col * frame.shape[1]
@@ -18,9 +20,9 @@ def extract_player_regions(frame, detections):
             
             crop = frame[int(y1):int(y2), int(x1):int(x2)]
             player_crops.append(crop) # uint8, shape (height, width, 3) Values: 0-255 for each RGB channel
-            player_boxes.append((x1, y1, x2, y2))
+            player_uuids.append(region.id)
     
-    return player_crops, player_boxes
+    return player_crops, player_uuids
 
 
 def player_recognition(player_crop):
@@ -45,14 +47,14 @@ def player_recognition(player_crop):
     return -1, 0.0
 
 
-def recognize_player_numbers(frame, detections):
-    player_crops, player_boxes = extract_player_regions(frame, detections)
+def recognize_player_numbers(frame, detections, min_detect_confidence):
+    player_crops, player_uuids = extract_player_regions(frame, detections, min_detect_confidence)
     results = []
     
-    for crop, box in zip(player_crops, player_boxes):
+    for crop, uuid in zip(player_crops, player_uuids):
         number, confidence = player_recognition(crop)
         results.append({
-            'bbox': box,
+            'uuid': uuid,
             'player_number': number,
             'confidence': confidence
         })
@@ -67,12 +69,9 @@ def assign_player_ids_to_tracks(track_data, player_recognitions):
         frame_tracks = track_data[track_data['frame'] == frame_idx]
         
         for _, track in frame_tracks.iterrows():
-            track_box = (track['x'], track['y'], track['xx'], track['yy'])
-            
             for recognition in recognitions:
                 if recognition['player_number'] != -1:
-                    print(track_box, recognition['bbox'])
-                    if boxes_overlap(track_box, recognition['bbox']):
+                    if track['uuid'] == recognition['uuid']:
                         track_player_votes[track['object_id']].append(
                             (recognition['player_number'], recognition['confidence'])
                         )
@@ -90,8 +89,3 @@ def assign_player_ids_to_tracks(track_data, player_recognitions):
     return track_player_assignments
 
 
-def boxes_overlap(box1, box2):
-    x1, y1, x2, y2 = box1
-    a1, b1, a2, b2 = box2
-    
-    return x1 == a1 and y1 == b1 and x2 == a2 and y2 == b2
