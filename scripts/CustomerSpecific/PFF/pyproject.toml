@@ -8,6 +8,7 @@ dependencies = [
     "av>=15.0.0",
     "clarifai>=11.6.5",
     "clarifai-grpc>=11.5.5",
+    "easyocr>=1.7.2",
     "joblib>=1.5.1",
     "matplotlib>=3.10.3",
     "numpy>=2.0.0",

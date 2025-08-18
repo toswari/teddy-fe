@@ -8,6 +8,7 @@ import scipy.linalg
 
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.tracking.reid import KalmanREID
+from clarifai_pff.player_recognition import recognize_player_numbers, assign_player_ids_to_tracks
 
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -50,6 +51,13 @@ mot_df = pd.DataFrame.from_records(
 
 mot_df = mot_df[mot_df['label'].isin(args.classes)]
 
+player_recognitions = {}
+# TODO: use detection UUID to match player_recognitions to mot_df
+for frame_idx, frame in enumerate(mot_data.frames, 1): # frame_idx begin at 1 for the first frame
+    video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame_idx:04d}.jpg')) # loads images in BGR format 
+    player_recognitions[frame_idx] = recognize_player_numbers(video_frame, frame.data.regions)
+    break # TODO: remove break to apply player recognition to all frames
+
 if args.tracker_config is not None:
     mot_df['object_id'] = -1
     with open(args.tracker_config, 'r') as f:
@@ -85,6 +93,8 @@ if args.tracker_config is not None:
     #     for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
     #         mot_df.loc[i, 'object_id'] = int(region.track_id) if region.track_id != '' else -1
     mot_df = pd.concat(new_dfs, ignore_index=True)
+
+track_player_assignments = assign_player_ids_to_tracks(mot_df, player_recognitions)
 
 if not args.show_untracked:
     mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
@@ -177,6 +187,13 @@ for frame, group in mot_df.groupby('frame'):
     for _, row in group.iterrows():
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.rectangle(video_frame, (int(row['x']), int(row['y'])), (int(row['xx']), int(row['yy'])), color, 2)
+        
+        track_text = f"T{row['object_id']}"
+        if row['object_id'] in track_player_assignments:
+            track_text += f":P{track_player_assignments[row['object_id']]}"
+        
+        cv2.putText(video_frame, track_text, (int(row['x']), int(row['y'])-10), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         # # Apply homography transformation
         # take middle of bottom of box
@@ -188,9 +205,14 @@ for frame, group in mot_df.groupby('frame'):
 
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
+        
+        display_text = f"T{row['object_id']}"
+        if row['object_id'] in track_player_assignments:
+            display_text += f":P{track_player_assignments[row['object_id']]}"
+        
         cv2.putText(
             field_img_no_tracks,
-            str(row['object_id']),
+            display_text,
             field_to_pixel(*transformed_pt, field_img_no_tracks, field_info),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
