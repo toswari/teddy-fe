@@ -8,7 +8,7 @@ import scipy.linalg
 
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.tracking.reid import KalmanREID
-from clarifai_pff.player_recognition import recognize_player_numbers, assign_player_ids_to_tracks
+from clarifai_pff.player_recognition import recognize_player_numbers, assign_player_ids_to_tracks, EasyOCRRecognizer
 
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -57,15 +57,23 @@ mot_df = mot_df[mot_df['label'].isin(args.classes)]
 with open(args.player_recognition_config, 'r') as f:
     player_recognition_params = json.load(f)
 
+# Create recognizer from config
+RECOGNIZERS = {
+    'EasyOCRRecognizer': EasyOCRRecognizer
+}
+recognizer_params = player_recognition_params.get('recognizer_params', {})
+recognizer = RECOGNIZERS[player_recognition_params['recognizer']](**recognizer_params)
+
 player_recognitions = {}
 for frame_idx, frame in enumerate(mot_data.frames, 1): # frame_idx begin at 1 for the first frame
     video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame_idx:04d}.jpg')) # loads images in BGR format 
     player_recognitions[frame_idx] = recognize_player_numbers(
         video_frame, 
         frame.data.regions, 
-        min_detect_confidence=player_recognition_params['min_detect_confidence']
+        min_detect_confidence=player_recognition_params['min_detect_confidence'],
+        recognizer=recognizer
     )
-    break # TODO: remove break to apply player recognition to all frames
+    # break # TODO: cyu remove break to apply player recognition to all frames
 
 if args.tracker_config is not None:
     mot_df['object_id'] = -1

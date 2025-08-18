@@ -1,0 +1,4 @@
+{
+    "min_detect_confidence": 0.51,
+    "recognizer": "EasyOCRRecognizer"
+}

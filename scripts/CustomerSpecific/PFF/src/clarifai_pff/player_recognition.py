@@ -5,6 +5,36 @@ from PIL import Image
 from collections import defaultdict, Counter
 
 
+class EasyOCRRecognizer:
+    def __init__(self, **kwargs):
+        self.reader = easyocr.Reader(
+            kwargs.get('languages', ['en']), 
+            gpu=kwargs.get('gpu', False)
+        )
+        self.resize_dim = kwargs.get('resize_dim', 128)
+        self.allowlist = kwargs.get('allowlist', '0123456789')
+    
+    def recognize(self, player_crop):
+        if player_crop.size == 0:
+            return -1, 0.0
+        
+        img = Image.fromarray(cv2.cvtColor(player_crop, cv2.COLOR_BGR2RGB))
+        img_resized = img.resize((self.resize_dim, self.resize_dim))
+        
+        results = self.reader.readtext(np.array(img_resized), allowlist=self.allowlist)
+        
+        if results:
+            bbox, text, confidence = results[0]
+            try:
+                number = int(text)
+                if 0 <= number <= 99:
+                    return number, confidence
+            except ValueError:
+                pass
+        
+        return -1, 0.0
+
+
 def extract_player_regions(frame, detections, min_detect_confidence):
     player_crops = []
     player_uuids = []
@@ -25,34 +55,14 @@ def extract_player_regions(frame, detections, min_detect_confidence):
     return player_crops, player_uuids
 
 
-def player_recognition(player_crop):
-    if player_crop.size == 0:
-        return -1, 0.0
-    
-    img = Image.fromarray(cv2.cvtColor(player_crop, cv2.COLOR_BGR2RGB))
-    img_resized = img.resize((128, 128))
-    
-    reader = easyocr.Reader(['en'], gpu=False)
-    results = reader.readtext(np.array(img_resized), allowlist='0123456789')
-    
-    if results:
-        bbox, text, confidence = results[0]
-        try:
-            number = int(text)
-            if 0 <= number <= 99:
-                return number, confidence
-        except ValueError:
-            pass
-    
-    return -1, 0.0
 
 
-def recognize_player_numbers(frame, detections, min_detect_confidence):
+def recognize_player_numbers(frame, detections, min_detect_confidence=0.0, recognizer=None):
     player_crops, player_uuids = extract_player_regions(frame, detections, min_detect_confidence)
     results = []
     
     for crop, uuid in zip(player_crops, player_uuids):
-        number, confidence = player_recognition(crop)
+        number, confidence = recognizer.recognize(crop)
         results.append({
             'uuid': uuid,
             'player_number': number,
