@@ -3,6 +3,8 @@ import numpy as np
 import easyocr
 from PIL import Image
 from collections import defaultdict, Counter
+import os
+from datetime import datetime
 
 
 class EasyOCRRecognizer:
@@ -57,12 +59,21 @@ def extract_player_regions(frame, detections, min_detect_confidence):
 
 
 
-def recognize_player_numbers(frame, detections, min_detect_confidence=0.0, recognizer=None):
+def recognize_player_numbers(frame, detections, min_detect_confidence=0.0, recognizer=None, debug_folder="debug_crops"):
     player_crops, player_uuids = extract_player_regions(frame, detections, min_detect_confidence)
     results = []
     
+    # Create debug folder if it doesn't exist
+    os.makedirs(debug_folder, exist_ok=True)
+    
     for crop, uuid in zip(player_crops, player_uuids):
         number, confidence = recognizer.recognize(crop)
+        
+        # Save crop for debugging with prediction info in filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        crop_filename = f"{debug_folder}/crop_{timestamp}_{uuid}_num{number}_conf{confidence:.3f}.jpg"
+        cv2.imwrite(crop_filename, crop)
+        
         results.append({
             'uuid': uuid,
             'player_number': number,
@@ -89,11 +100,12 @@ def assign_player_ids_to_tracks(track_data, player_recognitions):
     track_player_assignments = {}
     for track_id, votes in track_player_votes.items():
         if votes:
-            vote_counts = defaultdict(int)
+            vote_counts = defaultdict(list)
             for number, confidence in votes:
-                vote_counts[number] += 1
+                vote_counts[number].append(confidence)
             
-            best_number = max(vote_counts.items(), key=lambda x: x[1])
+            print(f"Track {track_id}: votes = {dict(vote_counts)}")
+            best_number = max(vote_counts.items(), key=lambda x: len(x[1]))
             track_player_assignments[track_id] = best_number[0]
     
     return track_player_assignments
