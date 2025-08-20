@@ -6,3 +6,4 @@ numpy
 protobuf
 imageio
 imageio-ffmpeg
+python-dotenv
