@@ -29,7 +29,25 @@ import hashlib
 from dotenv import load_dotenv
 from collections import deque
 
-load_dotenv()
+try:
+    load_dotenv()
+except Exception:
+    pass
+
+def get_env_or_session(key, fallback=None):
+    # Always prefer session_state (UI input), then env, then fallback
+    val = st.session_state.get(key)
+    if val is not None and str(val).strip():
+        return val
+    val = os.environ.get(key)
+    if val is not None and str(val).strip():
+        return val
+    return fallback
+
+def has_valid_credentials():
+    pat = get_env_or_session("CLARIFAI_PAT")
+    user_id = get_env_or_session("auth_user_id")  # Always prefer UI/session
+    return bool(pat and user_id)
 
 # Hardcoded initial prebuffer to avoid looking stuck even when user buffer is small/zero
 INITIAL_PREBUFFER_SECONDS = 3.0
@@ -284,32 +302,18 @@ with st.expander("Authentication (Clarifai)", expanded=False):
             except Exception:
                 pass
 
-st.title("Streaming Video Processing")
+st.title("Video Processing & Monitoring")
 
-# Usage & Supported Sources
-with st.expander("Usage & Supported Sources", expanded=False):
-    st.markdown(
-        """
-        Supported inputs:
-        - HTTP(S) files: mp4, mov, mkv, avi (e.g. https://.../video.mp4)
-        - HLS live streams: .m3u8 playlists (e.g. https://.../playlist.m3u8)
-        - RTSP cameras: rtsp://host:port/path (TCP transport)
-
-        Tips:
-        - Live streams benefit from a playback buffer. Increase "Playback buffer (seconds)" for smoother viewing at the cost of latency.
-        - "Max display FPS" throttles rendering; if your source FPS is lower, consider reducing this to avoid buffer drain.
-        - "Skip model inference" helps isolate decode issues. If video doesn’t show, try enabling it to test the stream.
-        - Use the Stop button to end processing. Then use "Download detections (JSON)" to export the last 100 detections per video.
-
-        Troubleshooting:
-        - For HLS/RTSP that stall, try increasing buffer seconds or lowering max display FPS.
-        - Ensure Clarifai credentials are valid and a model is selected per video.
-        """
-    )
+# Warn if credentials are missing
+if not has_valid_credentials():
+    st.warning("Clarifai credentials (PAT and User ID) are not set. Please provide them in the Authentication section above before processing videos or listing models.")
 
 video_option = st.radio("Choose Video Input:", ("Supported Video URLs","Local Video Files"), horizontal=True)
 
 if video_option == "Supported Video URLs":
+    if not has_valid_credentials():
+        st.info("To process videos or list models, please enter your Clarifai PAT and User ID in the Authentication section above.")
+        st.stop()
     video_urls = st.text_area(
         "Enter video URLs (one per line):",
         value="http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4\nhttp://playertest.longtailvideo.com/adaptive/wowzaid3/playlist.m3u8\nrtsp://example.com:554/stream",
@@ -356,8 +360,10 @@ if video_option == "Supported Video URLs":
         # Cooperative stop flag across reruns
         if "stop_event" not in st.session_state:
             st.session_state.stop_event = threading.Event()
-        if st.button("Stop Processing", type="secondary"):
+        stop_clicked = st.button("Stop Processing", type="secondary")
+        if stop_clicked:
             st.session_state.stop_event.set()
+            st.session_state.processing_active = False
     # Always offer latest detections download (if any), even outside processing
     try:
         sources_preview = [u.strip() for u in video_urls.split('\n') if u.strip()]
@@ -410,16 +416,17 @@ if video_option == "Supported Video URLs":
         )
         model_options.append(next(m for m in filtered_models if m.get("Label", m["Name"]) == sel_label))
 
-    if st.button("Process Videos"):
+    process_clicked = st.button("Process Videos")
+    if process_clicked:
+        st.session_state.stop_event.clear()
+        st.session_state.processing_active = True
+
+    # Only run processing block if explicitly started and not stopped
+    if st.session_state.get("processing_active", False) and not st.session_state.stop_event.is_set():
         frame_placeholder = st.empty()
         error_placeholder = st.empty()
         status_placeholder = st.empty()
         try:
-            # Clear previous stop signal
-            if "stop_event" not in st.session_state:
-                st.session_state.stop_event = threading.Event()
-            else:
-                st.session_state.stop_event.clear()
             # Reset rolling JSON buffers for this run
             st.session_state["json_by_video"] = {}
             # Thread-safe queues for frames and messages
@@ -751,6 +758,7 @@ if video_option == "Supported Video URLs":
             # If stopped early, signal threads to exit and join
             if st.session_state.stop_event.is_set():
                 status_placeholder.warning("Stopping processing...")
+                st.session_state.processing_active = False
             for t in threads:
                 t.join(timeout=0.5)
             # If nothing was decoded, surface a tip
