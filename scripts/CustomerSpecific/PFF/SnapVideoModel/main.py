@@ -16,6 +16,7 @@ import json
 import sys
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms.v2 as v2
+import einops
 
 def generate_frame_quads(root_directory: str, csv_path: str, fps: int = 30, 
                            clip_length: int = 8) -> Iterator[Tuple[str, int, int]]:
@@ -263,7 +264,7 @@ if __name__ == "__main__":
         if i >= 10:  # Limit output for demonstration
             break
 
-    ds = FrameQuadIterDataset(args.root_directory, args.train_csv_path, args.fps)
+    ds = FrameQuadIterDataset(args.root_directory, args.train_csv_path, args.fps, clip_length=args.clip_length)
     for i, (frames_tensor, label, snap_frame) in enumerate(ds):
         print(frames_tensor.shape, label, snap_frame)
         if i >= 3:  # Limit output for demonstration
@@ -272,8 +273,9 @@ if __name__ == "__main__":
     if args.model == 'resnet50':
         weights = tv.models.ResNet50_Weights.IMAGENET1K_V2
         preprocess = v2.Compose([
+            v2.Lambda(lambda x: einops.rearrange(x, 'b f c h w -> (b f) c h w')),
             weights.transforms(),
-            v2.Lambda(lambda x: x.reshape(-1, *x.shape[2:]))
+            v2.Lambda(lambda x: einops.rearrange(x, '(b f) c h w -> b (f c) h w', b=args.batch_size)),
         ])
         model = tv.models.resnet50(weights=weights)
 
@@ -284,6 +286,7 @@ if __name__ == "__main__":
 
         model.fc = torch.nn.Linear(model.fc.in_features, 2)
     elif args.model == 'mvit':
+        assert args.clip_length == 16, "MViT model currently only supports clip_length of 16"
         weights = tv.models.video.MViT_V2_S_Weights.KINETICS400_V1
         preprocess = weights.transforms()
         model = tv.models.video.mvit_v2_s(weights=weights)
@@ -293,7 +296,7 @@ if __name__ == "__main__":
     
     dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size, num_workers=args.num_dl_workers)
 
-    val_ds = FrameQuadMapDataset(args.root_directory, args.val_csv_path, args.fps)
+    val_ds = FrameQuadMapDataset(args.root_directory, args.val_csv_path, args.fps, clip_length=args.clip_length)
     val_dl = torch.utils.data.DataLoader(val_ds, batch_size=args.batch_size, num_workers=args.num_dl_workers)
 
     device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
@@ -319,8 +322,9 @@ if __name__ == "__main__":
         model.train()
 
         optimizer.zero_grad()
+        x = preprocess(frames_tensor.to(device))
         model_start = time.perf_counter_ns()
-        outputs = model(frames_tensor.to(device))
+        outputs = model(x)
         model_end = time.perf_counter_ns()
 
         loss = torch.nn.functional.cross_entropy(outputs, label.to(device))
