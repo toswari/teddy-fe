@@ -247,6 +247,8 @@ if __name__ == "__main__":
     parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training and validation')
     parser.add_argument('--clip_length', default=8, type=int, help='Number of frames per clip')
     parser.add_argument('--resume_from', default=None, type=str, help='Path to model checkpoint to resume from')
+    parser.add_argument('--run_name', default=None, type=str, help='Name for the TensorBoard run')
+    parser.add_argument('--num_dl_workers', default=0, type=int, help='Number of DataLoader workers')
     
     args = parser.parse_args()
 
@@ -273,10 +275,10 @@ if __name__ == "__main__":
 
     model.fc = torch.nn.Linear(model.fc.in_features, 2)
 
-    dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size)
+    dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size, num_workers=args.num_dl_workers)
 
     val_ds = FrameQuadMapDataset(args.root_directory, args.val_csv_path, args.fps)
-    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=args.batch_size)
+    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=args.batch_size, num_workers=args.num_dl_workers)
 
     device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
 
@@ -291,7 +293,10 @@ if __name__ == "__main__":
         optimizer.load_state_dict(torch.load(args.resume_from.replace('model', 'optimizer')))
         iter_start = int(args.resume_from.split('_')[-1].split('.')[0])
 
-    writer = SummaryWriter()
+    if args.run_name is not None:
+        writer = SummaryWriter(log_dir=os.path.join('runs', args.run_name))
+    else:
+        writer = SummaryWriter()
     data_start = time.perf_counter_ns()
     for i, (frames_tensor, label, snap_frame) in enumerate(dl, iter_start if args.resume_from else 1):
         data_end = time.perf_counter_ns()
@@ -321,8 +326,8 @@ if __name__ == "__main__":
         print(json.dumps(log_entry))
 
         if i % args.chkpt_every == 0:
-            torch.save(optimizer.state_dict(), f'snap_optimizer_iter_{i}.pth')
-            torch.save(model.state_dict(), f'snap_model_iter_{i}.pth')
+            torch.save(optimizer.state_dict(), os.path.join(writer.log_dir, f'snap_optimizer_iter_{i}.pth'))
+            torch.save(model.state_dict(), os.path.join(writer.log_dir, f'snap_model_iter_{i}.pth'))
 
         if i % args.val_every == 0:
             model.eval()
@@ -346,5 +351,5 @@ if __name__ == "__main__":
             break
         data_start = time.perf_counter_ns()
 
-    torch.save(optimizer.state_dict(), f'snap_optimizer_iter_{i}.pth')
-    torch.save(model.state_dict(), f'snap_model_iter_{i}.pth')
+    torch.save(optimizer.state_dict(), os.path.join(writer.log_dir, f'snap_optimizer_iter_{i}.pth'))
+    torch.save(model.state_dict(), os.path.join(writer.log_dir, f'snap_model_iter_{i}.pth'))
