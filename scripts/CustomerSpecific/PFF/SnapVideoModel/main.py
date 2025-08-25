@@ -46,6 +46,13 @@ def generate_frame_quads(root_directory: str, csv_path: str, fps: int = 30,
         
         # Calculate snap frame
         snap_frame = int(snap_time * fps)
+
+        # If start_frame and end_frame are provided, use them directly
+        if 'start_frame' in row and 'end_frame' in row:
+            start_frame = int(row['start_frame'])
+            end_frame = int(row['end_frame'])
+            yield (video_path, start_frame, end_frame, snap_frame >= start_frame and snap_frame <= end_frame, snap_frame)
+            continue
         
         # Generate random offset to shift the start frame
         max_offset = clip_length // 2
@@ -101,7 +108,7 @@ def _build_video_index(root_directory: str) -> Dict[str, str]:
     
     return video_index
 
-class FrameQuadDataset(IterableDataset):
+class FrameQuadIterDataset(IterableDataset):
     """
     PyTorch IterableDataset that yields frame quads from videos.
     """
@@ -156,12 +163,86 @@ class FrameQuadDataset(IterableDataset):
             finally:
                 cap.release()
 
+class FrameQuadMapDataset(torch.utils.data.Dataset):
+    """
+    PyTorch Dataset that yields frame quads from videos using map-style access.
+    """
+    
+    def __init__(self, root_directory: str, csv_path: str, fps: int = 30, 
+                    clip_length: int = 8):
+        """
+        Initialize the dataset.
+        
+        Args:
+            root_directory: Root directory containing video files
+            csv_path: Path to CSV with game_id, play_id, snap_time columns
+            fps: Frames per second (default: 30)
+            clip_length: Length of clip in frames (default: 8)
+        """
+        self.root_directory = root_directory
+        self.csv_path = csv_path
+        self.fps = fps
+        self.clip_length = clip_length
+        
+        # Pre-generate all samples
+        self.samples = list(generate_frame_quads(
+            self.root_directory, self.csv_path, self.fps, self.clip_length
+        ))
+    
+    def __len__(self):
+        """Return the total number of samples."""
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        """
+        Get a single sample by index.
+        
+        Args:
+            idx: Index of the sample to retrieve
+            
+        Returns:
+            Tuple of (frames_tensor, label, snap_frame) where:
+            - frames_tensor: torch.Tensor of shape (clip_length * channels, height, width)
+            - label: int (1 for snap, 0 for non-snap)
+            - snap_frame: int (frame number of the snap)
+        """
+        video_path, start_frame, end_frame, label, snap_frame = self.samples[idx]
+        
+        # Load video frames
+        cap = cv2.VideoCapture(video_path)
+        frames = []
+        
+        try:
+            for frame_idx in range(start_frame, end_frame):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frames.append(frame)
+            
+            if len(frames) == self.clip_length:
+                # Convert to tensor: (clip_length * channels, height, width)
+                frames_array = np.array(frames)
+                frames_tensor = torch.from_numpy(frames_array).float()
+                return frames_tensor.moveaxis(-1, 1).reshape(-1, *frames_tensor.shape[1:3]), label, snap_frame
+            else:
+                # Handle case where we don't have enough frames
+                raise IndexError(f"Not enough frames loaded: {len(frames)} < {self.clip_length}")
+                
+        finally:
+            cap.release()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate frame triplets for video clips')
     parser.add_argument('root_directory', help='Root directory containing video files')
     parser.add_argument('train_csv_path', help='Path to CSV with game_id, play_id, snap_time columns')
     parser.add_argument('val_csv_path', help='Path to CSV with game_id, play_id, snap_time columns')
     parser.add_argument('--fps', type=int, default=30, help='Frames per second (default: 30)')
+    parser.add_argument('--max_iters', default=1, type=int, help='Number of iterations to train')
+    parser.add_argument('--val_every', default=100, type=int, help='Validate every N iterations')
+    parser.add_argument('--chkpt_every', default=500, type=int, help='Checkpoint every N iterations')
+    parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training and validation')
+    parser.add_argument('--clip_length', default=8, type=int, help='Number of frames per clip')
     
     args = parser.parse_args()
 
@@ -171,7 +252,7 @@ if __name__ == "__main__":
         if i >= 10:  # Limit output for demonstration
             break
 
-    ds = FrameQuadDataset(args.root_directory, args.train_csv_path, args.fps)
+    ds = FrameQuadIterDataset(args.root_directory, args.train_csv_path, args.fps)
     for i, (frames_tensor, label, snap_frame) in enumerate(ds):
         print(frames_tensor.shape, label, snap_frame)
         if i >= 3:  # Limit output for demonstration
@@ -179,17 +260,17 @@ if __name__ == "__main__":
 
     model = tv.models.resnet50(weights=tv.models.ResNet50_Weights.IMAGENET1K_V2)
 
-    new_weights = model.conv1.weight.data.repeat(1, 8, 1, 1)
+    new_weights = model.conv1.weight.data.repeat(1, args.clip_length, 1, 1)
 
-    model.conv1 = torch.nn.Conv2d(8 * 3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    model.conv1 = torch.nn.Conv2d(args.clip_length * 3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
     model.conv1.weight.data = new_weights
 
     model.fc = torch.nn.Linear(model.fc.in_features, 2)
 
-    dl = torch.utils.data.DataLoader(ds, batch_size=8)
+    dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size)
 
-    val_ds = FrameQuadDataset(args.root_directory, args.val_csv_path, args.fps)
-    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=8)
+    val_ds = FrameQuadMapDataset(args.root_directory, args.val_csv_path, args.fps)
+    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=args.batch_size)
 
     device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
 
@@ -199,7 +280,7 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-    for i, (frames_tensor, label, snap_frame) in enumerate(dl):
+    for i, (frames_tensor, label, snap_frame) in enumerate(dl, 1):
         model.train()
 
         optimizer.zero_grad()
@@ -215,7 +296,10 @@ if __name__ == "__main__":
         }
         print(json.dumps(log_entry))
 
-        if i % 100 == 0:
+        if i % args.chkpt_every == 0:
+            torch.save(model.state_dict(), f'snap_model_iter_{i}.pth')
+
+        if i % args.val_every == 0:
             model.eval()
             val_loss = 0.0
             val_count = 0
@@ -227,5 +311,8 @@ if __name__ == "__main__":
                     val_count += val_frames_tensor.size(0)
             avg_val_loss = val_loss / val_count if val_count > 0 else float('inf')
             print(f"Validation Loss after {i} iterations: {avg_val_loss:.4f}")
-    
-    torch.save(model.state_dict(), 'snap_model.pth')
+
+        if i >= args.max_iters:
+            break
+
+    torch.save(model.state_dict(), 'snap_model_final.pth')
