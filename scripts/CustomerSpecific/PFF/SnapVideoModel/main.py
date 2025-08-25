@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import time
 import pandas as pd
 import os
@@ -142,9 +143,9 @@ class FrameQuadIterDataset(IterableDataset):
             - label: int (1 for snap, 0 for non-snap)
             - snap_frame: int (frame number of the snap)
         """
-        for video_path, start_frame, end_frame, label, snap_frame in generate_frame_quads(
+        for video_path, start_frame, end_frame, label, snap_frame in itertools.cycle(generate_frame_quads(
             self.root_directory, self.csv_path, self.fps, self.clip_length
-        ):
+        )):
             # Load video frames
             cap = cv2.VideoCapture(video_path)
             frames = []
@@ -291,7 +292,7 @@ if __name__ == "__main__":
     if args.resume_from:
         model.load_state_dict(torch.load(args.resume_from))
         optimizer.load_state_dict(torch.load(args.resume_from.replace('model', 'optimizer')))
-        iter_start = int(args.resume_from.split('_')[-1].split('.')[0])
+        iter_start = int(args.resume_from.split('_')[-1].split('.')[0]) + 1
 
     if args.run_name is not None:
         writer = SummaryWriter(log_dir=os.path.join('runs', args.run_name))
