@@ -13,6 +13,7 @@ import argparse
 import torchvision as tv
 import json
 import sys
+from torch.utils.tensorboard import SummaryWriter
 
 def generate_frame_quads(root_directory: str, csv_path: str, fps: int = 30, 
                            clip_length: int = 8) -> Iterator[Tuple[str, int, int]]:
@@ -290,6 +291,7 @@ if __name__ == "__main__":
         optimizer.load_state_dict(torch.load(args.resume_from.replace('model', 'optimizer')))
         iter_start = int(args.resume_from.split('_')[-1].split('.')[0])
 
+    writer = SummaryWriter()
     data_start = time.perf_counter_ns()
     for i, (frames_tensor, label, snap_frame) in enumerate(dl, iter_start if args.resume_from else 1):
         data_end = time.perf_counter_ns()
@@ -303,7 +305,12 @@ if __name__ == "__main__":
         loss = torch.nn.functional.cross_entropy(outputs, label.to(device))
         loss.backward()
         optimizer.step()
-
+        
+        writer.add_scalar('train/loss', loss.item(), i)
+        writer.add_scalar('train/model_time_ms', (model_end - model_start) / 1_000_000, i)
+        writer.add_scalar('train/data_time_ms', (data_end - data_start) / 1_000_000, i)
+        
+        # Still print for console output
         log_entry = {
             "time": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "iteration": i,
@@ -333,6 +340,7 @@ if __name__ == "__main__":
                 "iteration": i,
                 "val_loss": avg_val_loss
             }))
+            writer.add_scalar('val/loss', avg_val_loss, i)
 
         if i >= args.max_iters:
             break
