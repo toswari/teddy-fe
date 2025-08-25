@@ -355,7 +355,7 @@ if __name__ == "__main__":
             val_count = 0
             with torch.no_grad():
                 for val_frames_tensor, val_label, val_snap_frame in val_dl:
-                    val_outputs = model(val_frames_tensor.to(device))
+                    val_outputs = model(preprocess(val_frames_tensor.to(device)))
                     v_loss = torch.nn.functional.cross_entropy(val_outputs, val_label.to(device))
                     val_loss += v_loss.item() * val_frames_tensor.size(0)
                     val_count += val_frames_tensor.size(0)
