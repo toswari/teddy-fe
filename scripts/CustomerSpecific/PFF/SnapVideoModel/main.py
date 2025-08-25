@@ -1,3 +1,5 @@
+import datetime
+import time
 import pandas as pd
 import os
 import random
@@ -288,19 +290,26 @@ if __name__ == "__main__":
         optimizer.load_state_dict(torch.load(args.resume_from.replace('model', 'optimizer')))
         iter_start = int(args.resume_from.split('_')[-1].split('.')[0])
 
+    data_start = time.perf_counter_ns()
     for i, (frames_tensor, label, snap_frame) in enumerate(dl, iter_start if args.resume_from else 1):
+        data_end = time.perf_counter_ns()
         model.train()
 
         optimizer.zero_grad()
+        model_start = time.perf_counter_ns()
         outputs = model(frames_tensor.to(device))
+        model_end = time.perf_counter_ns()
 
         loss = torch.nn.functional.cross_entropy(outputs, label.to(device))
         loss.backward()
         optimizer.step()
 
         log_entry = {
+            "time": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             "iteration": i,
-            "train_loss": loss.item()
+            "train_loss": loss.item(),
+            "model_time_ms": (model_end - model_start) / 1_000_000,
+            "data_time_ms": (data_end - data_start) / 1_000_000,
         }
         print(json.dumps(log_entry))
 
@@ -320,12 +329,14 @@ if __name__ == "__main__":
                     val_count += val_frames_tensor.size(0)
             avg_val_loss = val_loss / val_count if val_count > 0 else float('inf')
             print(json.dumps({
+                "time": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 "iteration": i,
                 "val_loss": avg_val_loss
             }))
 
         if i >= args.max_iters:
             break
+        data_start = time.perf_counter_ns()
 
     torch.save(optimizer.state_dict(), f'snap_optimizer_iter_{i}.pth')
     torch.save(model.state_dict(), f'snap_model_iter_{i}.pth')
