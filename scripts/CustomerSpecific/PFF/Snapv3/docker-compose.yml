@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  snap-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: snap-detection:latest
+    container_name: snap-detection
+    volumes:
+      # Mount sample videos directory to persist across container restarts
+      - ./sample_videos:/app/sample_videos
+      # Mount output directory to persist results
+      - ./outputs:/app/outputs
+      # Mount input videos (can mount a host directory for processing)
+      - ./input:/app/input
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Override default CMD for interactive use
+    # Usage: docker-compose run snap-detection python3 main.py input/video.mp4 
