@@ -243,6 +243,7 @@ if __name__ == "__main__":
     parser.add_argument('--chkpt_every', default=500, type=int, help='Checkpoint every N iterations')
     parser.add_argument('--batch_size', default=8, type=int, help='Batch size for training and validation')
     parser.add_argument('--clip_length', default=8, type=int, help='Number of frames per clip')
+    parser.add_argument('--resume_from', default=None, type=str, help='Path to model checkpoint to resume from')
     
     args = parser.parse_args()
 
@@ -268,6 +269,8 @@ if __name__ == "__main__":
     model.conv1.weight.data = new_weights
 
     model.fc = torch.nn.Linear(model.fc.in_features, 2)
+    if args.resume_from:
+        model.load_state_dict(torch.load(args.resume_from))
 
     dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size)
 
