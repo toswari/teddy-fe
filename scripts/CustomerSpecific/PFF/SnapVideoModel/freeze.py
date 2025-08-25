@@ -7,11 +7,13 @@ from main import FrameQuadMapDataset
 parser = argparse.ArgumentParser()
 parser.add_argument('root_directory', type=str)
 parser.add_argument('csv_path', type=str)
+parser.add_argument('--clip-length', type=int, default=8)
 args = parser.parse_args()
 
 ds = FrameQuadMapDataset(
     root_directory=args.root_directory,
     csv_path=args.csv_path,
+    clip_length=args.clip_length,
 )
 
 df0 = pd.read_csv(args.csv_path)
