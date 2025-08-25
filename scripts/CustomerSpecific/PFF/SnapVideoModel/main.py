@@ -269,8 +269,6 @@ if __name__ == "__main__":
     model.conv1.weight.data = new_weights
 
     model.fc = torch.nn.Linear(model.fc.in_features, 2)
-    if args.resume_from:
-        model.load_state_dict(torch.load(args.resume_from))
 
     dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size)
 
@@ -285,7 +283,12 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-    for i, (frames_tensor, label, snap_frame) in enumerate(dl, 1):
+    if args.resume_from:
+        model.load_state_dict(torch.load(args.resume_from))
+        optimizer.load_state_dict(torch.load(args.resume_from.replace('model', 'optimizer')))
+        iter_start = int(args.resume_from.split('_')[-1].split('.')[0])
+
+    for i, (frames_tensor, label, snap_frame) in enumerate(dl, iter_start if args.resume_from else 1):
         model.train()
 
         optimizer.zero_grad()
@@ -302,6 +305,7 @@ if __name__ == "__main__":
         print(json.dumps(log_entry))
 
         if i % args.chkpt_every == 0:
+            torch.save(optimizer.state_dict(), f'snap_optimizer_iter_{i}.pth')
             torch.save(model.state_dict(), f'snap_model_iter_{i}.pth')
 
         if i % args.val_every == 0:
