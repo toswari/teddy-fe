@@ -3,7 +3,6 @@
 Lightweight computer-vision pipeline to locate the football snap frame in broadcast / coaching tape.
 Uses Clarifai's unified detection model (filtered to player concepts), custom lightweight tracking, LOS (line of scrimmage) clustering, and robust motion heuristics (median/MAD baseline + absolute & derivative gates + sustain scoring + derivative fallback). Output artifacts include GIF(s) around the detected snap and motion / LOS velocity plots.
 
-> NOTE: Previous iterations used YOLO / REST API endpoints. Current code is a pure CLI + Clarifai integration; outdated API docs in original README will be replaced after review.
 
 ## Key Features
 * Clarifai region detection with label filtering (singular/plural normalization)
