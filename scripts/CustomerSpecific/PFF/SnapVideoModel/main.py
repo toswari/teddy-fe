@@ -159,18 +159,19 @@ class FrameQuadDataset(IterableDataset):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate frame triplets for video clips')
     parser.add_argument('root_directory', help='Root directory containing video files')
-    parser.add_argument('csv_path', help='Path to CSV with game_id, play_id, snap_time columns')
+    parser.add_argument('train_csv_path', help='Path to CSV with game_id, play_id, snap_time columns')
+    parser.add_argument('val_csv_path', help='Path to CSV with game_id, play_id, snap_time columns')
     parser.add_argument('--fps', type=int, default=30, help='Frames per second (default: 30)')
     
     args = parser.parse_args()
 
-    for i, quad in enumerate(generate_frame_quads(args.root_directory, args.csv_path,
+    for i, quad in enumerate(generate_frame_quads(args.root_directory, args.train_csv_path,
                                          args.fps)):
         print(quad)
         if i >= 10:  # Limit output for demonstration
             break
 
-    ds = FrameQuadDataset(args.root_directory, args.csv_path, args.fps)
+    ds = FrameQuadDataset(args.root_directory, args.train_csv_path, args.fps)
     for i, (frames_tensor, label, snap_frame) in enumerate(ds):
         print(frames_tensor.shape, label, snap_frame)
         if i >= 3:  # Limit output for demonstration
@@ -186,6 +187,9 @@ if __name__ == "__main__":
     model.fc = torch.nn.Linear(model.fc.in_features, 2)
 
     dl = torch.utils.data.DataLoader(ds, batch_size=8)
+
+    val_ds = FrameQuadDataset(args.root_directory, args.val_csv_path, args.fps)
+    val_dl = torch.utils.data.DataLoader(val_ds, batch_size=8)
 
     device = torch.device('cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu'))
 
@@ -211,5 +215,17 @@ if __name__ == "__main__":
         }
         print(json.dumps(log_entry))
 
-        if i >= 100:  # Stop after 100 batches for demonstration
-            break
+        if i % 100 == 0:
+            model.eval()
+            val_loss = 0.0
+            val_count = 0
+            with torch.no_grad():
+                for val_frames_tensor, val_label, val_snap_frame in val_dl:
+                    val_outputs = model(val_frames_tensor.to(device))
+                    v_loss = torch.nn.functional.cross_entropy(val_outputs, val_label.to(device))
+                    val_loss += v_loss.item() * val_frames_tensor.size(0)
+                    val_count += val_frames_tensor.size(0)
+            avg_val_loss = val_loss / val_count if val_count > 0 else float('inf')
+            print(f"Validation Loss after {i} iterations: {avg_val_loss:.4f}")
+    
+    torch.save(model.state_dict(), 'snap_model.pth')
