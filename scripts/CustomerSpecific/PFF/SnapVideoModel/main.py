@@ -51,7 +51,7 @@ def generate_frame_quads(root_directory: str, csv_path: str, fps: int = 30,
         if 'start_frame' in row and 'end_frame' in row:
             start_frame = int(row['start_frame'])
             end_frame = int(row['end_frame'])
-            yield (video_path, start_frame, end_frame, snap_frame >= start_frame and snap_frame <= end_frame, snap_frame)
+            yield (video_path, start_frame, end_frame, 1 if snap_frame >= start_frame and snap_frame <= end_frame else 0, snap_frame)
             continue
         
         # Generate random offset to shift the start frame
@@ -292,7 +292,7 @@ if __name__ == "__main__":
 
         log_entry = {
             "iteration": i,
-            "loss": loss.item()
+            "train_loss": loss.item()
         }
         print(json.dumps(log_entry))
 
@@ -310,7 +310,10 @@ if __name__ == "__main__":
                     val_loss += v_loss.item() * val_frames_tensor.size(0)
                     val_count += val_frames_tensor.size(0)
             avg_val_loss = val_loss / val_count if val_count > 0 else float('inf')
-            print(f"Validation Loss after {i} iterations: {avg_val_loss:.4f}")
+            print(json.dumps({
+                "iteration": i,
+                "val_loss": avg_val_loss
+            }))
 
         if i >= args.max_iters:
             break
