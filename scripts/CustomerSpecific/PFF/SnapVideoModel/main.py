@@ -246,6 +246,8 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
+    print(vars(args))
+
     for i, quad in enumerate(generate_frame_quads(args.root_directory, args.train_csv_path,
                                          args.fps)):
         print(quad)
