@@ -327,4 +327,5 @@ if __name__ == "__main__":
         if i >= args.max_iters:
             break
 
+    torch.save(optimizer.state_dict(), f'snap_optimizer_iter_{i}.pth')
     torch.save(model.state_dict(), f'snap_model_iter_{i}.pth')
