@@ -15,6 +15,7 @@ import torchvision as tv
 import json
 import sys
 from torch.utils.tensorboard import SummaryWriter
+import torchvision.transforms.v2 as v2
 
 def generate_frame_quads(root_directory: str, csv_path: str, fps: int = 30, 
                            clip_length: int = 8) -> Iterator[Tuple[str, int, int]]:
@@ -162,7 +163,7 @@ class FrameQuadIterDataset(IterableDataset):
                     # Convert to tensor: (clip_length * channels, height, width)
                     frames_array = np.array(frames)
                     frames_tensor = torch.from_numpy(frames_array).float()
-                    yield frames_tensor.moveaxis(-1, 1).reshape(-1, *frames_tensor.shape[1:3]), label, snap_frame
+                    yield frames_tensor.moveaxis(-1, 1).reshape(-1, 3, *frames_tensor.shape[1:3]), label, snap_frame
                     
             finally:
                 cap.release()
@@ -228,7 +229,7 @@ class FrameQuadMapDataset(torch.utils.data.Dataset):
                 # Convert to tensor: (clip_length * channels, height, width)
                 frames_array = np.array(frames)
                 frames_tensor = torch.from_numpy(frames_array).float()
-                return frames_tensor.moveaxis(-1, 1).reshape(-1, *frames_tensor.shape[1:3]), label, snap_frame
+                return frames_tensor.moveaxis(-1, 1).reshape(-1, 3, *frames_tensor.shape[1:3]), label, snap_frame
             else:
                 # Handle case where we don't have enough frames
                 raise IndexError(f"Not enough frames loaded: {len(frames)} < {self.clip_length}")
@@ -250,6 +251,7 @@ if __name__ == "__main__":
     parser.add_argument('--resume_from', default=None, type=str, help='Path to model checkpoint to resume from')
     parser.add_argument('--run_name', default=None, type=str, help='Name for the TensorBoard run')
     parser.add_argument('--num_dl_workers', default=0, type=int, help='Number of DataLoader workers')
+    parser.add_argument('--model', default='resnet50', type=str, help='Model architecture to use', choices=['resnet50', 'mvit'])
     
     args = parser.parse_args()
 
@@ -267,15 +269,28 @@ if __name__ == "__main__":
         if i >= 3:  # Limit output for demonstration
             break
 
-    model = tv.models.resnet50(weights=tv.models.ResNet50_Weights.IMAGENET1K_V2)
+    if args.model == 'resnet50':
+        weights = tv.models.ResNet50_Weights.IMAGENET1K_V2
+        preprocess = v2.Compose([
+            weights.transforms(),
+            v2.Lambda(lambda x: x.reshape(-1, *x.shape[2:]))
+        ])
+        model = tv.models.resnet50(weights=weights)
 
-    new_weights = model.conv1.weight.data.repeat(1, args.clip_length, 1, 1)
+        new_weights = model.conv1.weight.data.repeat(1, args.clip_length, 1, 1)
 
-    model.conv1 = torch.nn.Conv2d(args.clip_length * 3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-    model.conv1.weight.data = new_weights
+        model.conv1 = torch.nn.Conv2d(args.clip_length * 3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        model.conv1.weight.data = new_weights
 
-    model.fc = torch.nn.Linear(model.fc.in_features, 2)
-
+        model.fc = torch.nn.Linear(model.fc.in_features, 2)
+    elif args.model == 'mvit':
+        weights = tv.models.video.MViT_V2_S_Weights.KINETICS400_V1
+        preprocess = weights.transforms()
+        model = tv.models.video.mvit_v2_s(weights=weights)
+        model.head[1] = torch.nn.Linear(model.head[1].in_features, 2)
+    else:
+        raise ValueError(f"Unsupported model architecture: {args.model}")
+    
     dl = torch.utils.data.DataLoader(ds, batch_size=args.batch_size, num_workers=args.num_dl_workers)
 
     val_ds = FrameQuadMapDataset(args.root_directory, args.val_csv_path, args.fps)
@@ -295,7 +310,7 @@ if __name__ == "__main__":
         iter_start = int(args.resume_from.split('_')[-1].split('.')[0]) + 1
 
     if args.run_name is not None:
-        writer = SummaryWriter(log_dir=os.path.join('runs', args.run_name))
+        writer = SummaryWriter(log_dir=os.path.join('runs', 'train', args.run_name))
     else:
         writer = SummaryWriter()
     data_start = time.perf_counter_ns()
