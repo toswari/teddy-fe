@@ -9,7 +9,7 @@ import os
 
 p = argparse.ArgumentParser(description="Run video detection and tracking model.")
 p.add_argument("video_path", type=str, help="Path to the video file.")
-p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video_streaming_test", help="URL of the model to use.")
+p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video-entire-pipeline-gpu2", help="URL of the model to use.")
 p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 p.add_argument("--output_suffix", type=str, default="_output.mp4", help="Suffix for the output video file.")
 p.add_argument("--max_frames", type=int, default=None, help="Maximum number of frames to process. Default is None (process all frames).")
@@ -68,62 +68,16 @@ result = model.predict(video=video, tracker_params=tracker_params, max_frames=ar
 end = perf_counter_ns()
 print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 
-cap = cv2.VideoCapture(video_path)
-frames = []
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
-    frames.append(frame)
-fps = cap.get(cv2.CAP_PROP_FPS)
-cap.release()
-print(f"Frames: {len(result)}, 'FPS': {len(result) / (end - start) * 1e9}")
+# from google.protobuf.json_format import MessageToDict
+# import json
 
-video_frames = frames
+# # Add this code after getting the result and before the exception
+# # Convert first frame result to dictionary
+# first_frame_dict = MessageToDict(result[0].proto)
 
-import itertools
-import matplotlib.pyplot as plt
-cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors))
+# # Store in JSON file
+# output_json_path = os.path.join(args.out_dir, f'{video_id}_first_frame.json')
+# with open(output_json_path, 'w') as f:
+#     json.dump(first_frame_dict, f, indent=2)
 
-from clarifai_grpc.grpc.api import resources_pb2
-data = resources_pb2.Data()
-for frame, video_frame in zip(result, video_frames):
-    f = data.frames.add()
-    for region in frame.proto.data.regions:
-        r = f.data.regions.add()
-        r.CopyFrom(region)
-
-        x, y, xx, yy = r.region_info.bounding_box.left_col, r.region_info.bounding_box.top_row, r.region_info.bounding_box.right_col, r.region_info.bounding_box.bottom_row
-        x1 = int(x * video_frame.shape[1])
-        y1 = int(y * video_frame.shape[0])
-        x2 = int(xx * video_frame.shape[1])
-        y2 = int(yy * video_frame.shape[0])
-        color = tuple(map(lambda c: int(255*c), cmap[int(region.track_id) % len(cmap)][:3])) if region.track_id else (0, 0, 255)
-        cv2.rectangle(video_frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(
-            video_frame,
-            f"{r.value:.2f}",
-            (x1, y1 - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            color,
-            2,
-            cv2.LINE_AA
-        )
-
-if not os.path.exists(args.out_dir):
-    os.makedirs(args.out_dir)
-
-if 'pb' in args.output_formats:
-    with open(os.path.join(args.out_dir, f'{video_id}_det.pb'), 'wb') as f:
-        f.write(data.SerializeToString())
-
-if 'mp4' in args.output_formats:
-    out_path = os.path.join(args.out_dir, f'{video_id}{args.output_suffix}')
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    height, width = video_frames[0].shape[:2]
-    out = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-
-    for frame, frame_regions in zip(video_frames, result):
-        out.write(frame)
-    out.release()
+print(result[0].proto)

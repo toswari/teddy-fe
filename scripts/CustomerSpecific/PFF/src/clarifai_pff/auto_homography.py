@@ -1078,6 +1078,25 @@ def compute_camera_motion(
 
     return motion
 
+def is_convex_polygon(pts):
+    pts = np.array(pts)
+    n = len(pts)
+    if n < 4:
+        return True  # triangles are always convex
+    sign = None
+    for i in range(n):
+        dx1 = pts[(i+1)%n][0] - pts[i][0]
+        dy1 = pts[(i+1)%n][1] - pts[i][1]
+        dx2 = pts[(i+2)%n][0] - pts[(i+1)%n][0]
+        dy2 = pts[(i+2)%n][1] - pts[(i+1)%n][1]
+        zcross = dx1 * dy2 - dy1 * dx2
+        if zcross != 0:
+            if sign is None:
+                sign = np.sign(zcross)
+            elif np.sign(zcross) != sign:
+                return False
+    return True
+
 def process_response(response) -> Tuple[List[List[float]], List[int], List[List[float]], List[List[float]]]:
     yard_boxes, yard_labels, inner_boxes, up_edge_boxes = [], [], [], []
     for region in response:
@@ -1209,24 +1228,6 @@ def main(image_path: str,
         # TODO: check if field of view is convex
         fov_pts = [field_to_pixel(*x, field_img, field_info) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
         # Check if fov_pts forms a convex polygon
-        def is_convex_polygon(pts):
-            pts = np.array(pts)
-            n = len(pts)
-            if n < 4:
-                return True  # triangles are always convex
-            sign = None
-            for i in range(n):
-                dx1 = pts[(i+1)%n][0] - pts[i][0]
-                dy1 = pts[(i+1)%n][1] - pts[i][1]
-                dx2 = pts[(i+2)%n][0] - pts[(i+1)%n][0]
-                dy2 = pts[(i+2)%n][1] - pts[(i+1)%n][1]
-                zcross = dx1 * dy2 - dy1 * dx2
-                if zcross != 0:
-                    if sign is None:
-                        sign = np.sign(zcross)
-                    elif np.sign(zcross) != sign:
-                        return False
-            return True
 
         is_convex = is_convex_polygon(fov_pts)
         if not is_convex:

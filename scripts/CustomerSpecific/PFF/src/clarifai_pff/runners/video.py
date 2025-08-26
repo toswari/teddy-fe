@@ -1,9 +1,8 @@
 """
-Video Stream Model for Player Detection, Tracking and Homography
+Video Stream Model for Player, Hash Yard Detection, Tracking and Homography
 
 This module provides a comprehensive video processing pipeline that combines:
-- Player and referee detection using YOLO models
-- Hash yard line detection for field analysis
+- Player, referee and Hash yard line detection using YOLO model
 - Player re-identification using embeddings
 - Multi-object tracking with Kalman filters
 - Homography estimation for field perspective correction
@@ -30,8 +29,8 @@ import clarifai_pff.utils.video as video_utils
 from clarifai_pff.utils.transforms import letterbox
 from clarifai_pff.tracking.reid import KalmanREID
 from clarifai_pff.auto_homography import (
-    process_response, process_image, ProcessingConfig,
-    FIELD_INFOS, League
+    process_response, process_image, transform_points, is_convex_polygon, field_to_pixel, ProcessingConfig,
+    gen_field, FIELD_INFOS, League, HomographyError
 )
 
 logger = logging_utils.get_logger(logging.INFO, name=__name__)
@@ -40,18 +39,12 @@ logger = logging_utils.get_logger(logging.INFO, name=__name__)
 class ModelConfig:
     """Configuration for model paths and labels."""
     model_folder: str
-    player_labels: Dict[int, str] = None
-    hash_yard_labels: Dict[int, str] = None
+    detector_labels: Dict[int, str] = None
 
     def __post_init__(self):
-        if self.player_labels is None:
-            self.player_labels = {0: 'players', 1: 'referee'}
-
-        if self.hash_yard_labels is None:
-            self.hash_yard_labels = {
-                0: '10', 1: '20', 2: '30', 3: '40', 4: '50',
-                5: 'goal_line', 6: 'inner', 7: 'low_edge', 8: 'up_edge'
-            }
+        if self.detector_labels is None:
+            self.detector_labels = {0: 'players', 1: 'referee', 2: 'inner', 3: 'low_edge', 4: 'up_edge',
+                                    5: '10', 6: '20', 7: '30', 8: '40', 9: '50', 10: 'goal_line'}
 
 
 @dataclass
@@ -67,8 +60,7 @@ class VideoStreamModel(ModelClass):
     Advanced video processing model for sports analytics.
 
     This model performs comprehensive analysis of sports videos including:
-    - Player and referee detection
-    - Field line detection (hash yards, goal lines, etc.)
+    - Player, referee and field line detection (hash yards, goal lines, etc.)
     - Player re-identification and tracking
     - Field perspective correction via homography
     """
@@ -112,22 +104,16 @@ class VideoStreamModel(ModelClass):
         """Load all required ONNX models and initialize configurations."""
         model_folder = self._get_model_folder()
 
-        # Load main detection model
+        # Load detection model
         model_path = os.path.join(model_folder, '1', 'model.onnx')
         self.sessions['detection'], self.input_shapes['detection'] = self._load_onnx_model(
-            model_path, "Player Detection"
+            model_path, "Detection"
         )
 
         # Load embedding model for re-identification
         embedder_path = os.path.join(model_folder, '1', 'embedder.onnx')
         self.sessions['embedder'], self.input_shapes['embedder'] = self._load_onnx_model(
             embedder_path, "Re-identification Embedder"
-        )
-
-        # Load hash yard detection model
-        hash_yard_path = os.path.join(model_folder, '1', 'hash_yard.onnx')
-        self.sessions['hash_yard'], self.input_shapes['hash_yard'] = self._load_onnx_model(
-            hash_yard_path, "Hash Yard Detection"
         )
 
         # Initialize label mappings
@@ -244,7 +230,7 @@ class VideoStreamModel(ModelClass):
         output = session.run(None, {input_name: input_data})
         inference_time = perf_counter_ns() - start_time
 
-        logger.info(f"{model_name} inference took {inference_time} ns")
+        logger.info(f"{model_name} inference took {inference_time/1e9} s")
         return output[0]  # Return first output
 
     def predict_frame(self, frame) -> Tuple[List[Region], List[Region]]:
@@ -262,17 +248,15 @@ class VideoStreamModel(ModelClass):
             frame, self.input_shapes['detection']
         )
 
-        # Run player detection
+        # Run detection
         detection_output = self._run_detection_model(input_data, 'detection')
-        player_detections = self._postprocess_detections(
-            detection_output, ratio, dwdh, original_size, self.config.player_labels
+        detections = self._postprocess_detections(
+            detection_output, ratio, dwdh, original_size, self.config.detector_labels
         )
 
-        # Run hash yard detection
-        hash_yard_output = self._run_detection_model(input_data, 'hash_yard')
-        hash_yard_detections = self._postprocess_detections(
-            hash_yard_output, ratio, dwdh, original_size, self.config.hash_yard_labels
-        )
+        # Filter detections for players and referees
+        player_detections = [region for region in detections if region.concepts[0].name in ['players', 'referee']]
+        hash_yard_detections = [region for region in detections if region.concepts[0].name not in ['players', 'referee']]
 
         return player_detections, hash_yard_detections
 
@@ -329,7 +313,7 @@ class VideoStreamModel(ModelClass):
         embedding_time = perf_counter_ns() - start_time
 
         logger.info(f"Embeddings shape: {embeddings.shape}")
-        logger.info(f"Embedding computation took {embedding_time} ns")
+        logger.info(f"Embedding computation took {embedding_time/1e9} s")
 
         return embeddings
 
@@ -376,6 +360,9 @@ class VideoStreamModel(ModelClass):
         if not hash_yard_detections:
             return None
 
+        warnings = []
+        homography_result = None
+
         # Denormalize boxes for homography processing
         frame_array = frame.to_ndarray(format="rgb24")
         frame_size = frame_array.shape[:2][::-1]  # (width, height)
@@ -387,8 +374,10 @@ class VideoStreamModel(ModelClass):
         yard_boxes, yard_labels, inner_boxes, up_edge_boxes = process_response(hash_yard_detections)
 
         # Check if we have sufficient detections for homography
-        if len(yard_boxes) == 0 or len(inner_boxes) == 0:
-            return None
+        if not len(yard_boxes):
+            raise ValueError("No yard lines detected in the image. Please check the image quality or configuration.")
+        if not len(inner_boxes):
+            raise ValueError("No inner hash marks detected in the image. Please check the image quality or configuration.")
 
         # Convert frame to BGR for OpenCV consistency
         frame_bgr = frame.to_ndarray(format="bgr24")
@@ -404,24 +393,68 @@ class VideoStreamModel(ModelClass):
             )
 
         # Compute homography
-        homography_result = process_image(
-            frame_bgr,
-            yard_boxes=np.array(yard_boxes, dtype=np.float32),
-            yard_labels=np.array(yard_labels, dtype=np.int32),
-            inner_boxes=np.array(inner_boxes, dtype=np.float32),
-            up_edge_boxes=np.array(up_edge_boxes, dtype=np.float32) if up_edge_boxes else np.array([], dtype=np.float32).reshape(0, 5),
-            config=config
-        ).homography
+        try:
+          result = process_image(
+              frame_bgr,
+              yard_boxes=np.array(yard_boxes, dtype=np.float32),
+              yard_labels=np.array(yard_labels, dtype=np.int32),
+              inner_boxes=np.array(inner_boxes, dtype=np.float32),
+              up_edge_boxes=np.array(up_edge_boxes, dtype=np.float32) if up_edge_boxes else np.array([], dtype=np.float32).reshape(0, 5),
+              config=config
+          )
+        except Exception as e:
+          raise HomographyError(f"Error during homography computation: {e}")
 
-        return homography_result
+        homography_result = result.homography
+        warnings = result.warnings
 
-    def _create_metadata(self, homography_result) -> Struct:
+        if homography_result.matrix is None:
+            raise HomographyError("Failed to compute homography matrix. Not enough correspondence points or invalid data.")
+
+        # Validate homography with backprojection error
+        backproj = transform_points(
+            homography_result.field_points[homography_result.mask.ravel() > 0],
+            homography_result.matrix,
+            inverse=True
+        )
+        se = np.square(homography_result.image_points[homography_result.mask.ravel() > 0] - backproj)
+        mse = np.mean(se)
+        if mse > 10:
+            warnings.append(HomographyError(
+                f"High backprojection error: {mse}"
+            ))
+
+        # compute condition number of the homography matrix
+        # if the condition number is too high, it indicates numerical instability
+        # and the homography may not be reliable (TODO)
+        cond = np.linalg.cond(homography_result.matrix)
+        if cond > 1e12:
+            warnings.append(HomographyError(
+                f"Homography matrix condition number is too high: {cond}"
+            ))
+
+        # Field image generation
+        h, w = frame_bgr.shape[:2]
+        field_info = config.field_info
+        field_img = gen_field(h, w, field_info, exclude_hash_marks=False)
+        fov_pts = [field_to_pixel(*x, field_img, field_info) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
+        # Check if fov_pts forms a convex polygon
+
+        is_convex = is_convex_polygon(fov_pts)
+        if not is_convex:
+            raise ValueError("Field of view is not convex")
+
+        return homography_result, warnings
+
+    def _create_metadata(self, homography_result, warnings, error=False, error_message=None) -> Struct:
         """
         Create metadata structure with homography information.
 
         Args:
             homography_result: Homography computation result
-
+            warnings: List of warnings or errors
+            error: Boolean indicating if there was an error in homography computation
+            error_message: Error message if error occurred
         Returns:
             Metadata structure
         """
@@ -434,6 +467,27 @@ class VideoStreamModel(ModelClass):
                 'field_points': homography_result.field_points.tolist() if homography_result.field_points is not None else None,
                 'mask': homography_result.mask.ravel().tolist() if homography_result.mask is not None else None,
             })
+
+        # Add warnings if present
+        if warnings:
+            warning_messages = []
+            for warning in warnings:
+                # Handle different warning types
+                if hasattr(warning, 'message'):
+                    warning_messages.append(warning.message)
+                elif isinstance(warning, str):
+                    warning_messages.append(warning)
+                else:
+                    warning_messages.append(str(warning))
+
+            metadata.update({'warnings': warning_messages})
+
+        # Add error information if error occurred
+        if error:
+            if error_message:
+                metadata.update({'error': str(error_message)})
+            else:
+                metadata.update({'error': 'An error occurred during homography computation'})
 
         return metadata
 
@@ -522,6 +576,7 @@ class VideoStreamModel(ModelClass):
         Args:
             video: Input video to process
             tracker_params: Optional parameters for multi-object tracking
+            homography_params: Optional parameters for homography computation
             max_frames: Maximum number of frames to process (None for all frames)
 
         Returns:
@@ -562,12 +617,16 @@ class VideoStreamModel(ModelClass):
 
             # Compute homography
             start = perf_counter_ns()
-            homography_result = self._compute_homography(frame, hash_yard_detections,homography_params)
+            try:
+                homography_result, warnings = self._compute_homography(frame, hash_yard_detections, homography_params)
+                # Create metadata
+                metadata = self._create_metadata(homography_result, warnings, error=False)
+            except Exception as e:
+                logger.error(f"Error computing homography: {e}")
+                homography_result, warnings = None, []
+                metadata = self._create_metadata(homography_result, warnings, error=True, error_message=str(e))
             end = perf_counter_ns()
-            logger.info(f"Homography computation took {end - start} ns")
-
-            # Create metadata
-            metadata = self._create_metadata(homography_result)
+            logger.info(f"Homography computation took {(end - start)/1e9} s")
 
             # Create final result
             result_data = self._create_result_data(player_detections, metadata)
