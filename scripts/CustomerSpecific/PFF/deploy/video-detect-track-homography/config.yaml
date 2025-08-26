@@ -9,6 +9,6 @@ inference_compute_info:
   num_accelerators: 1
 model:
   app_id: labelstudio-unified
-  id: video-entire-pipeline
+  id: video-end-to-end
   model_type_id: any-to-any
   user_id: pff-org
