@@ -4,7 +4,7 @@ import json
 import os
 
 from clarifai_grpc.grpc.api.resources_pb2 import Data
-from src.clarifai_pff.player_recognition import recognize_player_numbers, EasyOCRRecognizer, create_recognizer
+from src.clarifai_pff.player_recognition import recognize_player_numbers_batch, EasyOCRRecognizer, create_recognizer, extract_player_regions
 
 def main():
     p = argparse.ArgumentParser(description="Run player ID recognition on MOT data.")
@@ -49,21 +49,38 @@ def main():
     recognizer_params = player_recognition_params.get("recognizer_params", {})
     recognizer = RECOGNIZERS[recognizer_type](**recognizer_params)
 
-    player_recognitions = {}
+    # Step 1: Collect all detection crops from all frames
+    print("Collecting all detection crops...")
+    all_crops_data = []  # List of (frame_idx, crop, uuid, video_frame) tuples
+    
     for frame_idx, frame in enumerate(
         mot_data.frames, 1
     ):  # frame_idx begin at 1 for the first frame
         video_frame = cv2.imread(
             os.path.join(args.FRAMES_DIR, f"{frame_idx:04d}.jpg")
         )  # loads images in BGR format
-        player_recognitions[frame_idx] = recognize_player_numbers(
-            video_frame,
-            frame.data.regions,
-            min_detect_confidence=player_recognition_params["min_detect_confidence"],
-            recognizer=recognizer,
-            debug_folder=debug_folder,
-            use_grounding_dino=True,
+        
+        # Extract player crops for this frame
+        player_crops, player_uuids = extract_player_regions(
+            video_frame, 
+            frame.data.regions, 
+            player_recognition_params["min_detect_confidence"]
         )
+        
+        # Store crop data for batch processing
+        for crop, uuid in zip(player_crops, player_uuids):
+            all_crops_data.append((frame_idx, crop, uuid, video_frame))
+    
+    print(f"Collected {len(all_crops_data)} crops from {len(mot_data.frames)} frames")
+    
+    # Step 2: Batch process all crops with recognizer
+    print("Processing crops with recognizer...")
+    player_recognitions = recognize_player_numbers_batch(
+        all_crops_data,
+        recognizer=recognizer,
+        debug_folder=debug_folder,
+        use_grounding_dino=True,
+    )
 
     print("done!")
 

@@ -97,8 +97,8 @@ class YOLORecognizer:
             # Run YOLOv7 inference
             predictions = self._run_yolo_inference()
             
-            # Parse results
-            number, confidence = self._parse_predictions(predictions)
+            # Parse results for single image
+            number, confidence = self._parse_single_prediction(predictions, "temp_crop.txt")
             
             return number, confidence
             
@@ -109,6 +109,57 @@ class YOLORecognizer:
             # Clean up temp image
             if temp_image_path.exists():
                 temp_image_path.unlink()
+
+    def recognize_batch(self, player_crops, crop_filenames=None):
+        """
+        Batch recognize player numbers from crops using YOLOv7
+        
+        Args:
+            player_crops: list of numpy arrays (BGR format from OpenCV)
+            crop_filenames: optional list of filenames for crops (for debugging)
+            
+        Returns:
+            list: [(number, confidence), ...] for each crop
+        """
+        if not player_crops:
+            return []
+        
+        # Clear temp images directory
+        for existing_file in self.temp_images_dir.glob("*"):
+            existing_file.unlink()
+        
+        # Save all crops as temporary images
+        image_paths = []
+        for i, crop in enumerate(player_crops):
+            if crop_filenames and i < len(crop_filenames):
+                filename = f"crop_{i:04d}_{crop_filenames[i]}.jpg"
+            else:
+                filename = f"crop_{i:04d}.jpg"
+            temp_image_path = self.temp_images_dir / filename
+            cv2.imwrite(str(temp_image_path), crop)
+            image_paths.append((filename, temp_image_path.stem + ".txt"))
+        
+        try:
+            # Run YOLOv7 inference on all images
+            predictions = self._run_yolo_inference()
+            
+            # Parse results for each image
+            results = []
+            for filename, label_file in image_paths:
+                number, confidence = self._parse_single_prediction(predictions, label_file)
+                results.append((number, confidence))
+            
+            return results
+            
+        except Exception as e:
+            print(f"YOLOv7 batch inference failed: {e}")
+            return [(-1, 0.0)] * len(player_crops)
+        finally:
+            # Clean up temp images
+            for filename, _ in image_paths:
+                temp_path = self.temp_images_dir / filename
+                if temp_path.exists():
+                    temp_path.unlink()
     
     def _run_yolo_inference(self):
         """Run YOLOv7 test.py on the temporary image"""
@@ -162,8 +213,28 @@ class YOLORecognizer:
         
         return predictions
     
-    def _parse_predictions(self, predictions):
-        """Parse YOLOv7 predictions to extract number and confidence"""
+    def _parse_single_prediction(self, predictions, label_filename):
+        """Parse YOLOv7 predictions for a single image file"""
+        # Read predictions from specific txt file
+        predictions_dir = self.temp_dir / "runs" / "test" / "inference" / "labels"
+        label_file = predictions_dir / label_filename
+        
+        if not label_file.exists():
+            return -1, 0.0
+        
+        file_predictions = []
+        with open(label_file, 'r') as f:
+            for line in f.readlines():
+                parts = line.strip().split()
+                if len(parts) == 6:  # class_id, x, y, w, h, confidence
+                    class_id = int(parts[0])
+                    confidence = float(parts[5])
+                    file_predictions.append((class_id, confidence))
+        
+        return self._parse_predictions_list(file_predictions)
+
+    def _parse_predictions_list(self, predictions):
+        """Parse YOLOv7 predictions list to extract number and confidence"""
         if not predictions:
             return -1, 0.0
         
