@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import easyocr
 from PIL import Image
-from collections import defaultdict, Counter
+from collections import defaultdict
 import os
 from datetime import datetime
 
@@ -63,26 +63,71 @@ def recognize_player_numbers(
     min_detect_confidence=0.0,
     recognizer=None,
     debug_folder="debug_crops",
+    use_grounding_dino=False,
 ):
     player_crops, player_uuids = extract_player_regions(
         frame, detections, min_detect_confidence
     )
     results = []
 
-    # Create debug folder if it doesn't exist
+    # Create debug folders
     os.makedirs(debug_folder, exist_ok=True)
+    debug_raw_folder = debug_folder + "_raw"
+    os.makedirs(debug_raw_folder, exist_ok=True)
+    if use_grounding_dino:
+        debug_grounding_folder = debug_folder + "_grounding_cropped"
+        os.makedirs(debug_grounding_folder, exist_ok=True)
 
-    for crop, uuid in zip(player_crops, player_uuids):
-        number, confidence = recognizer.recognize(crop)
+    if use_grounding_dino and player_crops:
+        from .groundingdino_util import GroundingDINOInference
+        
+        grounding_inference = GroundingDINOInference(cpu_only=True)
+        
+        for crop, uuid in zip(player_crops, player_uuids):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            
+            # Save raw crop
+            raw_filename = f"{debug_raw_folder}/crop_{timestamp}_{uuid}_raw.jpg"
+            cv2.imwrite(raw_filename, crop)
+            
+            # Get the smallest valid box and cropped region
+            cropped_for_recognition, grounding_box = grounding_inference.detect_and_crop_numbers(crop)
+            
+            # Save GroundingDINO cropped version
+            grounding_filename = f"{debug_grounding_folder}/crop_{timestamp}_{uuid}_grounding.jpg"
+            cv2.imwrite(grounding_filename, cropped_for_recognition)
+            
+            number, confidence = recognizer.recognize(cropped_for_recognition)
+            
+            crop_filename = f"{debug_folder}/crop_{timestamp}_{uuid}_num{number}_conf{confidence:.3f}.jpg"
+            
+            # Save debug crop with GroundingDINO box visualization if it exists
+            debug_crop = crop.copy()
+            if grounding_box is not None:
+                x1, y1, x2, y2 = grounding_box
+                cv2.rectangle(debug_crop, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Green thin box
+            
+            cv2.imwrite(crop_filename, debug_crop)
+            
+            results.append(
+                {"uuid": uuid, "player_number": number, "confidence": confidence}
+            )
+    else:
+        for crop, uuid in zip(player_crops, player_uuids):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            
+            # Save raw crop
+            raw_filename = f"{debug_raw_folder}/crop_{timestamp}_{uuid}_raw.jpg"
+            cv2.imwrite(raw_filename, crop)
+            
+            number, confidence = recognizer.recognize(crop)
 
-        # Save crop for debugging with prediction info in filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        crop_filename = f"{debug_folder}/crop_{timestamp}_{uuid}_num{number}_conf{confidence:.3f}.jpg"
-        cv2.imwrite(crop_filename, crop)
+            crop_filename = f"{debug_folder}/crop_{timestamp}_{uuid}_num{number}_conf{confidence:.3f}.jpg"
+            cv2.imwrite(crop_filename, crop)
 
-        results.append(
-            {"uuid": uuid, "player_number": number, "confidence": confidence}
-        )
+            results.append(
+                {"uuid": uuid, "player_number": number, "confidence": confidence}
+            )
 
     return results
 

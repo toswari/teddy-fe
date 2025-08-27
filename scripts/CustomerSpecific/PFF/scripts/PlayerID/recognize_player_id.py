@@ -4,8 +4,7 @@ import json
 import os
 
 from clarifai_grpc.grpc.api.resources_pb2 import Data
-from clarifai_pff.player_recognition import recognize_player_numbers, EasyOCRRecognizer
-
+from src.clarifai_pff.player_recognition import recognize_player_numbers, EasyOCRRecognizer
 
 def main():
     p = argparse.ArgumentParser(description="Run player ID recognition on MOT data.")
@@ -59,6 +58,7 @@ def main():
             min_detect_confidence=player_recognition_params["min_detect_confidence"],
             recognizer=recognizer,
             debug_folder=debug_folder,
+            use_grounding_dino=True,
         )
 
     print("done!")
