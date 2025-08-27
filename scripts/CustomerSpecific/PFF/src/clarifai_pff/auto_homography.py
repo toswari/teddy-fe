@@ -594,8 +594,7 @@ def extract_correspondence_points(
 
     return np.array(image_points, dtype=np.float32), np.array(field_points, dtype=np.float32)
 
-@dataclass
-class HomographyResult:
+class HomographyResult(NamedTuple):
     """Result from homography computation."""
     matrix: np.ndarray
     image_points: np.ndarray
@@ -761,8 +760,8 @@ def conflict_dfs(
         # No conflicts, we can return the mapping
         out.append((line_yard_map, line_yard_imap, boxes))
 
-@dataclass
-class ProcessingResult:
+class ProcessingResult(NamedTuple):
+    """NamedTuple for processing results."""
     all_lines: np.ndarray
     yard_lines: np.ndarray
     proto_lines: np.ndarray

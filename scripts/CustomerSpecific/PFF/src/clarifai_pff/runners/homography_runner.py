@@ -11,7 +11,6 @@ import logging
 from time import perf_counter_ns
 from contextlib import contextmanager
 
-import av
 import cv2
 import numpy as np
 
@@ -22,12 +21,11 @@ from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai_pff.auto_homography import (
-    FieldInfo, process_response, process_image, transform_points, compute_camera_motion, is_convex_polygon,
+    FieldInfo, process_response, process_image, transform_points, is_convex_polygon,
     field_to_pixel, ProcessingConfig, gen_field, FIELD_INFOS, League, HomographyError
 )
 import clarifai_pff.utils.video as video_utils
 import os
-import scipy
 
 logger = logging_utils.get_logger(logging.INFO, name=__name__)
 
@@ -40,7 +38,6 @@ class HomographyConfig:
     field_info: Any
     backprojection_error_threshold: float = 10.0
     condition_number_threshold: float = 1e12
-    lie_distance_threshold: float = 5.0
 
 
 @dataclass
@@ -196,14 +193,8 @@ class HomographyRunner(ModelClass):
         for region in detections:
             region.box = [coord * size for coord, size in zip(region.box, [*frame_shape] * 2)]
 
-    def compute_homography(
-            self, 
-            frame: av.VideoFrame,
-            field_element_detections: List[Region],
-            homography_params: Optional[Dict[str, Any]] = None, 
-            prev_frame: Optional[av.VideoFrame] = None, 
-            prev_homography: Optional[HomographyResult] = None,
-        ) -> HomographyResult:
+    def compute_homography(self, frame, field_element_detections: List[Region],
+                          homography_params: Optional[Dict[str, Any]] = None) -> HomographyResult:
         """
         Compute homography matrix for field perspective correction.
 
@@ -276,22 +267,6 @@ class HomographyRunner(ModelClass):
                 up_edge_boxes=np.array(up_edge_boxes, dtype=np.float32) if up_edge_boxes else np.array([], dtype=np.float32).reshape(0, 5),
                 config=config
             )
-            if prev_frame and prev_homography.homography.matrix is not None:
-                prev_frame = prev_frame.to_ndarray(format="bgr24")
-                if result.homography.matrix is None:
-                    # Attempt to smooth using previous homography and camera motion
-                    logger.info("Attempting to smooth homography using previous frame data")
-                    camera_motion = compute_camera_motion(prev_frame, frame_bgr)
-                    result.homography.matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-                    result.homography.image_points = transform_points(result.homography.field_points, result.homography.matrix, inverse=True) if result.homography.field_points is not None else None
-                else:
-                    camera_motion = compute_camera_motion(prev_frame, frame_bgr)
-                    hyp_homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-                    lie_dist = np.linalg.norm(scipy.linalg.logm(np.linalg.inv(hyp_homography_matrix) @ result.homography.matrix))
-                    if lie_dist > self.config.lie_distance_threshold:
-                        result.homography.matrix = hyp_homography_matrix
-                        result.homography.image_points = transform_points(result.homography.field_points, result.homography.matrix, inverse=True) if result.homography.field_points is not None else None
-                        logger.info(f"High Lie algebra distance ({lie_dist:.2f}), using smoothed homography")
         except Exception as e:
             raise HomographyError(f"Error during homography computation: {e}")
 
@@ -383,8 +358,6 @@ class HomographyRunner(ModelClass):
         else:
             raise ValueError("Video must have either bytes or url set.")
 
-        prev_frame = None
-        prev_homography = None
         # Process each frame
         for frame_idx, (frame, frame_detections) in enumerate(zip(stream, field_element_detections)):
             # Check frame limit
@@ -397,10 +370,7 @@ class HomographyRunner(ModelClass):
                 # Compute homography
                 with timing_context("Homography computation"):
                     try:
-                        homography_result = self.compute_homography(frame, frame_detections, homography_params=homography_params,
-                                                                   prev_frame=prev_frame, prev_homography=prev_homography)
-                        prev_frame = frame
-                        prev_homography = homography_result
+                        homography_result = self.compute_homography(frame, frame_detections, homography_params)
                     except Exception as e:
                         logger.error(f"Error computing homography: {e}")
                         homography_result = HomographyResult(
