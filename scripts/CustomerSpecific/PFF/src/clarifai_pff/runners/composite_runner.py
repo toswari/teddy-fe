@@ -151,6 +151,8 @@ class CompositeRunner(ModelClass):
         # Setup tracker if parameters provided
         tracker = self._setup_tracker(tracker_params)
 
+        prev_frame = None
+        prev_homography = None
         # Process each frame
         for frame_idx, frame in enumerate(stream):
             # Check frame limit
@@ -169,8 +171,12 @@ class CompositeRunner(ModelClass):
 
                 # Step 3: Compute homography
                 homography_result = self.homography_runner.compute_homography(
-                    frame, field_element_detections, homography_params
+                    frame, field_element_detections, homography_params=homography_params,
+                    prev_frame=prev_frame,
+                    prev_homography=prev_homography
                 )
+                prev_frame = frame
+                prev_homography = homography_result
 
                 # Step 4: Create metadata
                 homography_metadata = self.homography_runner._create_metadata(homography_result)
