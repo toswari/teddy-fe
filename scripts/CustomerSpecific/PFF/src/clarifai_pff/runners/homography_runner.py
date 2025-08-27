@@ -21,7 +21,7 @@ from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from google.protobuf.struct_pb2 import Struct
 
 from clarifai_pff.auto_homography import (
-    process_response, process_image, transform_points, is_convex_polygon,
+    FieldInfo, process_response, process_image, transform_points, is_convex_polygon,
     field_to_pixel, ProcessingConfig, gen_field, FIELD_INFOS, League, HomographyError
 )
 import clarifai_pff.utils.video as video_utils
@@ -238,18 +238,17 @@ class HomographyRunner(ModelClass):
         # Create processing config
         if homography_params:
             # Merge provided parameters with default configuration
-            # Ensure field_info is always included from default config
             merged_params = {
                 'transforms': self.config.transforms,
                 'directional_threshold': self.config.directional_threshold,
                 'field_info': self.config.field_info
             }
-            # Override with provided parameters, but preserve field_info
+            if not isinstance(homography_params['field_info'], FieldInfo):
+                homography_params['field_info'] = FieldInfo(**homography_params['field_info'])
+            # Override with provided parameters
             merged_params.update(homography_params)
-            # Ensure field_info is not overridden
-            merged_params['field_info'] = self.config.field_info
             config = ProcessingConfig(**merged_params)
-            logger.info(f"Using custom homography parameters with field_info: {type(self.config.field_info).__name__}")
+            logger.info(f"Using custom homography parameters with field_info: {config.field_info._asdict()}")
         else:
             config = ProcessingConfig(
                 transforms=self.config.transforms,

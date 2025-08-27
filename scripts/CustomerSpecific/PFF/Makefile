@@ -24,11 +24,13 @@ deploy-video-detect-track-preflight: models/model.onnx models/embedder.onnx mode
 	cp -r models/ deploy/video-detect-track/1/
 	$(MAKE) build-container TAG=video-detect-track:preflight CONTEXT=deploy/video-detect-track/
 
-deploy-video-detect-track: models/model.onnx models/embedder.onnx models/reid.skl
+deploy-video-detect-track: models/unified_model.onnx models/embedder.onnx models/reid.skl
 	@echo "Deploying video detect track..."
-	uv build --sdist -o deploy/video-detect-track/dist
-	cp -r models/ deploy/video-detect-track/1/
-	clarifai model upload --skip_dockerfile deploy/video-detect-track/
+	uv build --sdist -o deploy/video-detect-track-homography/dist
+	cp -r models/unified_model.onnx deploy/video-detect-track-homography/1/model.onnx
+	cp -r models/embedder.onnx deploy/video-detect-track-homography/1/
+	cp -r models/reid.skl deploy/video-detect-track-homography/1/
+	clarifai model upload --skip_dockerfile deploy/video-detect-track-homography/
 
 reid:
 	@echo "Training ReID model..."

@@ -5,11 +5,12 @@ import os
 import numpy as np
 import pandas as pd
 import scipy.linalg
+import yaml
 from clarifai.client import Model
 from clarifai.runners.utils.data_types.data_types import Video
 from time import perf_counter_ns
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
-from clarifai_pff.tracking.reid import KalmanREID
+from clarifai_pff.runners.composite_runner import CompositeRunner
 from google.protobuf.json_format import MessageToDict
 
 import warnings
@@ -19,21 +20,31 @@ from clarifai_pff.auto_homography import gen_field, field_to_pixel, transform_po
 
 p = argparse.ArgumentParser(description="Generate a field image with optional hash marks.")
 p.add_argument("video_path", type=str, help="Path to the video file.")
-p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video-entire-pipeline-gpu2", help="URL of the model to use.")
-p.add_argument("--deployment_id", type=str, default='deploy-video-entire-pipeline-gpu2-on4w', help="Deployment ID of the model.")
+p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video-end-to-end", help="URL of the model to use.")
+p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 p.add_argument("--classes", default=['players'], type=str, nargs='+', help="List of classes to visualize. If not provided, all classes will be visualized.")
 p.add_argument('--object_ids', default=None, type=int, nargs='+', help="List of object IDs to visualize. If not provided, all objects will be visualized.")
 p.add_argument('--camera_correction', action='store_true', help="Apply camera correction to the homography matrix")
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
+p.add_argument('--homography_config', type=str, default=None, help='Path to homography configuration file, if re-tracking is needed')
+p.add_argument('--league', type=str, default='NFL', help='League name for homography configuration')
 p.add_argument('--max_frames', type=int, default=None, help='Maximum number of frames to process (for testing purposes)')
 p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
 p.add_argument('--show_untracked', action='store_true', help='Show untracked objects in the output frames')
 args = p.parse_args()
 
 #Model prediction
-model = Model(url=args.model_url, deployment_id=args.deployment_id, deployment_user_id="pff-org")
+if args.model_url == 'local':
+    model = CompositeRunner("/Users/peter.rizzi/src/ps-field-engineering/scripts/CustomerSpecific/PFF/deploy/video-detect-track-homography")
+    model.load_model()
+else:
+    model_kwargs = {}
+    if args.deployment_id:
+        model_kwargs['deployment_id'] = args.deployment_id
+        model_kwargs['deployment_user_id'] = "pff-org"
+    model = Model(url=args.model_url, **model_kwargs)
 
 video_path = args.video_path
 if video_path.startswith('http://') or video_path.startswith('https://'):
@@ -74,8 +85,21 @@ else:
     with open(args.tracker_config, 'r') as f:
         tracker_params = json.load(f)
 
+predict_kwargs = {}
+
+if args.homography_config:
+    with open(args.homography_config, 'r') as f:
+        homography_params = yaml.safe_load(f)
+    homography_params['field_info'] = FIELD_INFOS[League[args.league]]._asdict()
+    predict_kwargs['homography_params'] = homography_params
+
 start = perf_counter_ns()
-result = model.predict(video=video, tracker_params=tracker_params, max_frames=args.max_frames)
+result = model.predict(
+    video=video, 
+    tracker_params=tracker_params, 
+    max_frames=args.max_frames,
+    **predict_kwargs
+)
 end = perf_counter_ns()
 print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 
@@ -197,13 +221,27 @@ for frame, group in mot_df.groupby('frame'):
     hom_img = gen_field(720, 1280, field_info, exclude_hash_marks=True)
     # print(os.path.join(args.FRAMES_DIR, f'frame_0{frame:04d}.jpg'))
     # video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'frame_{frame:04d}.jpg'))
-    if frame not in frame_homographies and not args.camera_correction:
+
+    if frame in frame_homographies:
+        homography = frame_homographies[frame]
+        homography_matrix = np.array(homography['matrix'])
+        image_points = np.array(homography['image_points'])
+        field_points = np.array(homography['field_points'])
+        if homography_matrix.shape != (3,3):
+            homography_matrix = None
+            image_points = []
+            field_points = []
+    else:
+        homography_matrix = None
+        image_points = []
+        field_points = []
+    if (homography_matrix is None or homography_matrix.shape != (3,3)) and not args.camera_correction:
         # If no homography is available and camera correction is not requested, skip this frame
         print(f"Skipping frame {frame} as no homography is available and camera correction is not requested.")
         combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
         cv2.imwrite(f'output_frame_{frame}.jpg', combined)
         continue
-    elif frame not in frame_homographies and args.camera_correction:
+    elif (homography_matrix is None) and prev_frame is not None and prev_homography_matrix is not None and args.camera_correction:
         # if prev_homography_matrix is None or not args.camera_correction:
         #     combined = np.hstack((video_frame, field_img))
         #     cv2.imwrite(f'output_frame_{frame}.jpg', combined)
@@ -211,15 +249,10 @@ for frame, group in mot_df.groupby('frame'):
         camera_motion = compute_camera_motion(prev_frame, video_frame)
         homography_matrix = prev_homography_matrix @ np.linalg.inv(camera_motion)
 
-        image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points is not None else None
+        image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points else []
         # image_points = transform_points(image_points, camera_motion) if image_points is not None else None
         # field_points = transform_points(field_points, camera_motion, inverse=True) if field_points is not None else None
     else:
-        homography = frame_homographies[frame]
-        homography_matrix = np.array(homography['matrix'])
-        image_points = np.array(homography['image_points'])
-        field_points = np.array(homography['field_points'])
-
         if prev_frame is not None and prev_homography_matrix is not None and args.camera_correction:
             camera_motion = compute_camera_motion(prev_frame, video_frame)
             hyp_homography_matrix = prev_homography_matrix @ np.linalg.inv(camera_motion)
@@ -236,9 +269,10 @@ for frame, group in mot_df.groupby('frame'):
     for pt in field_points:
         cv2.circle(hom_img, field_to_pixel(*pt, hom_img, field_info), 5, (0, 255, 0), -1)
 
-    fov_points = np.array([[0,0], [video_frame.shape[1], 0], [video_frame.shape[1], video_frame.shape[0]], [0, video_frame.shape[0]]])
-    fov_points_transformed = np.array([field_to_pixel(*pt, hom_img, field_info) for pt in transform_points(fov_points, homography_matrix)]).astype(int)
-    cv2.polylines(hom_img, [np.int32(fov_points_transformed)], isClosed=True, color=(0, 255, 0), thickness=2)
+    if homography_matrix is not None:
+        fov_points = np.array([[0,0], [video_frame.shape[1], 0], [video_frame.shape[1], video_frame.shape[0]], [0, video_frame.shape[0]]])
+        fov_points_transformed = np.array([field_to_pixel(*pt, hom_img, field_info) for pt in transform_points(fov_points, homography_matrix)]).astype(int)
+        cv2.polylines(hom_img, [np.int32(fov_points_transformed)], isClosed=True, color=(0, 255, 0), thickness=2)
 
     prev_frame = video_frame.copy()
     prev_homography_matrix = homography_matrix
@@ -252,6 +286,9 @@ for frame, group in mot_df.groupby('frame'):
         # # Apply homography transformation
         # take middle of bottom of box
         pt = (row['x'] + row['xx']) / 2, row['yy']
+
+        if homography_matrix is None:
+            continue
 
         transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
 

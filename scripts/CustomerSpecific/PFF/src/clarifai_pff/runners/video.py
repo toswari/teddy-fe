@@ -31,7 +31,7 @@ from clarifai_pff.utils.transforms import letterbox
 from clarifai_pff.tracking.reid import KalmanREID
 from clarifai_pff.auto_homography import (
     process_response, process_image, transform_points, is_convex_polygon,
-    field_to_pixel, ProcessingConfig, gen_field, FIELD_INFOS, League, HomographyError
+    field_to_pixel, ProcessingConfig, gen_field, FIELD_INFOS, League, HomographyError, FieldInfo
 )
 
 logger = logging_utils.get_logger(logging.INFO, name=__name__)
@@ -653,6 +653,9 @@ class VideoStreamModel(ModelClass):
 
         # Setup tracker if parameters provided
         tracker = self._setup_tracker(tracker_params)
+
+        if homography_params is not None:
+            homography_params['field_info'] = FieldInfo(**homography_params['field_info'])
 
         # Process each frame
         for frame_idx, frame in enumerate(stream):
