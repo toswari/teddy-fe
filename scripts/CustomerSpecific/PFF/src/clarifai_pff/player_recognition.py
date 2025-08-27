@@ -7,6 +7,15 @@ import os
 from datetime import datetime
 
 
+# Import YOLORecognizer
+try:
+    from .yolo_recognizer import YOLORecognizer
+    YOLO_AVAILABLE = True
+except ImportError:
+    YOLORecognizer = None
+    YOLO_AVAILABLE = False
+
+
 class EasyOCRRecognizer:
     def __init__(self, **kwargs):
         self.reader = easyocr.Reader(["en"], gpu=kwargs.get("gpu", False))
@@ -30,6 +39,28 @@ class EasyOCRRecognizer:
                 pass
 
         return -1, 0.0
+
+
+def create_recognizer(recognizer_type, **kwargs):
+    """
+    Factory function to create recognizer instances
+    
+    Args:
+        recognizer_type: str, either "EasyOCRRecognizer" or "YOLORecognizer"
+        **kwargs: additional parameters for the recognizer
+    
+    Returns:
+        Recognizer instance
+    """
+    if recognizer_type == "EasyOCRRecognizer":
+        return EasyOCRRecognizer(**kwargs)
+    elif recognizer_type == "YOLORecognizer":
+        if not YOLO_AVAILABLE:
+            raise ImportError("YOLORecognizer is not available. Check yolo_recognizer.py import.")
+        return YOLORecognizer(**kwargs)
+    else:
+        raise ValueError(f"Unknown recognizer type: {recognizer_type}. "
+                        f"Available types: EasyOCRRecognizer, YOLORecognizer")
 
 
 def extract_player_regions(frame, detections, min_detect_confidence):

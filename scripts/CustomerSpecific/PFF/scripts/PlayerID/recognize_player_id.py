@@ -4,7 +4,7 @@ import json
 import os
 
 from clarifai_grpc.grpc.api.resources_pb2 import Data
-from src.clarifai_pff.player_recognition import recognize_player_numbers, EasyOCRRecognizer
+from src.clarifai_pff.player_recognition import recognize_player_numbers, EasyOCRRecognizer, create_recognizer
 
 def main():
     p = argparse.ArgumentParser(description="Run player ID recognition on MOT data.")
@@ -40,10 +40,14 @@ def main():
 
     # Create recognizer from config
     RECOGNIZERS = {"EasyOCRRecognizer": EasyOCRRecognizer}
+    
+    # Add YOLORecognizer if user wants it
+    if "YOLORecognizer" == player_recognition_params["recognizer"]:
+        RECOGNIZERS["YOLORecognizer"] = lambda **kwargs: create_recognizer("YOLORecognizer", **kwargs)
+    
+    recognizer_type = player_recognition_params["recognizer"]
     recognizer_params = player_recognition_params.get("recognizer_params", {})
-    recognizer = RECOGNIZERS[player_recognition_params["recognizer"]](
-        **recognizer_params
-    )
+    recognizer = RECOGNIZERS[recognizer_type](**recognizer_params)
 
     player_recognitions = {}
     for frame_idx, frame in enumerate(

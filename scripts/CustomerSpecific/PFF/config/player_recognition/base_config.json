@@ -1,4 +1,8 @@
 {
     "min_detect_confidence": 0.51,
-    "recognizer": "EasyOCRRecognizer"
+    "recognizer": "EasyOCRRecognizer",
+    "recognizer_params": {
+        "gpu": false,
+        "allowlist": "0123456789"
+    }
 }
