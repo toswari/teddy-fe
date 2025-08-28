@@ -239,78 +239,79 @@ class HomographyRunner(ModelClass):
             logger.info(f"Using default homography configuration with field_info: {type(self.config.field_info).__name__}")
 
         # Compute homography
-        try:
-            if not field_element_detections:
-                raise HomographyResult(homography=None, warnings=["No field elements detected"])
+        with timing_context("Homography computation"):
+            try:
+                if not field_element_detections:
+                    raise HomographyResult(homography=None, warnings=["No field elements detected"])
 
-            # Denormalize boxes for homography processing
-            frame_array = frame.to_ndarray(format="rgb24")
-            frame_size = frame_array.shape[:2][::-1]  # (width, height)
+                # Denormalize boxes for homography processing
+                frame_array = frame.to_ndarray(format="rgb24")
+                frame_size = frame_array.shape[:2][::-1]  # (width, height)
 
-            self._denormalize_detections(field_element_detections, frame_size)
+                self._denormalize_detections(field_element_detections, frame_size)
 
-            # Process hash yard detections
-            yard_boxes, yard_labels, inner_boxes, up_edge_boxes = process_response(field_element_detections)
+                # Process hash yard detections
+                yard_boxes, yard_labels, inner_boxes, up_edge_boxes = process_response(field_element_detections)
 
-            # Convert frame to BGR for OpenCV consistency
-            frame_bgr = frame.to_ndarray(format="bgr24")
-            # Validate detection requirements
-            if not yard_boxes:
-                raise ValueError("No yard lines detected in the image. Please check the image quality or configuration.")
-            if not inner_boxes:
-                raise ValueError("No inner hash marks detected in the image. Please check the image quality or configuration.")
-            
-            result = process_image(
-                frame_bgr,
-                yard_boxes=np.array(yard_boxes, dtype=np.float32),
-                yard_labels=np.array(yard_labels, dtype=np.int32),
-                inner_boxes=np.array(inner_boxes, dtype=np.float32),
-                up_edge_boxes=np.array(up_edge_boxes, dtype=np.float32) if up_edge_boxes else np.array([], dtype=np.float32).reshape(0, 5),
-                config=config
-            )
-            # Smooth homography using previous frame's homography and camera motion
-            # TODO: move away from threshold to proper state estimation and assimilation
-            # TODO: cleanup
-            if prev_frame is not None and prev_homography is not None:
-                camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_array)
-                if result.homography.matrix is None:
-                    homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-
-                    field_points = result.homography.field_points
-                    image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points else None
-                    result.homography.matrix = homography_matrix
-                    result.homography.image_points = image_points
-                else:
-                    hyp_homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-
-                    lie_dist = np.linalg.norm(scipy.linalg.logm(result.homography.matrix) - scipy.linalg.logm(hyp_homography_matrix))
-                    logger.info(f"Frame {frame}: Lie distance = {lie_dist}")
-                    if lie_dist > 5: #15:
-                        result.homography.matrix = hyp_homography_matrix
-                        result.homography.image_points = transform_points(
-                            result.homography.field_points,
-                            result.homography.matrix,
-                            inverse=True
-                        ) if result.homography.field_points is not None else None
-        except Exception as e:
-            if prev_frame is not None and prev_homography is not None:
-                camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_array)
-                homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-                field_points = prev_homography.homography.field_points
-                image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points is not None else None
-                return HomographyResult(
-                    homography=_HomographyResult(
-                        matrix=homography_matrix,
-                        image_points=image_points,
-                        field_points=field_points,
-                        mask=prev_homography.homography.mask
-                    ),
-                    warnings=["Homography computation failed, using previous frame's homography adjusted by camera motion"],
+                # Convert frame to BGR for OpenCV consistency
+                frame_bgr = frame.to_ndarray(format="bgr24")
+                # Validate detection requirements
+                if not yard_boxes:
+                    raise ValueError("No yard lines detected in the image. Please check the image quality or configuration.")
+                if not inner_boxes:
+                    raise ValueError("No inner hash marks detected in the image. Please check the image quality or configuration.")
+                
+                result = process_image(
+                    frame_bgr,
+                    yard_boxes=np.array(yard_boxes, dtype=np.float32),
+                    yard_labels=np.array(yard_labels, dtype=np.int32),
+                    inner_boxes=np.array(inner_boxes, dtype=np.float32),
+                    up_edge_boxes=np.array(up_edge_boxes, dtype=np.float32) if up_edge_boxes else np.array([], dtype=np.float32).reshape(0, 5),
+                    config=config
                 )
-            raise HomographyError(f"Error during homography computation: {e}")
+                # Smooth homography using previous frame's homography and camera motion
+                # TODO: move away from threshold to proper state estimation and assimilation
+                # TODO: cleanup
+                if prev_frame is not None and prev_homography is not None:
+                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_array)
+                    if result.homography.matrix is None:
+                        homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
 
-        # Validate and return result
-        return self._validate_homography_result(result.homography, frame_bgr.shape)
+                        field_points = result.homography.field_points
+                        image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points else None
+                        result.homography.matrix = homography_matrix
+                        result.homography.image_points = image_points
+                    else:
+                        hyp_homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
+
+                        lie_dist = np.linalg.norm(scipy.linalg.logm(result.homography.matrix) - scipy.linalg.logm(hyp_homography_matrix))
+                        logger.info(f"Frame {frame}: Lie distance = {lie_dist}")
+                        if lie_dist > 5: #15:
+                            result.homography.matrix = hyp_homography_matrix
+                            result.homography.image_points = transform_points(
+                                result.homography.field_points,
+                                result.homography.matrix,
+                                inverse=True
+                            ) if result.homography.field_points is not None else None
+            except Exception as e:
+                if prev_frame is not None and prev_homography is not None:
+                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_array)
+                    homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
+                    field_points = prev_homography.homography.field_points
+                    image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points is not None else None
+                    return HomographyResult(
+                        homography=_HomographyResult(
+                            matrix=homography_matrix,
+                            image_points=image_points,
+                            field_points=field_points,
+                            mask=prev_homography.homography.mask
+                        ),
+                        warnings=["Homography computation failed, using previous frame's homography adjusted by camera motion"],
+                    )
+                raise HomographyError(f"Error during homography computation: {e}")
+
+            # Validate and return result
+            return self._validate_homography_result(result.homography, frame_bgr.shape)
 
     def _create_metadata(self, homography_result: HomographyResult) -> Struct:
         """
