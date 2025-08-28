@@ -1,13 +1,8 @@
 import streamlit as st
-import cv2
 import tempfile
 import os
 from moviepy import VideoFileClip
-import numpy as np
-
-import torch
-import torchvision as tv
-from tqdm import tqdm
+from time import perf_counter_ns
 
 from clarifai.client import Model
 from clarifai.runners.utils.data_types.data_types import Video
@@ -66,18 +61,20 @@ if uploaded_file is not None:
     if st.button("Find Key Time and Extract Clip"):
         with st.spinner("Processing video..."):
             # Find key time
+            start = perf_counter_ns()
             key_time = Model("https://clarifai.com/pff-org/labelstudio-unified/models/snap").predict(
                 video=Video(bytes=open(temp_video.name, 'rb').read()),
                 conf_thresh=0,
                 clip_length=16
             )
-            st.success(f"Key time found: {key_time:.2f} seconds")
+            inference_time = (perf_counter_ns() - start) / 1e9
             
             # Extract clip
             clip_path = extract_clip(temp_video.name, key_time, clip_duration=2)
 
             col2.subheader("Extracted Clip")
             col2.video(clip_path)
+            col2.success(f"Key time found: {key_time:.2f} seconds. Inference took: {inference_time:.2f} seconds.")
 
             # Clean up temporary clip file
             os.unlink(clip_path)
