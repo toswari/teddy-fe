@@ -183,7 +183,7 @@ object_colors = {obj_id: tuple(int(255 * c) for c in cmap[i % len(cmap)][:3]) fo
 object_colors[-1] = (0,0,255)
 
 
-field_info = FIELD_INFOS[League.NCAA]
+field_info = FIELD_INFOS[League[args.league]]
 
 field_img = gen_field(720, 1280, field_info, exclude_hash_marks=False)
 
@@ -225,8 +225,8 @@ for frame, group in mot_df.groupby('frame'):
     if frame in frame_homographies:
         homography = frame_homographies[frame]
         homography_matrix = np.array(homography['matrix'])
-        image_points = np.array(homography['image_points'])
-        field_points = np.array(homography['field_points'])
+        image_points = np.array(homography['image_points'] or [])
+        field_points = np.array(homography['field_points'] or [])
         if homography_matrix.shape != (3,3):
             homography_matrix = None
             image_points = []
@@ -241,27 +241,6 @@ for frame, group in mot_df.groupby('frame'):
         combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
         cv2.imwrite(f'output_frame_{frame}.jpg', combined)
         continue
-    elif (homography_matrix is None) and prev_frame is not None and prev_homography_matrix is not None and args.camera_correction:
-        # if prev_homography_matrix is None or not args.camera_correction:
-        #     combined = np.hstack((video_frame, field_img))
-        #     cv2.imwrite(f'output_frame_{frame}.jpg', combined)
-        #     continue
-        camera_motion = compute_camera_motion(prev_frame, video_frame)
-        homography_matrix = prev_homography_matrix @ np.linalg.inv(camera_motion)
-
-        image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points else []
-        # image_points = transform_points(image_points, camera_motion) if image_points is not None else None
-        # field_points = transform_points(field_points, camera_motion, inverse=True) if field_points is not None else None
-    else:
-        if prev_frame is not None and prev_homography_matrix is not None and args.camera_correction:
-            camera_motion = compute_camera_motion(prev_frame, video_frame)
-            hyp_homography_matrix = prev_homography_matrix @ np.linalg.inv(camera_motion)
-
-            lie_dist = np.linalg.norm(scipy.linalg.logm(homography_matrix) - scipy.linalg.logm(hyp_homography_matrix))
-            print(f"Frame {frame}: Lie distance = {lie_dist}")
-            if lie_dist > 5: #15:
-                homography_matrix = hyp_homography_matrix
-
 
     for pt in image_points:
         cv2.circle(video_frame, (int(pt[0]), int(pt[1])), 5, (255, 0, 0), -1)

@@ -12,12 +12,15 @@ from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.data_types.data_types import Video, Frame as dtFrame
 import clarifai.utils.logging as logging_utils
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
+from clarifai_pff.auto_homography import compute_camera_motion, transform_points
 from google.protobuf.struct_pb2 import Struct
 
 import clarifai_pff.utils.video as video_utils
 from clarifai_pff.runners.detection_runner import DetectionRunner
 from clarifai_pff.runners.tracking_runner import TrackingRunner
 from clarifai_pff.runners.homography_runner import HomographyRunner
+import scipy
+import numpy as np
 
 logger = logging_utils.get_logger(logging.INFO, name=__name__)
 
@@ -152,6 +155,8 @@ class CompositeRunner(ModelClass):
         tracker = self._setup_tracker(tracker_params)
 
         # Process each frame
+        prev_frame = None
+        prev_homography = None
         for frame_idx, frame in enumerate(stream):
             # Check frame limit
             if max_frames is not None and frame_idx >= max_frames:
@@ -169,8 +174,12 @@ class CompositeRunner(ModelClass):
 
                 # Step 3: Compute homography
                 homography_result = self.homography_runner.compute_homography(
-                    frame, field_element_detections, homography_params
+                    frame, field_element_detections, homography_params=homography_params,
+                    prev_frame=prev_frame, prev_homography=prev_homography
                 )
+                
+                prev_frame = frame
+                prev_homography = homography_result
 
                 # Step 4: Create metadata
                 homography_metadata = self.homography_runner._create_metadata(homography_result)

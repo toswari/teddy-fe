@@ -1,8 +1,7 @@
 clarifai
 numpy
 onnx
-onnxruntime-gpu<1.21.0
 pillow
 opencv-python
 av
-clarifai_pff @ /home/nonroot/dist/clarifai_pff-0.1.0.tar.gz
+clarifai_pff[gpu] @ /home/nonroot/dist/clarifai_pff-0.1.0.tar.gz
