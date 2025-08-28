@@ -14,8 +14,10 @@ __pycache__/
 *.onnx
 *.skl
 *.pt
+*.pth
 *.safetensors
 !models/*.onnx
 !models/*.skl
 !models/*.pt
 !models/*.safetensors
+!models/*.pth
