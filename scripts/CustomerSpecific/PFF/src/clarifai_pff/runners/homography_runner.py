@@ -295,7 +295,7 @@ class HomographyRunner(ModelClass):
                             ) if result.homography.field_points is not None else None
             except Exception as e:
                 if prev_frame is not None and prev_homography is not None:
-                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_array)
+                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame.to_ndarray(format='bgr24'))
                     homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
                     field_points = prev_homography.homography.field_points
                     image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points is not None else None
