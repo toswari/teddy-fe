@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Model exports
+exported_model/
+*.tar
+*.tar.gz
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
