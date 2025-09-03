@@ -8,6 +8,7 @@ from clarifai.client import Model
 from clarifai.runners.utils.data_types.data_types import Video
 
 import asyncio
+import numpy as np
 
 def ensure_event_loop():
     try:
@@ -62,7 +63,7 @@ if uploaded_file is not None:
         with st.spinner("Processing video..."):
             # Find key time
             start = perf_counter_ns()
-            key_time = Model("https://clarifai.com/pff-org/labelstudio-unified/models/snap").predict(
+            key_time, probs, votes = Model("https://clarifai.com/pff-org/labelstudio-unified/models/snap").predict_proba_votes(
                 video=Video(bytes=open(temp_video.name, 'rb').read()),
                 conf_thresh=0,
                 clip_length=16
@@ -75,6 +76,33 @@ if uploaded_file is not None:
             col2.subheader("Extracted Clip")
             col2.video(clip_path)
             col2.success(f"Key time found: {key_time:.2f} seconds. Inference took: {inference_time:.2f} seconds.")
+
+            # Plot probabilities and votes
+            import matplotlib.pyplot as plt
+
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+            # Plot probabilities
+            time_steps = np.arange(len(probs))
+            ax1.plot(probs, 'b-', linewidth=2)
+            ax1.axvline(x=key_time * 30, color='r', linestyle='--', linewidth=2, label=f'Key Time: {key_time:.2f}s')
+            ax1.set_xlabel('Time Steps')
+            ax1.set_ylabel('Probability')
+            ax1.set_title('Model Probabilities Over Time')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+
+            # Plot votes
+            ax2.plot(votes, 'g-', linewidth=2)
+            ax2.axvline(x=key_time * 30, color='r', linestyle='--', linewidth=2, label=f'Key Time: {key_time:.2f}s')
+            ax2.set_xlabel('Time Steps')
+            ax2.set_ylabel('Votes')
+            ax2.set_title('Model Votes Over Time')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+
+            plt.tight_layout()
+            col2.pyplot(fig)
 
             # Clean up temporary clip file
             os.unlink(clip_path)

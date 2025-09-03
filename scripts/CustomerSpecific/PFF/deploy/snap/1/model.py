@@ -7,6 +7,8 @@ import torchvision as tv
 from clarifai_pff.utils import video as video_utils
 import numpy as np
 
+from typing import Tuple, List
+
 class Runner(ModelClass):
     def load_model(self):
         weights = tv.models.video.MViT_V2_S_Weights.KINETICS400_V1
@@ -20,7 +22,7 @@ class Runner(ModelClass):
         self.model = model
 
     @ModelClass.method
-    def predict(self, video: Video, conf_thresh: float = 0, clip_length: int = 16) -> float:
+    def predict_proba_votes(self, video: Video, conf_thresh: float = 0, clip_length: int = 16, proba: bool = False) -> Tuple[float, List[float], List[float]]:
         if not video.bytes and not video.url:
             raise ValueError("Video must have either bytes or url set.")
 
@@ -51,4 +53,9 @@ class Runner(ModelClass):
         for i, pred in enumerate(preds):
             votes[i:i+clip_length] += pred
 
-        return votes.argmax().item() / 30.0  # Assuming 30 FPS
+        return votes.argmax().item() / 30.0, probs[:,1].tolist(), votes.tolist()
+
+    @ModelClass.method
+    def predict(self, video: Video, conf_thresh: float = 0, clip_length: int = 16) -> float:
+        key_time, _, _ = self.predict_proba_votes(video, conf_thresh, clip_length)
+        return key_time
