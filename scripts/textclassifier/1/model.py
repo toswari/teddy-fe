@@ -14,6 +14,9 @@ class TextClassifierModel(ModelClass):
     @ModelClass.method
     def predict(self, text: str) -> list:
         # Example: dummy scores, replace with your model's output
+        #  ```json[   {"name": "safe", "value": 0.99999999},   {"name": "suggestive", "value": 0.00000001},   {"name": "drug", "value": 0.00000001},   {"name": "explicit", "value": 0.00000001},   {"name": "gore", "value": 0.00000001} ]```
+
+        
         scores = {
             "safe": 0.99999999,
             "drug": 1e-08,
