@@ -95,6 +95,7 @@ import matplotlib.pyplot as plt
 import itertools
 from scipy.interpolate import make_splprep, splev
 from scipy.interpolate import interp1d
+from scipy.linalg import block_diag
 
 # Generate a color map for up to 25 unique objects
 cmap = list(itertools.chain(plt.get_cmap('tab20b').colors, plt.get_cmap('tab20c').colors, plt.get_cmap('tab20').colors))
@@ -211,7 +212,6 @@ for frame, group in mot_df.groupby('frame'):
                 y = trace_array[:, 2]
 
                 # Compute upper envelope of y signal
-
                 # Find local maxima for upper envelope
                 def find_upper_envelope(t, y):
                     # Find local maxima
@@ -239,21 +239,111 @@ for frame, group in mot_df.groupby('frame'):
                     return y_envelope
 
                 y_upper_envelope = find_upper_envelope(t, y)
+
+                # Apply Kalman smoothing to the trajectory
+
+                # State vector: [x, y, vx, vy]
+                n_states = 4
+                n_observations = 2
+
+                # Create state transition matrix (constant velocity model)
+                dt = 1.0  # time step
+                F = np.array([[1, 0, dt, 0],
+                              [0, 1, 0, dt],
+                              [0, 0, 1, 0],
+                              [0, 0, 0, 1]])
+
+                # Observation matrix (we observe x, y)
+                H = np.array([[1, 0, 0, 0],
+                              [0, 1, 0, 0]])
+
+                # Process noise covariance
+                q = 0.1  # process noise variance
+                Q = q * np.array([[dt**4/4, 0, dt**3/2, 0],
+                                  [0, dt**4/4, 0, dt**3/2],
+                                  [dt**3/2, 0, dt**2, 0],
+                                  [0, dt**3/2, 0, dt**2]])
+
+                # Measurement noise covariance
+                r = 10.0  # measurement noise variance
+                R = r * np.eye(n_observations)
+
+                # Initialize state and covariance
+                x_init = np.array([x[0], y_upper_envelope[0], 0, 0])
+                P_init = np.eye(n_states) * 10
+
+                # Forward pass (Kalman filter)
+                n_timesteps = len(t)
+                x_pred = np.zeros((n_timesteps, n_states))
+                P_pred = np.zeros((n_timesteps, n_states, n_states))
+                x_filt = np.zeros((n_timesteps, n_states))
+                P_filt = np.zeros((n_timesteps, n_states, n_states))
+
+                # Initial state
+                x_filt[0] = x_init
+                P_filt[0] = P_init
+
+                for k in range(1, n_timesteps):
+                    # Predict
+                    x_pred[k] = F @ x_filt[k-1]
+                    P_pred[k] = F @ P_filt[k-1] @ F.T + Q
+                    
+                    # Update
+                    z = np.array([x[k], y_upper_envelope[k]])
+                    y_res = z - H @ x_pred[k]
+                    S = H @ P_pred[k] @ H.T + R
+                    K = P_pred[k] @ H.T @ np.linalg.inv(S)
+                    
+                    x_filt[k] = x_pred[k] + K @ y_res
+                    P_filt[k] = (np.eye(n_states) - K @ H) @ P_pred[k]
+
+                # Backward pass (RTS smoother)
+                x_smooth = np.zeros((n_timesteps, n_states))
+                P_smooth = np.zeros((n_timesteps, n_states, n_states))
+
+                # Initialize with filtered estimates
+                x_smooth[-1] = x_filt[-1]
+                P_smooth[-1] = P_filt[-1]
+
+                for k in range(n_timesteps-2, -1, -1):
+                    A = P_filt[k] @ F.T @ np.linalg.inv(P_pred[k+1])
+                    x_smooth[k] = x_filt[k] + A @ (x_smooth[k+1] - x_pred[k+1])
+                    P_smooth[k] = P_filt[k] + A @ (P_smooth[k+1] - P_pred[k+1]) @ A.T
+
+                # Extract smoothed positions
+                y_smooth = x_smooth[:, 1]
+                x_smooth = x_smooth[:, 0]
+
+                # # Interpolate smoothed positions for all original time points
+                # x_smooth = np.interp(range(t.min(), t.max()+1), t, x_smooth)
+                # y_smooth = np.interp(range(t.min(),t.max()+1), t, y_smooth)
+                spl, u = make_splprep([x_smooth, y_smooth], u=t, s=10, k=min(3, len(trace)-1))
+                x_smooth, y_smooth = spl(range(t.min(), t.max()+1))
+
+                # Compute velocity vectors (first derivative)
+                velocity_x = np.gradient(x_smooth, 1 / 30) / 1760 * 3600  # Convert to mph
+                velocity_y = np.gradient(y_smooth, 1 / 30) / 1760 * 3600  # Convert to mph
+
+                print(f"Object {obj_id}: {np.sqrt(velocity_x**2 + velocity_y**2).max()}")
+
+                # Compute acceleration vectors (second derivative)
+                acceleration_x = np.gradient(velocity_x, 1 / 30)
+                acceleration_y = np.gradient(velocity_y, 1 / 30)
+
+                # # Calculate variance in x and y coordinates to determine smoothing parameter
+                # var_y = np.var(np.diff(y))
+                # total_variance = var_y
+                # print(f"Object {obj_id}: Variance in y = {var_y}, Total Variance = {total_variance}")
+                # # Scale smoothing parameter based on variance (higher variance = more smoothing)
+                # # s = 500 * total_variance # 55
+                # s = 20
                 
-                # Calculate variance in x and y coordinates to determine smoothing parameter
-                var_y = np.var(np.diff(y))
-                total_variance = var_y
-                print(f"Object {obj_id}: Variance in y = {var_y}, Total Variance = {total_variance}")
-                # Scale smoothing parameter based on variance (higher variance = more smoothing)
-                # s = 500 * total_variance # 55
-                s = 20
+                # # Fit B-spline
+                # spl, u = make_splprep([x, y_upper_envelope], u=t, s=s, k=min(3, len(trace)-1))
                 
-                # Fit B-spline
-                spl, u = make_splprep([x, y_upper_envelope], u=t, s=s, k=min(3, len(trace)-1))
-                
-                # Generate smooth curve
-                u_new = np.linspace(0, len(trace)-1, len(trace)*5)
-                x_smooth, y_smooth = spl(u_new)
+                # # Generate smooth curve
+                # u_new = np.linspace(0, len(trace)-1, len(trace)*5)
+                # x_smooth, y_smooth = spl(u_new)
 
                 # Draw smooth trajectory on field image
                 color = object_colors.get(obj_id, (255, 0, 0))

@@ -18,6 +18,11 @@ for PFF's CV solution.
 - `tests/` - directory for tests
 - `Makefile` - Makefile for repeatable tasks (e.g., preflight local docker builds, deployments)
 
+## Data Overview
+- labelstudio (`s3://fb2b-label-studio-projects/`), especially for MOT data and any new PFF provided data
+- photon-production-video (`s3://fb2b-photon-production-video/football/{1,2,5,6,7}/${game_id}/${play_id}_${team_id}_${view}.mp4`)
+- Clarifai platform (`https://clarifai.com/pff-org/labelstudio-unified`) for detection data
+
 ## System Overview
 The CV solution consists of the following logical modules:
 1. Player detection
@@ -70,7 +75,7 @@ ReID requires both detection output (with embeddings) and ground truth data so:
 `python ./scripts/mot_eval.py --assoc_threshold $THR --include_classes players --tracker-config $DESIRED_TRACKER_CONFIG $GT_PB_DIR $DET_PB_DIR`
 
 ## Visualization
-1. Extract video frames
+1. Extract video frames (e.g., `ffmpeg -i $VIDEO_MP4 -q:v 1 'frames/%04d.jpg'`)
 1. `python src/clarifai_pff/auto_homography.py ...`
 1. `python deploy/video-detect-track/example_inference.py ...`
 1. `python scripts/plot_mot.py $DETECTOR_OUTPUT_PB $AUTO_HOMOGRAPHY_OUTPUT_DIR/homography $AUTO_HOMOGRAPHY_OUTPUT_DIR/frames --tracker_config $DESIRED_TRACKER_CONFIG --camera_correction [--smooth]`

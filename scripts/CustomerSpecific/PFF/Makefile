@@ -1,3 +1,6 @@
+clarifai-aws:
+	python scripts/make_aws.py
+
 build:
 	@echo "Building the project..."
 	uv build
@@ -31,6 +34,19 @@ deploy-video-detect-track: models/unified_model.onnx models/embedder.onnx models
 	cp -r models/embedder.onnx deploy/video-detect-track-homography/1/
 	cp -r models/reid.skl deploy/video-detect-track-homography/1/
 	clarifai model upload --skip_dockerfile deploy/video-detect-track-homography/
+
+deploy-snap: models/snap_model_iter_1012.pth
+	@echo "Deploying snap..."
+	uv build --sdist -o deploy/snap/dist
+	cp models/snap_model_iter_1012.pth deploy/snap/1/
+	clarifai model upload --skip_dockerfile deploy/snap/
+
+mot-gt-pb:
+	@echo "Generating MOT GT data..."
+	mkdir -p data/mot-gt-pb
+	python scripts/make_mot_data.py \
+		data/mot-gt-pb \
+		--image-size 720 1280
 
 reid:
 	@echo "Training ReID model..."

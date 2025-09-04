@@ -1,0 +1,3 @@
+clarifai
+pydantic
+python-dotenv

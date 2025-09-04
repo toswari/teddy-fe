@@ -1,0 +1,4 @@
+torch
+torchvision
+clarifai==11.6.8
+clarifai_pff[gpu] @ /home/nonroot/dist/clarifai_pff-0.1.0.tar.gz
