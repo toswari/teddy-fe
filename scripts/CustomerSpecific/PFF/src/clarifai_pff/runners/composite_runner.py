@@ -185,7 +185,7 @@ class CompositeRunner(ModelClass):
                 homography_metadata = self.homography_runner._create_metadata(homography_result)
 
                 # Step 5: Create combined result
-                result_data = self._create_combined_result(player_detections, homography_metadata)
+                result_data = self._create_combined_result([*player_detections, *field_element_detections], homography_metadata)
                 results.append(result_data)
 
             except Exception as e:

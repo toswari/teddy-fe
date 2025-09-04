@@ -192,8 +192,13 @@ class HomographyRunner(ModelClass):
             detections: List of detections with normalized coordinates
             frame_shape: Frame dimensions (width, height)
         """
+        new_regions = []
         for region in detections:
-            region.box = [coord * size for coord, size in zip(region.box, [*frame_shape] * 2)]
+            new_region = Region()
+            new_region.proto.CopyFrom(region.proto)
+            new_region.box = [coord * size for coord, size in zip(region.box, [*frame_shape] * 2)]
+            new_regions.append(new_region)
+        return new_regions
 
     def compute_homography(self, frame, field_element_detections: List[Region],
                           homography_params: Optional[Dict[str, Any]] = None, prev_frame = None, prev_homography = None) -> HomographyResult:
@@ -247,8 +252,8 @@ class HomographyRunner(ModelClass):
                 # Denormalize boxes for homography processing
                 frame_array = frame.to_ndarray(format="rgb24")
                 frame_size = frame_array.shape[:2][::-1]  # (width, height)
-
-                self._denormalize_detections(field_element_detections, frame_size)
+                
+                field_element_detections = self._denormalize_detections(field_element_detections, frame_size)
 
                 # Process hash yard detections
                 yard_boxes, yard_labels, inner_boxes, up_edge_boxes = process_response(field_element_detections)
@@ -273,7 +278,7 @@ class HomographyRunner(ModelClass):
                 # TODO: move away from threshold to proper state estimation and assimilation
                 # TODO: cleanup
                 if prev_frame is not None and prev_homography is not None:
-                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_array)
+                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_bgr)
                     if result.homography.matrix is None:
                         homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
 
@@ -288,11 +293,14 @@ class HomographyRunner(ModelClass):
                         logger.info(f"Frame {frame}: Lie distance = {lie_dist}")
                         if lie_dist > 5: #15:
                             result.homography.matrix = hyp_homography_matrix
+                            result.homography.mask = prev_homography.homography.mask
+                            result.homography.field_points = prev_homography.homography.field_points
                             result.homography.image_points = transform_points(
                                 result.homography.field_points,
                                 result.homography.matrix,
                                 inverse=True
                             ) if result.homography.field_points is not None else None
+                            result.warnings.append(f"High Lie distance ({lie_dist:.2f}), smoothing homography with camera motion")
             except Exception as e:
                 if prev_frame is not None and prev_homography is not None:
                     camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame.to_ndarray(format='bgr24'))
@@ -306,7 +314,7 @@ class HomographyRunner(ModelClass):
                             field_points=field_points,
                             mask=prev_homography.homography.mask
                         ),
-                        warnings=["Homography computation failed, using previous frame's homography adjusted by camera motion"],
+                        warnings=["Homography computation failed, using previous frame's homography adjusted by camera motion. Error: " + str(e)],
                     )
                 raise HomographyError(f"Error during homography computation: {e}")
 

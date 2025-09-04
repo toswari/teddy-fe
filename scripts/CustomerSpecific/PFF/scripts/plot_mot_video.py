@@ -103,6 +103,11 @@ result = model.predict(
 end = perf_counter_ns()
 print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 
+out_pb = Data()
+out_pb.frames.extend([f.proto for f in result])
+with open(f'{video_id}.pb', 'wb') as f:
+    f.write(out_pb.SerializeToString())
+
 #Load MOT data from protobuf
 mot_df = pd.DataFrame.from_records(
     [
@@ -262,29 +267,29 @@ for frame, group in mot_df.groupby('frame'):
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.rectangle(video_frame, (int(row['x']), int(row['y'])), (int(row['xx']), int(row['yy'])), color, 2)
 
-        # # Apply homography transformation
-        # take middle of bottom of box
-        pt = (row['x'] + row['xx']) / 2, row['yy']
+        if row['object_id'] != -1:
+            # # Apply homography transformation
+            # take middle of bottom of box
+            pt = (row['x'] + row['xx']) / 2, row['yy']
 
-        if homography_matrix is None:
-            continue
+            if homography_matrix is None:
+                continue
 
-        transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
+            transformed_pt = transform_points(np.array([[pt]]), homography_matrix)[0]
+            object_traces[row['object_id']].append((frame, *transformed_pt))
 
-        object_traces[row['object_id']].append((frame, *transformed_pt))
-
-        color = object_colors.get(row['object_id'], (255, 0, 0))
-        cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
-        cv2.putText(
-            field_img_no_tracks,
-            str(row['object_id']),
-            field_to_pixel(*transformed_pt, field_img_no_tracks, field_info),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            color,
-            2,
-            cv2.LINE_AA
-        )
+            color = object_colors.get(row['object_id'], (255, 0, 0))
+            cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
+            cv2.putText(
+                field_img_no_tracks,
+                str(row['object_id']),
+                field_to_pixel(*transformed_pt, field_img_no_tracks, field_info),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                color,
+                2,
+                cv2.LINE_AA
+            )
 
     if args.smooth and (frame == mot_df['frame'].max() or (args.max_frames is not None and frame == args.max_frames)):
         # Fit B-splines to object traces
