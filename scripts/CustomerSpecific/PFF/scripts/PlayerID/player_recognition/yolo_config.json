@@ -1,0 +1,10 @@
+{
+    "min_detect_confidence": 0.51,
+    "recognizer": "YOLORecognizer",
+    "recognizer_params": {
+        "model_path": "/Users/bingqingyu/Downloads/weights/best.pt",
+        "yolov7_dir": "scripts/PlayerID/yolov7",
+        "confidence_threshold": 0.3,
+        "device": "cpu"
+    }
+}
