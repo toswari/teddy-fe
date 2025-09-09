@@ -33,6 +33,12 @@ deploy-video-detect-track: models/model.onnx models/embedder.onnx models/reid.sk
 	cp -r models/ deploy/video-detect-track/1/
 	clarifai model upload --skip_dockerfile deploy/video-detect-track/
 
+deploy-snap: models/snap_model_iter_1012.pth
+	@echo "Deploying snap..."
+	uv build --sdist -o deploy/snap/dist
+	cp models/snap_model_iter_1012.pth deploy/snap/1/
+	clarifai model upload --skip_dockerfile deploy/snap/
+
 mot-gt-pb:
 	@echo "Generating MOT GT data..."
 	mkdir -p data/mot-gt-pb
