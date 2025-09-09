@@ -8,6 +8,7 @@ import scipy.linalg
 
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.tracking.reid import KalmanREID
+from clarifai_pff.player_recognition import recognize_player_numbers, assign_player_ids_to_tracks, EasyOCRRecognizer
 
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -24,6 +25,7 @@ p.add_argument('--camera_correction', action='store_true', help="Apply camera co
 # p.add_argument('--no-tracks', action='store_true', help="Do not draw tracks on the field image")
 # p.add_argument('--include_homography', action='store_true', help="Include homography in the output frames")
 p.add_argument('--tracker_config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
+p.add_argument('--player_recognition_config', type=str, default='config/player_recognition/base_config.json', help='Path to player recognition configuration file')
 p.add_argument('--max_frames', type=int, default=None, help='Maximum number of frames to process (for testing purposes)')
 p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
 p.add_argument('--show_untracked', action='store_true', help='Show untracked objects in the output frames')
@@ -43,12 +45,35 @@ mot_df = pd.DataFrame.from_records(
             'xx': region.region_info.bounding_box.right_col * 1280,
             'yy': region.region_info.bounding_box.bottom_row * 720,
             'score': region.value,
-            'label': region.data.concepts[0].name if region.data.concepts else ''
+            'label': region.data.concepts[0].name if region.data.concepts else '',
+            'uuid': region.id
         } for i, frame in enumerate(mot_data.frames, 1) for region in frame.data.regions
     ]
 )
 
 mot_df = mot_df[mot_df['label'].isin(args.classes)]
+
+# Load player recognition config
+with open(args.player_recognition_config, 'r') as f:
+    player_recognition_params = json.load(f)
+
+# Create recognizer from config
+RECOGNIZERS = {
+    'EasyOCRRecognizer': EasyOCRRecognizer
+}
+recognizer_params = player_recognition_params.get('recognizer_params', {})
+recognizer = RECOGNIZERS[player_recognition_params['recognizer']](**recognizer_params)
+
+player_recognitions = {}
+for frame_idx, frame in enumerate(mot_data.frames, 1): # frame_idx begin at 1 for the first frame
+    video_frame = cv2.imread(os.path.join(args.FRAMES_DIR, f'{frame_idx:04d}.jpg')) # loads images in BGR format 
+    player_recognitions[frame_idx] = recognize_player_numbers(
+        video_frame, 
+        frame.data.regions, 
+        min_detect_confidence=player_recognition_params['min_detect_confidence'],
+        recognizer=recognizer
+    )
+    # break # TODO: cyu remove break to apply player recognition to all frames
 
 if args.tracker_config is not None:
     mot_df['object_id'] = -1
@@ -74,7 +99,8 @@ if args.tracker_config is not None:
                         'xx': region.region_info.bounding_box.right_col * 1280,
                         'yy': region.region_info.bounding_box.bottom_row * 720,
                         'score': region.value,
-                        'label': region.data.concepts[0].name if region.data.concepts else ''
+                        'label': region.data.concepts[0].name if region.data.concepts else '',
+                        'uuid': region.id
                     } 
                 for region in frame.data.regions if region.track_id != ''
                 ]
@@ -85,6 +111,8 @@ if args.tracker_config is not None:
     #     for (i,row), region in zip(group.iterrows(), cf_frame.data.regions):
     #         mot_df.loc[i, 'object_id'] = int(region.track_id) if region.track_id != '' else -1
     mot_df = pd.concat(new_dfs, ignore_index=True)
+
+track_player_assignments = assign_player_ids_to_tracks(mot_df, player_recognitions)
 
 if not args.show_untracked:
     mot_df = mot_df[mot_df['object_id'] != -1]  # remove untracked detections
@@ -177,6 +205,13 @@ for frame, group in mot_df.groupby('frame'):
     for _, row in group.iterrows():
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.rectangle(video_frame, (int(row['x']), int(row['y'])), (int(row['xx']), int(row['yy'])), color, 2)
+        
+        track_text = f"T{row['object_id']}"
+        if row['object_id'] in track_player_assignments:
+            track_text += f":P{track_player_assignments[row['object_id']]}"
+        
+        cv2.putText(video_frame, track_text, (int(row['x']), int(row['y'])-10), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         # # Apply homography transformation
         # take middle of bottom of box
@@ -188,9 +223,14 @@ for frame, group in mot_df.groupby('frame'):
 
         color = object_colors.get(row['object_id'], (255, 0, 0))
         cv2.circle(field_img, field_to_pixel(*transformed_pt, field_img, field_info), 2, color, -1)
+        
+        display_text = f"T{row['object_id']}"
+        if row['object_id'] in track_player_assignments:
+            display_text += f":P{track_player_assignments[row['object_id']]}"
+        
         cv2.putText(
             field_img_no_tracks,
-            str(row['object_id']),
+            display_text,
             field_to_pixel(*transformed_pt, field_img_no_tracks, field_info),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
