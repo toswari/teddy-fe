@@ -9,6 +9,8 @@ import numpy as np
 
 from typing import Tuple, List
 
+from collections import deque
+
 class Runner(ModelClass):
     def load_model(self):
         weights = tv.models.video.MViT_V2_S_Weights.KINETICS400_V1
@@ -22,7 +24,7 @@ class Runner(ModelClass):
         self.model = model
 
     @ModelClass.method
-    def predict_proba_votes(self, video: Video, conf_thresh: float = 0, clip_length: int = 16, proba: bool = False) -> Tuple[float, List[float], List[float]]:
+    def predict_proba_votes(self, video: Video, conf_thresh: float = 0, clip_length: int = 16) -> Tuple[float, List[float], List[float]]:
         if not video.bytes and not video.url:
             raise ValueError("Video must have either bytes or url set.")
 
@@ -35,21 +37,25 @@ class Runner(ModelClass):
         else:
             raise ValueError("Video must have either bytes or url set.")
 
-        frames = np.array([frame.to_ndarray(format="rgb24") for frame in video_stream])
-        frames = torch.tensor(frames, device=self.device).moveaxis(-1,1).unsqueeze(0)
-
+        frames_q = deque(maxlen=clip_length)
+        n_frames = 0
         outputs = []
         with torch.inference_mode():
-            for i in range(frames.shape[1] - clip_length):
-                frames_tensor = frames[:1, i:i+clip_length, ...]
+            for frame in video_stream:
+                n_frames += 1
+                frames_q.append(frame.to_ndarray(format="rgb24"))
+                if len(frames_q) < clip_length:
+                    continue
+                frames_tensor = torch.tensor(np.array(frames_q), device=self.device).moveaxis(-1,1).unsqueeze(0)
                 outputs.append(self.model(self.preprocess(frames_tensor)).cpu())
+                frames_q.popleft()
 
         outputs = torch.cat(outputs)
         probs = outputs.softmax(dim=1)
         probs[:,1] = probs[:,1] * (probs[:,1] > conf_thresh)
         preds = probs.argmax(dim=1)
 
-        votes = torch.zeros(frames.shape[1])
+        votes = torch.zeros(n_frames)
         for i, pred in enumerate(preds):
             votes[i:i+clip_length] += pred
 
