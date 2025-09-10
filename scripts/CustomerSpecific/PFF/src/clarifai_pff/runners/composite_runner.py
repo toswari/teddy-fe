@@ -75,12 +75,12 @@ class CompositeRunner(ModelClass):
         if not video.bytes and not video.url:
             raise ValueError("Video must have either bytes or url set.")
 
-        if video.url:
-            return video_utils.stream_frames_from_url(video.url, download_ok=True)
-        elif video.bytes:
+        if video.bytes:
             def _bytes_iterator():
                 yield video.bytes
             return video_utils.stream_frames_from_bytes(_bytes_iterator())
+        elif video.url:
+            return video_utils.stream_frames_from_url(video.url, download_ok=True)
         else:
             raise ValueError("Video must have either bytes or url set.")
 
