@@ -6,6 +6,7 @@ from clarifai.client import User, Inputs
 from clarifai_grpc.grpc.api import service_pb2, service_pb2_grpc
 from clarifai_grpc.grpc.api.status import status_code_pb2
 from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+from tqdm import tqdm
 
 if __name__ == "__main__":
     import argparse
@@ -15,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('--app_id', type=str, help='Clarifai app ID', required=True)
     parser.add_argument('--user_id', type=str, help='Clarifai user ID', required=True)
     parser.add_argument('--dataset_name', type=str, default='mot-test', help='Dataset name to use or create')
+    parser.add_argument('--batch_size', type=int, default=100, help='Batch size for uploading annotations')
     args = parser.parse_args()
 
     with open(args.pb_file, 'rb') as f:
@@ -77,8 +79,8 @@ if __name__ == "__main__":
     user_app_id = resources_pb2.UserAppIDSet(user_id=u.id, app_id=a.id)
     metadata = (('authorization', f'Key {u.pat}'),)
 
-    for i in range(0, len(annotations), 100):
-        batch = annotations[i:i + 100]
+    for i in tqdm(range(0, len(annotations), args.batch_size)):
+        batch = annotations[i:i + args.batch_size]
         response = stub.PostAnnotations(
             service_pb2.PostAnnotationsRequest(
                 user_app_id=user_app_id,
@@ -87,5 +89,5 @@ if __name__ == "__main__":
             metadata=metadata
         )
         if response.status.code != status_code_pb2.SUCCESS:
-            print(f"Error uploading annotations: {response.status.description}")
+            print(f"Error uploading annotations (batch {i // args.batch_size}): {response.status.description}")
             break
