@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   extract:
-    runs-on: [self-hosted, staging-onprem-builder-k8s-runner]
+    runs-on: self-hosted
     env:
       INTERCOM_ACCESS_TOKEN: ${{ secrets.INTERCOM_ACCESS_TOKEN }}
       INTERCOM_SLACK_BOT_TOKEN: ${{ secrets.INTERCOM_SLACK_BOT_TOKEN }}
