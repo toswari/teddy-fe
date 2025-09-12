@@ -58,7 +58,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Run Slack reporter (optional)
-        if: ${{ github.event.inputs.run_slack_report == 'true' }}
+        if: github.event_name == 'schedule' || github.event.inputs.run_slack_report == 'true'
         working-directory: support/slack_metrics
         run: |
           latest=$(ls -t intercom_metrics_*.json | head -n 1)
