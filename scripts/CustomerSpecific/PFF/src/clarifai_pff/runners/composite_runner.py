@@ -171,7 +171,12 @@ class CompositeRunner(ModelClass):
                 # Step 2: Track players (if tracker is available)
                 if tracker is not None and player_detections:
                     player_detections = self.tracking_runner.track_frame(frame, player_detections, tracker)
+            except Exception as e:
+                logger.error(f"Error in detection/tracking for frame {frame_idx}: {e}")
+                player_detections = []
+                field_element_detections = []
 
+            try:
                 # Step 3: Compute homography
                 homography_result = self.homography_runner.compute_homography(
                     frame, field_element_detections, homography_params=homography_params,
@@ -183,18 +188,14 @@ class CompositeRunner(ModelClass):
 
                 # Step 4: Create metadata
                 homography_metadata = self.homography_runner._create_metadata(homography_result)
-
-                # Step 5: Create combined result
-                result_data = self._create_combined_result([*player_detections, *field_element_detections], homography_metadata)
-                results.append(result_data)
-
             except Exception as e:
-                logger.error(f"Error processing frame {frame_idx}: {e}")
-                # Create error result for this frame
-                error_metadata = Struct()
-                error_metadata.update({'error': f"Frame processing failed: {str(e)}"})
-                error_result = self._create_combined_result([], error_metadata)
-                results.append(error_result)
+                logger.error(f"Error in homography for frame {frame_idx}: {e}")
+                homography_metadata = Struct()
+                homography_metadata.update({'error': f"Homography failed: {str(e)}"})
+
+            # Step 5: Create combined result
+            result_data = self._create_combined_result([*player_detections, *field_element_detections], homography_metadata)
+            results.append(result_data)
 
         logger.info(f"Processed {len(results)} frames")
         return results
