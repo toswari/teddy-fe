@@ -79,6 +79,8 @@ if mode == "Standard" and uploaded_file is not None:
     temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
     temp_video.write(uploaded_file.read())
     temp_video.close()
+
+    ground_truth_time = float(col2.text_input("Ground Truth Time (seconds)") or 0)
     
     col1, col2 = st.columns(2)
     col1.subheader("Original Video")
@@ -116,7 +118,6 @@ if mode == "Standard" and uploaded_file is not None:
             ax1.set_xlabel('Time Steps')
             ax1.set_ylabel('Probability')
             ax1.set_title('Model Probabilities Over Time')
-            ax1.legend()
             ax1.grid(True, alpha=0.3)
 
             # Plot votes
@@ -125,13 +126,34 @@ if mode == "Standard" and uploaded_file is not None:
             ax2.set_xlabel('Time Steps')
             ax2.set_ylabel('Votes')
             ax2.set_title('Model Votes Over Time')
-            ax2.legend()
+            ax2.set_xlim(ax1.get_xlim())
             ax2.grid(True, alpha=0.3)
+
+            first_zero_to_left = -1
+            for i in range(int(key_time * 30), -1, -1):
+                if votes[i] == 0:
+                    first_zero_to_left = i
+                    break
+            
+            if first_zero_to_left != -1:
+                ax1.axvline(x=first_zero_to_left, color='black', linestyle='--', linewidth=2, label=f'First Zero to Left: {first_zero_to_left/30:.2f}s')
+                ax2.axvline(x=first_zero_to_left, color='black', linestyle='--', linewidth=2, label=f'First Zero to Left: {first_zero_to_left/30:.2f}s')
+
+            if ground_truth_time > 0:
+                ax1.axvline(x=ground_truth_time * 30, color='g', linestyle='--', linewidth=2, label=f'Ground Truth: {ground_truth_time:.2f}s')
+                ax2.axvline(x=ground_truth_time * 30, color='g', linestyle='--', linewidth=2, label=f'Ground Truth: {ground_truth_time:.2f}s')
+            
+            ax1.legend()
+            ax2.legend()
 
             plt.tight_layout()
             col2.pyplot(fig)
 
             # Clean up temporary clip file
+            os.unlink(clip_path)
+
+            clip_path = extract_clip(temp_video.name, first_zero_to_left / 30, clip_duration=2)
+            col2.video(clip_path)
             os.unlink(clip_path)
     
     # Clean up temporary video file when done
