@@ -77,115 +77,12 @@ class TrackingRunner(ModelClass):
         """Get the model folder path."""
         return getattr(self, 'folder', False) or os.path.dirname(os.path.dirname(__file__))
 
-    def _load_embedder_model(self, model_path: str) -> Tuple[ort.InferenceSession, Tuple[int, int]]:
-        """
-        Load the embedding model for re-identification.
-
-        Args:
-            model_path: Path to the embedding model file
-
-        Returns:
-            Tuple of (session, input_shape)
-
-        Raises:
-            FileNotFoundError: If model file doesn't exist
-            RuntimeError: If model loading fails
-        """
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Embedder model file not found: {model_path}")
-
-        logger.info(f"Loading embedder model from {model_path}")
-
-        try:
-            # Load model to get input dimensions
-            model = onnx.load(model_path)
-            input_dims = [x.dim_value for x in model.graph.input[0].type.tensor_type.shape.dim[-2:]]
-            input_shape = tuple(input_dims[::-1])  # Convert from (height, width) to (width, height)
-
-            # Create inference session
-            session = ort.InferenceSession(model_path, providers=['CUDAExecutionProvider'])
-
-            logger.info(f"Embedder model loaded with input shape: {input_shape}")
-            return session, input_shape
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to load embedder model: {e}")
-
     def load_model(self):
         """Load the embedding model and initialize tracking configuration."""
         model_folder = self._get_model_folder()
-        embedder_path = os.path.join(model_folder, '1', 'embedder.onnx')
-
-        self.embedder_session, self.embedder_input_shape = self._load_embedder_model(embedder_path)
         self.config = TrackingConfig(model_folder)
 
         logger.info("Tracking model loaded successfully")
-
-    def _extract_player_crops(self, frame, detections: List[Region]) -> np.ndarray:
-        """
-        Extract cropped regions for detected players.
-
-        Args:
-            frame: Input frame
-            detections: List of player detections
-
-        Returns:
-            Array of cropped player images
-        """
-        frame_array = frame.to_ndarray(format="rgb24")
-        frame_size = frame_array.shape[:2][::-1]  # (width, height)
-
-        crops = []
-        for region in detections:
-            # Convert normalized coordinates to pixel coordinates
-            x, y, xx, yy = [coord * size for coord, size in zip(region.box, [*frame_size] * 2)]
-
-            # Extract crop
-            crop = frame_array[int(y):int(yy), int(x):int(xx)]
-
-            # Resize to embedding model input size
-            crop = cv2.resize(crop, self.embedder_input_shape)
-
-            # Convert to CHW format and normalize
-            crop = np.moveaxis(crop, -1, 0)  # HWC to CHW
-            crop = crop / 255.0
-
-            crops.append(crop)
-
-        return np.array(crops).astype(np.float32)
-
-    def _compute_embeddings(self, crops: np.ndarray) -> np.ndarray:
-        """
-        Compute embeddings for player crops.
-
-        Args:
-            crops: Array of cropped player images
-
-        Returns:
-            Array of embeddings
-        """
-        if len(crops) == 0:
-            return np.array([])
-
-        with timing_context("Embedding computation"):
-            embeddings = self.embedder_session.run(
-                None, {self.embedder_session.get_inputs()[0].name: crops}
-            )[0]
-
-        logger.info(f"Embeddings shape: {embeddings.shape}")
-        return embeddings
-
-    def _add_embeddings_to_detections(self, detections: List[Region], embeddings: np.ndarray):
-        """
-        Add computed embeddings to detection regions.
-
-        Args:
-            detections: List of detections
-            embeddings: Computed embeddings
-        """
-        for region, embedding in zip(detections, embeddings):
-            emb = region.proto.data.embeddings.add()
-            emb.vector.extend(embedding.tolist())
 
     def _setup_tracker(self, tracker_params: Optional[Dict[str, Any]] = None) -> KalmanREID:
         """
@@ -263,13 +160,6 @@ class TrackingRunner(ModelClass):
         """
         if not detections:
             return []
-
-        # Extract player crops and compute embeddings
-        crops = self._extract_player_crops(frame, detections)
-        embeddings = self._compute_embeddings(crops)
-
-        # Add embeddings to detections
-        self._add_embeddings_to_detections(detections, embeddings)
 
         # Apply tracking
         tracked_regions = self._apply_tracking(detections, tracker)
