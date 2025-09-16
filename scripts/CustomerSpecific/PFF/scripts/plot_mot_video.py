@@ -51,6 +51,18 @@ if video_path.startswith('http://') or video_path.startswith('https://'):
     # assuming s3 presigned url
     video_id = video_path.split('.mp4')[0].split('/')[-1]
     video = Video(url=video_path)
+elif video_path.endswith('.pb'):
+    video_id = os.path.basename(args.video_path).replace('.pb', '').replace('_gt', '')
+    import boto3
+    boto3_session = boto3.Session(profile_name='pff-ls')
+    s3 = boto3_session.client('s3', region_name='us-east-2')
+    with open(video_path, 'rb') as f:
+        data = Data.FromString(f.read())
+    s3_url = data.video.url
+    s3_bucket = s3_url.split('/')[2].split('.')[0]
+    s3_key = '/'.join(s3_url.split('/')[3:])
+    presigned_url = s3.generate_presigned_url('get_object', Params={'Bucket': s3_bucket, 'Key': s3_key}, ExpiresIn=3600)
+    video = Video(url=presigned_url)
 else:
     video_id = os.path.basename(args.video_path).replace('.mp4', '')
     with open(video_path, 'rb') as f:
@@ -80,7 +92,7 @@ tracker_params = {
     "detect_box_fall_back": 0
 }
 if not args.tracker_config:
-    tracker_params = tracker_params
+    tracker_params = None #tracker_params
 else:
     with open(args.tracker_config, 'r') as f:
         tracker_params = json.load(f)
@@ -222,6 +234,11 @@ for frame, group in mot_df.groupby('frame'):
         print(f"Could not read frame {frame}")
         continue
 
+    if video_writer is None:
+        frame_height, frame_width = video_frame.shape[:2]
+        video_writer = cv2.VideoWriter(output_video_path, fourcc, 30.0, (2*frame_width, 2*frame_height))
+        print(f"Initialized video writer: {2*frame_width}x{2*frame_height}")
+
     field_img_no_tracks = gen_field(720, 1280, field_info, exclude_hash_marks=False)
     hom_img = gen_field(720, 1280, field_info, exclude_hash_marks=True)
     # print(os.path.join(args.FRAMES_DIR, f'frame_0{frame:04d}.jpg'))
@@ -244,7 +261,8 @@ for frame, group in mot_df.groupby('frame'):
         # If no homography is available and camera correction is not requested, skip this frame
         print(f"Skipping frame {frame} as no homography is available and camera correction is not requested.")
         combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
-        cv2.imwrite(f'output_frame_{frame}.jpg', combined)
+        # cv2.imwrite(f'output_frame_{frame}.jpg', combined)
+        video_writer.write(combined)
         continue
 
     for pt in image_points:
@@ -435,11 +453,7 @@ for frame, group in mot_df.groupby('frame'):
 
     combined = np.vstack((np.hstack((video_frame, hom_img)), np.hstack((field_img_no_tracks, field_img))))
     # Initialize video writer with first frame dimensions
-    if video_writer is None:
-        frame_height, frame_width = combined.shape[:2]
-        video_writer = cv2.VideoWriter(output_video_path, fourcc, 30.0, (frame_width, frame_height))
-        print(f"Initialized video writer: {frame_width}x{frame_height}")
-        # Write frame to video
+    # Write frame to video
     video_writer.write(combined)
     # cv2.imwrite(f'output_frame_{frame:04d}.jpg', combined)
     #create a video from the output frames

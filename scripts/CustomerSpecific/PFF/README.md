@@ -75,7 +75,4 @@ ReID requires both detection output (with embeddings) and ground truth data so:
 `python ./scripts/mot_eval.py --assoc_threshold $THR --include_classes players --tracker-config $DESIRED_TRACKER_CONFIG $GT_PB_DIR $DET_PB_DIR`
 
 ## Visualization
-1. Extract video frames (e.g., `ffmpeg -i $VIDEO_MP4 -q:v 1 'frames/%04d.jpg'`)
-1. `python src/clarifai_pff/auto_homography.py ...`
-1. `python deploy/video-detect-track/example_inference.py ...`
-1. `python scripts/plot_mot.py $DETECTOR_OUTPUT_PB $AUTO_HOMOGRAPHY_OUTPUT_DIR/homography $AUTO_HOMOGRAPHY_OUTPUT_DIR/frames --tracker_config $DESIRED_TRACKER_CONFIG --camera_correction [--smooth]`
+`python scripts/plot_mot_video.py --help`

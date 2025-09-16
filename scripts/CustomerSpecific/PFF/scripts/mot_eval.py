@@ -23,6 +23,8 @@ if __name__ == '__main__':
     # p.add_argument('--det-file', type=str, default='det.txt', help='Name of the detection file (default: det.txt)')
     p.add_argument('--tracker-config', type=str, default=None, help='Path to tracker configuration file, if re-tracking is needed')
     p.add_argument('--output-formats', nargs='+', type=str, default=['csv'], help='Output file formats for metrics (default: csv)')
+    p.add_argument('--tracker-id', type=str, default=None, help='Identifier for the tracker configuration, used in output filenames')
+    p.add_argument('--reid-model-path', type=str, default=None, help='Path to the reid model file, if applicable')
     args = p.parse_args()
 
     metrics = ['num_frames',
@@ -80,7 +82,7 @@ if __name__ == '__main__':
                     'y': r.region_info.bounding_box.top_row * h,
                     'xx': r.region_info.bounding_box.right_col * w,
                     'yy': r.region_info.bounding_box.bottom_row * h,
-                    'conf': r.value,
+                    'conf': r.data.concepts[0].value,
                     'category': r.data.concepts[0].name
                 })
         for fi, f in enumerate(det_data.frames):
@@ -92,7 +94,7 @@ if __name__ == '__main__':
                     'y': r.region_info.bounding_box.top_row * h,
                     'xx': r.region_info.bounding_box.right_col * w,
                     'yy': r.region_info.bounding_box.bottom_row * h,
-                    'conf': r.value,
+                    'conf': r.data.concepts[0].value,
                     'category': r.data.concepts[0].name
                 })
         
@@ -109,9 +111,9 @@ if __name__ == '__main__':
         det['height'] = det['yy'] - det['y']
 
         if args.tracker_config is not None:
-            det['id'] = -1
             with open(args.tracker_config, 'r') as f:
                 tracker_params = json.load(f)
+            tracker_params['reid_model_path'] = args.reid_model_path or tracker_params.get('reid_model_path', None)
             # run tracker
             tracker = KalmanREID(
                 **tracker_params,
@@ -121,6 +123,7 @@ if __name__ == '__main__':
             for frame_idx, frame in enumerate(det_data.frames, 1):
                 for region in frame.data.regions:
                     region.track_id = ''
+                    region.value = region.data.concepts[0].value
                 tracker(frame.data)
                 new_dets.append(
                     pd.DataFrame.from_records(
@@ -202,14 +205,11 @@ if __name__ == '__main__':
     full_summary = pd.DataFrame(hota_summaries).join(summary, how='outer').round(2)
     print(full_summary.to_markdown())
 
-    tracker_id = os.path.splitext(os.path.basename(args.tracker_config))[0] if args.tracker_config else 'default_tracker'
+    tracker_id = args.tracker_id or (os.path.splitext(os.path.basename(args.tracker_config))[0] if args.tracker_config else 'default_tracker')
     if 'json' in args.output_formats:
         full_summary.to_json(f'{tracker_id}.json', orient='records', indent=4)
-    elif 'csv' in args.output_formats:
+    if 'csv' in args.output_formats:
         full_summary.to_csv(f'{tracker_id}.csv')
-    elif 'md' in args.output_formats:
+    if 'md' in args.output_formats:
         with open(f'{tracker_id}.md', 'w') as f:
             f.write(full_summary.to_markdown())
-    else:
-        print("Unsupported output file format. Please use .json, .csv, or .md.")
-        exit(1)
