@@ -1,0 +1,30 @@
+{
+    "logo_integrity": {
+        "met": true,
+        "recommendation": null
+    },
+    "brand_name_spelling": {
+        "met": false,
+        "recommendation": "Correct the spelling to 'HelloFresh', ensuring it is one word with a capital 'H' and 'F'."
+    },
+    "packaging_design": {
+        "met": false,
+        "recommendation": "Replace the current box image with an image of the latest HelloFresh packaging design."
+    },
+    "text_legibility": {
+        "met": true,
+        "recommendation": null
+    },
+    "food_presentation": {
+        "met": true,
+        "recommendation": null
+    },
+    "brand_prominence": {
+        "met": true,
+        "recommendation": null
+    },
+    "offer_disclaimer_pairing": {
+        "met": false,
+        "recommendation": "The offer is missing or has an incorrect disclaimer. Ensure the correct, legally-approved disclaimer is paired with the specific offer shown."
+    }
+}
