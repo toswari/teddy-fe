@@ -7,7 +7,7 @@ import pandas as pd
 import scipy.linalg
 import yaml
 from clarifai.client import Model
-from clarifai.runners.utils.data_types.data_types import Video
+from clarifai.runners.utils.data_types.data_types import Video, Frame as dtFrame
 from time import perf_counter_ns
 from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
 from clarifai_pff.runners.composite_runner import CompositeRunner
@@ -33,18 +33,8 @@ p.add_argument('--league', type=str, default='NFL', help='League name for homogr
 p.add_argument('--max_frames', type=int, default=None, help='Maximum number of frames to process (for testing purposes)')
 p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
 p.add_argument('--show_untracked', action='store_true', help='Show untracked objects in the output frames')
+p.add_argument('--no-cache', action='store_true', help='Do not use cached .pb file if available')
 args = p.parse_args()
-
-#Model prediction
-if args.model_url == 'local':
-    model = CompositeRunner("/Users/peter.rizzi/src/ps-field-engineering/scripts/CustomerSpecific/PFF/deploy/video-detect-track-homography")
-    model.load_model()
-else:
-    model_kwargs = {}
-    if args.deployment_id:
-        model_kwargs['deployment_id'] = args.deployment_id
-        model_kwargs['deployment_user_id'] = "pff-org"
-    model = Model(url=args.model_url, **model_kwargs)
 
 video_path = args.video_path
 if video_path.startswith('http://') or video_path.startswith('https://'):
@@ -70,55 +60,72 @@ else:
 
     video = Video(bytes=video_bytes)
 
+if args.no_cache or not os.path.exists(f'{video_id}.pb'):
+    #Model prediction
+    if args.model_url == 'local':
+        model = CompositeRunner("/Users/peter.rizzi/src/ps-field-engineering/scripts/CustomerSpecific/PFF/deploy/video-detect-track-homography")
+        model.load_model()
+    else:
+        model_kwargs = {}
+        if args.deployment_id:
+            model_kwargs['deployment_id'] = args.deployment_id
+            model_kwargs['deployment_user_id'] = "pff-org"
+        model = Model(url=args.model_url, **model_kwargs)
 
-tracker_params = {
-    "max_dead": 100,
-    "max_emb_distance": 0.0,
-    "var_tracker": "manorm",
-    "initialization_confidence": 0.85,
-    "min_confidence": 0.51,
-    "association_confidence": [0.39],
-    "min_visible_frames": 0,
-    "covariance_error": 100,
-    "observation_error": 10,
-    "max_distance": [0.5],
-    "max_disappeared": 8,
-    "distance_metric": "diou",
-    "track_aiid": ["players"],
-    "track_id_prefix": "0",
-    "use_detect_box": 0,
-    "project_track": 0,
-    "project_fix_box_size": 0,
-    "detect_box_fall_back": 0
-}
-if not args.tracker_config:
-    tracker_params = None #tracker_params
+    tracker_params = {
+        "max_dead": 100,
+        "max_emb_distance": 0.0,
+        "var_tracker": "manorm",
+        "initialization_confidence": 0.85,
+        "min_confidence": 0.51,
+        "association_confidence": [0.39],
+        "min_visible_frames": 0,
+        "covariance_error": 100,
+        "observation_error": 10,
+        "max_distance": [0.5],
+        "max_disappeared": 8,
+        "distance_metric": "diou",
+        "track_aiid": ["players"],
+        "track_id_prefix": "0",
+        "use_detect_box": 0,
+        "project_track": 0,
+        "project_fix_box_size": 0,
+        "detect_box_fall_back": 0
+    }
+    if not args.tracker_config:
+        tracker_params = None #tracker_params
+    else:
+        with open(args.tracker_config, 'r') as f:
+            tracker_params = json.load(f)
+
+    predict_kwargs = {}
+
+    if args.homography_config:
+        with open(args.homography_config, 'r') as f:
+            homography_params = yaml.safe_load(f)
+        homography_params['field_info'] = FIELD_INFOS[League[args.league]]._asdict()
+        predict_kwargs['homography_params'] = homography_params
+
+    start = perf_counter_ns()
+    result = model.predict(
+        video=video, 
+        tracker_params=tracker_params, 
+        max_frames=args.max_frames,
+        **predict_kwargs
+    )
+    end = perf_counter_ns()
+    print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
+
+    out_pb = Data()
+    out_pb.frames.extend([f.proto for f in result])
+    with open(f'{video_id}.pb', 'wb') as f:
+        f.write(out_pb.SerializeToString())
 else:
-    with open(args.tracker_config, 'r') as f:
-        tracker_params = json.load(f)
-
-predict_kwargs = {}
-
-if args.homography_config:
-    with open(args.homography_config, 'r') as f:
-        homography_params = yaml.safe_load(f)
-    homography_params['field_info'] = FIELD_INFOS[League[args.league]]._asdict()
-    predict_kwargs['homography_params'] = homography_params
-
-start = perf_counter_ns()
-result = model.predict(
-    video=video, 
-    tracker_params=tracker_params, 
-    max_frames=args.max_frames,
-    **predict_kwargs
-)
-end = perf_counter_ns()
-print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
-
-out_pb = Data()
-out_pb.frames.extend([f.proto for f in result])
-with open(f'{video_id}.pb', 'wb') as f:
-    f.write(out_pb.SerializeToString())
+    print(f'using cached {video_id}.pb file. delete the file or use --no-cache to re-run inference.')
+    out_pb = Data()
+    with open(f'{video_id}.pb', 'rb') as f:
+        out_pb.ParseFromString(f.read())
+    result = [dtFrame(proto_frame=f) for f in out_pb.frames]
 
 #Load MOT data from protobuf
 mot_df = pd.DataFrame.from_records(
@@ -354,6 +361,10 @@ for frame, group in mot_df.groupby('frame'):
 
                 y_upper_envelope = find_upper_envelope(t, y)
 
+                x = np.interp(range(t.min(), t.max()+1), t, x)
+                y_upper_envelope = np.interp(range(t.min(), t.max()+1), t, y_upper_envelope)
+                t = np.arange(t.min(), t.max()+1)
+
                 # Apply Kalman smoothing to the trajectory
 
                 # State vector: [x, y, vx, vy]
@@ -379,7 +390,7 @@ for frame, group in mot_df.groupby('frame'):
                                   [0, dt**3/2, 0, dt**2]])
 
                 # Measurement noise covariance
-                r = 10.0  # measurement noise variance
+                r = 90.0  # measurement noise variance
                 R = r * np.eye(n_observations)
 
                 # Initialize state and covariance
@@ -429,10 +440,10 @@ for frame, group in mot_df.groupby('frame'):
                 x_smooth = x_smooth[:, 0]
 
                 # # Interpolate smoothed positions for all original time points
-                # x_smooth = np.interp(range(t.min(), t.max()+1), t, x_smooth)
-                # y_smooth = np.interp(range(t.min(),t.max()+1), t, y_smooth)
-                spl, u = make_splprep([x_smooth, y_smooth], u=t, s=10, k=min(3, len(trace)-1))
-                x_smooth, y_smooth = spl(range(t.min(), t.max()+1))
+                x_smooth = np.interp(range(t.min(), t.max()+1), t, x_smooth)
+                y_smooth = np.interp(range(t.min(),t.max()+1), t, y_smooth)
+                # spl, u = make_splprep([x_smooth, y_smooth], u=t, s=10, k=min(3, len(trace)-1))
+                # x_smooth, y_smooth = spl(range(t.min(), t.max()+1))
 
                 # Compute velocity vectors (first derivative)
                 velocity_x = np.gradient(x_smooth, 1 / 30) / 1760 * 3600  # Convert to mph
