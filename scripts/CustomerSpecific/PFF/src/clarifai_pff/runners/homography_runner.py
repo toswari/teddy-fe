@@ -201,7 +201,7 @@ class HomographyRunner(ModelClass):
         return new_regions
 
     def compute_homography(self, frame, field_element_detections: List[Region],
-                          homography_params: Optional[Dict[str, Any]] = None, prev_frame = None, prev_homography = None) -> HomographyResult:
+                          homography_params: Optional[Dict[str, Any]] = None, prev_frame = None, prev_homography: Optional[HomographyResult] = None) -> HomographyResult:
         """
         Compute homography matrix for field perspective correction.
 
@@ -279,16 +279,20 @@ class HomographyRunner(ModelClass):
                 # TODO: cleanup
                 if prev_frame is not None and prev_homography is not None:
                     camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame_bgr)
+                    hyp_homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
+
                     if result.homography.matrix is None:
-                        homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-
-                        field_points = result.homography.field_points
-                        image_points = transform_points(field_points, homography_matrix, inverse=True) if field_points else None
-                        result.homography.matrix = homography_matrix
-                        result.homography.image_points = image_points
+                        logger.info(f"Frame {frame}: No homography computed, using previous frame's homography adjusted by camera motion")
+                        result.homography.matrix = hyp_homography_matrix
+                        result.homography.mask = prev_homography.homography.mask
+                        result.homography.field_points = prev_homography.homography.field_points
+                        result.homography.image_points = transform_points(
+                            result.homography.field_points, 
+                            result.homography.matrix, 
+                            inverse=True
+                        ) if result.homography.field_points else None
+                        result.warnings.append("No homography computed, using previous frame's homography adjusted by camera motion")
                     else:
-                        hyp_homography_matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
-
                         lie_dist = np.linalg.norm(scipy.linalg.logm(result.homography.matrix) - scipy.linalg.logm(hyp_homography_matrix))
                         logger.info(f"Frame {frame}: Lie distance = {lie_dist}")
                         if lie_dist > 5: #15:
@@ -319,7 +323,24 @@ class HomographyRunner(ModelClass):
                 raise HomographyError(f"Error during homography computation: {e}")
 
             # Validate and return result
-            return self._validate_homography_result(result.homography, frame_bgr.shape)
+            final = self._validate_homography_result(result.homography, frame_bgr.shape)
+            if final.condition_number is not None and final.condition_number < 1e10:
+                prev_homography = final
+            else:
+                final = prev_homography  # Use previous if current is unstable
+                if prev_frame is not None and prev_homography is not None:
+                    camera_motion = compute_camera_motion(prev_frame.to_ndarray(format='bgr24'), frame.to_ndarray(format='bgr24'))
+                    final.homography.matrix = prev_homography.homography.matrix @ np.linalg.inv(camera_motion)
+                    final.homography.mask = prev_homography.homography.mask
+                    final.homography.field_points = prev_homography.homography.field_points
+                    final.homography.image_points = transform_points(
+                        final.homography.field_points,
+                        final.homography.matrix,
+                        inverse=True
+                    ) if final.homography.field_points is not None else None
+                    final.warnings.append("Current homography unstable, using previous frame's homography adjusted by camera motion")
+                    logger.info(final.warnings[-1])
+            return final
 
     def _create_metadata(self, homography_result: HomographyResult) -> Struct:
         """
@@ -332,6 +353,10 @@ class HomographyRunner(ModelClass):
             Metadata structure
         """
         metadata = Struct()
+
+        if homography_result is None:
+            metadata.update({'error': 'Homography result is None'})
+            return metadata
 
         if homography_result.homography is not None:
             metadata.update({

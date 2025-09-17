@@ -145,7 +145,7 @@ frame_homographies = {
         "image_points": MessageToDict(frame.proto.data.metadata).get('image_points', []),
         "field_points": MessageToDict(frame.proto.data.metadata).get('field_points', [])
     }
-    for i, frame in enumerate(result)
+    for i, frame in enumerate(result, 1)
 }
 
 # if args.tracker_config is not None:
@@ -247,16 +247,19 @@ for frame, group in mot_df.groupby('frame'):
     if frame in frame_homographies:
         homography = frame_homographies[frame]
         homography_matrix = np.array(homography['matrix'])
+        homography_mask = np.array(homography['mask'] or [])
         image_points = np.array(homography['image_points'] or [])
         field_points = np.array(homography['field_points'] or [])
         if homography_matrix.shape != (3,3):
             homography_matrix = None
-            image_points = []
-            field_points = []
+            homography_mask = None
+            image_points = np.array([])
+            field_points = np.array([])
     else:
         homography_matrix = None
-        image_points = []
-        field_points = []
+        homography_mask = None
+        image_points = np.array([])
+        field_points = np.array([])
     if (homography_matrix is None or homography_matrix.shape != (3,3)) and not args.camera_correction:
         # If no homography is available and camera correction is not requested, skip this frame
         print(f"Skipping frame {frame} as no homography is available and camera correction is not requested.")
@@ -265,10 +268,10 @@ for frame, group in mot_df.groupby('frame'):
         video_writer.write(combined)
         continue
 
-    for pt in image_points:
-        cv2.circle(video_frame, (int(pt[0]), int(pt[1])), 5, (255, 0, 0), -1)
+    for pt_idx,pt in enumerate(image_points):
+        cv2.circle(video_frame, (int(pt[0]), int(pt[1])), 5, (255, 0, 0) if homography_mask[pt_idx] else (0, 0, 255), -1)
 
-    for pt in field_points:
+    for pt_idx,pt in enumerate(field_points[homography_mask==1]):
         cv2.circle(hom_img, field_to_pixel(*pt, hom_img, field_info), 5, (0, 255, 0), -1)
 
     if homography_matrix is not None:
