@@ -1,15 +1,15 @@
 from clarifai.client import Model
 from clarifai.runners.utils.data_types.data_types import Video
+from clarifai_grpc.grpc.api import resources_pb2
 from time import perf_counter_ns
 
 import argparse
-import cv2
 import json
 import os
 
 p = argparse.ArgumentParser(description="Run video detection and tracking model.")
 p.add_argument("video_path", type=str, help="Path to the video file.")
-p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video-entire-pipeline-gpu2", help="URL of the model to use.")
+p.add_argument("--model_url", type=str, default="https://clarifai.com/pff-org/labelstudio-unified/models/video-end-to-end", help="URL of the model to use.")
 p.add_argument("--deployment_id", type=str, default=None, help="Deployment ID of the model.")
 p.add_argument("--output_suffix", type=str, default="_output.mp4", help="Suffix for the output video file.")
 p.add_argument("--max_frames", type=int, default=None, help="Maximum number of frames to process. Default is None (process all frames).")
@@ -22,7 +22,7 @@ model_kwargs = {}
 if args.deployment_id:
     model_kwargs['deployment_id'] = args.deployment_id
 
-model = Model(url=args.model_url, deployment_id=args.deployment_id, deployment_user_id="pff-org")
+model = Model(url=args.model_url, deployment_user_id="pff-org", **model_kwargs)
 
 video_path = args.video_path
 if video_path.startswith('http://') or video_path.startswith('https://'):
@@ -68,6 +68,13 @@ result = model.predict(video=video, tracker_params=tracker_params, max_frames=ar
 end = perf_counter_ns()
 print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 
+data = resources_pb2.Data()
+for frame in result:
+    f = data.frames.add()
+    f.CopyFrom(frame.proto)
+with open(os.path.join(args.out_dir, f'{video_id}.pb'), 'wb') as f:
+    f.write(data.SerializeToString())
+
 # from google.protobuf.json_format import MessageToDict
 # import json
 
@@ -80,4 +87,4 @@ print(f"Inference took {end - start} ns ({(end - start) / 1e6} ms)")
 # with open(output_json_path, 'w') as f:
 #     json.dump(first_frame_dict, f, indent=2)
 
-print(result[0].proto)
+# print(result[0].proto)
