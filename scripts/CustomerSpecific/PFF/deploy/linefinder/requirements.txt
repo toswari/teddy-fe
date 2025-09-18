@@ -1,0 +1,3 @@
+# Clarifai SDK - required
+clarifai>=11.6.8
+clarifai-pff[cpu] @ /home/nonroot/dist/clarifai_pff-0.1.0.tar.gz

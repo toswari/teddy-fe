@@ -10,7 +10,7 @@ dependencies = [
     "clarifai-grpc>=11.5.5",
     "joblib>=1.5.1",
     "matplotlib>=3.10.3",
-    "numpy>=2.0.0",
+    "numpy>=2.3.3",
     "onnx>=1.18.0",
     "onnxruntime>=1.22.1",
     "opencv-python-headless>=4.11.0.86",
@@ -35,7 +35,7 @@ dev = [
     "pandas>=2.3.1",
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
-    "ruff>=0.12.8",
+    "ruff>=0.11.4",
     "safetensors>=0.6.2",
     "tensorboard>=2.20.0",
     "torch>=2.8.0",
@@ -45,6 +45,7 @@ dev = [
 
 [tool.uv.sources]
 motmetrics = { git = "https://github.com/cheind/py-motmetrics.git" }
+clarifai = { git = "https://github.com/Clarifai/clarifai-python", rev = "11.8.1" }
 
 [build-system]
 requires = ["hatchling"]

@@ -1,3 +1,8 @@
+.PHONY: deploy-linefinder-preflight
+
+noop:
+	@echo "No operation"
+
 clarifai-aws:
 	python scripts/make_aws.py
 
@@ -10,6 +15,10 @@ build-container:
 	nerdctl build -t $(TAG) $(CONTEXT) || \
 	lima nerdctl build -t $(TAG) $(CONTEXT)
 
+upload-model:
+	@echo "Uploading the model..."
+	uv run clarifai model upload --skip_dockerfile $(CONTEXT)
+
 deploy-yolo-preflight:
 	@echo "yolov7 preflight"
 	uv build --sdist -o deploy/yolov7-co/dist
@@ -19,7 +28,7 @@ deploy-yolo-preflight:
 deploy-yolo:
 	@echo "Deploying yolov7..."
 	uv build --sdist -o deploy/yolov7-co/dist
-	clarifai model upload --skip_dockerfile deploy/yolov7-co/
+	uv run clarifai model upload --skip_dockerfile deploy/yolov7-co/
 
 deploy-video-detect-track-preflight: models/model.onnx models/embedder.onnx models/reid.skl
 	@echo "Deploying video detect..."
@@ -31,13 +40,24 @@ deploy-video-detect-track: models/model.onnx models/embedder.onnx models/reid.sk
 	@echo "Deploying video detect track..."
 	uv build --sdist -o deploy/video-detect-track/dist
 	cp -r models/ deploy/video-detect-track/1/
-	clarifai model upload --skip_dockerfile deploy/video-detect-track/
+	uv run clarifai model upload --skip_dockerfile deploy/video-detect-track/
 
 deploy-snap: models/snap_model_iter_1012.pth
 	@echo "Deploying snap..."
 	uv build --sdist -o deploy/snap/dist
 	cp models/snap_model_iter_1012.pth deploy/snap/1/
-	clarifai model upload --skip_dockerfile deploy/snap/
+	uv run clarifai model upload --skip_dockerfile deploy/snap/
+
+deploy-linefinder-preflight:
+	@echo "Deploying linefinder..."
+	uv build --sdist -o deploy/linefinder/dist
+	cp linefinder/lines.py deploy/linefinder/
+	cp linefinder/setup.py deploy/linefinder/
+	cp linefinder/hough.cpp deploy/linefinder/
+	cp -r linefinder/pybind11_opencv deploy/linefinder/
+
+deploy-linefinder: deploy-linefinder-preflight
+	$(MAKE) upload-model CONTEXT=deploy/linefinder/
 
 mot-gt-pb:
 	@echo "Generating MOT GT data..."
