@@ -1,0 +1,19 @@
+{
+    "compliance_status": "Non-compliant""logo_type": "Partnership Combination""summary": "The asset is non-compliant due to multiple violations across two different logo lockups. The primary partnership logo on the car uses incorrect spacing and bar height, while the vertical version on the left uses forbidden center alignment and an incorrect typeface.""violations": [
+        0: {
+            "rule_violated": "3.2. Spacing""description": "The space between the Kia logo, the vertical bar, and the partner name 'METROKIA' is significantly less than the required distance K (the height of the Kia logo).""recommendation": "Set the space on both sides of the vertical bar to be exactly equal to K, the height of the Kia logo."
+        }
+1: {
+            "rule_violated": "3.3. Bar Properties (Height)""description": "The vertical bar's height appears to be equal to the logo height (K). For a horizontally wide partner logo like 'METROKIA', the bar's height must be 130% of K.""recommendation": "Increase the height of the vertical separator bar to be 130% of the Kia logo's height (K)."
+        }
+2: {
+            "rule_violated": "2.3. Vertical Combination (Alignment)""description": "In the vertical lockup example on the left, the text 'METROKIA' is center-aligned under the Kia logo. Vertical combinations require strict left alignment.""recommendation": "For any vertical logo expansion, all text must be strictly left-aligned with the left edge of the Kia logo."
+        }
+3: {
+            "rule_violated": "2.1. Typeface & Style""description": "The typeface used for 'METROKIA' does not appear to be the mandated 'Kia Signature Bold'.""recommendation": "Replace the current font for 'METROKIA' with the official 'Kia Signature Bold' typeface."
+        }
+4: {
+            "rule_violated": "5.1. Logo Count""description": "The single creative displays two different logo lockup styles (vertical expansion and horizontal partnership) for the same entity, creating inconsistency.""recommendation": "Select one compliant logo format for the partner and use it exclusively within the asset."
+        }
+    ]
+"confidence_score": 0.97
