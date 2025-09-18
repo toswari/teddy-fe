@@ -163,7 +163,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 For questions, issues, or contributions:
 
-- **Repository**: [https://github.com/toswari-ai/ClassifAI](https://github.com/toswari-ai/ClassifAI)
+- **Repository**: [https://github.com/Clarifai/PS-Field-Engineering/blob/main/sales_engineering/Demos/ClassifAI/](https://github.com/Clarifai/PS-Field-Engineering/blob/main/sales_engineering/Demos/ClassifAI/)
 - **Issues**: Report bugs and feature requests via GitHub Issues
 
 ---
