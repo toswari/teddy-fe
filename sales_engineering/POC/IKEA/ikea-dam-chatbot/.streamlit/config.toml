@@ -1,0 +1,27 @@
+# Streamlit Configuration
+# This file configures Streamlit app behavior
+
+[server]
+# Server configuration
+port = 8501
+enableCORS = true
+enableXsrfProtection = true
+
+[browser]
+# Browser settings
+gatherUsageStats = false
+
+[theme]
+# App theme
+primaryColor = "#003078"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+
+[logger]
+# Logging configuration
+level = "info"
+
+[client]
+# Client configuration
+showErrorDetails = true

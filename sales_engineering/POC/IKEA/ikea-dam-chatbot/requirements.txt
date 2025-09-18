@@ -1,0 +1,5 @@
+streamlit>=1.48.0
+clarifai>=11.6.4
+pillow>=10.0.0
+python-dotenv>=1.0.0
+toml>=0.10.2
