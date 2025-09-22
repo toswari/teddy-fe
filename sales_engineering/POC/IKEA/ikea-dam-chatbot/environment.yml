@@ -1,0 +1,14 @@
+# Conda Environment Configuration for Clarifai Multimodal Chatbot
+name: clarifai-chatbot
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - streamlit>=1.28.0
+  - pillow>=10.0.0
+  - pip
+  - pip:
+    - clarifai>=11.6.0
+    - python-dotenv>=1.0.0
+    - toml>=0.10.2

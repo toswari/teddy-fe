@@ -1,0 +1,19 @@
+streamlit==1.44.1
+streamlit_pills==0.3.0
+streamlit-diff-viewer==0.0.2
+temp==2020.7.2
+pandas==2.2.0
+streamlit-option-menu==0.3.12
+prettytable==3.10.0
+langchain==0.3.22
+langchain-community==0.3.16
+langchain-core ==0.3.50
+langchain-text-splitters==0.3.7
+langsmith==0.3.4
+pypdf
+pydy
+clarifai==11.3.0
+clarifai-grpc==11.6.3
+clarifai-protocol
+streamlit_lottie
+

@@ -1,0 +1,117 @@
+import time
+import streamlit as st
+
+import os
+import traceback
+import json
+from pathlib import Path
+from getpass import getpass
+from google.protobuf.struct_pb2 import Struct
+
+from clarifai.client.model import Model, Inputs
+from clarifai.client.search import Search
+from clarifai.client.input import Inputs
+from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+from clarifai_grpc.grpc.api import service_pb2_grpc, service_pb2, resources_pb2
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+# Set up Clarifai credentials
+CLARIFAI_PAT = st.secrets["CLARIFAI_PAT"]  # Store in Streamlit secrets
+USER_ID = st.secrets["CLARIFAI_USER_ID"]  # Store in Streamlit secrets
+prompt2= "What is the future of AI?"
+MODEL_URL = "https://clarifai.com/meta/Llama-3/models/Llama-3_2-3B-Instruct"
+#odel = Model(url=MODEL_URL, pat=CLARIFAI_PAT)
+#print("CLARIFAI_PAT:", CLARIFAI_PAT)  # Debugging line to check if the PAT is loaded correctly
+
+@st.cache_resource
+def get_model():
+    """Cached model instance for better performance"""
+    return Model(url=MODEL_URL, pat=CLARIFAI_PAT)
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1))
+def stream_prediction(prompt):
+    """Enhanced streaming generator with error handling"""
+    if not CLARIFAI_PAT:
+        yield "🔑 Error: Missing Clarifai PAT in secrets"
+        return
+
+    try:
+        # Initialize the model
+        #model = Model(url=MODEL_URL, pat=CLARIFAI_PAT)
+        model=get_model()
+        stream = model.generate_by_bytes(
+            input_bytes=prompt.encode(),
+            input_type="text",
+            inference_params={
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "top_p": 0.9
+            }
+        )
+
+        buffer = ""
+        for chunk in stream:
+            #print(chunk)  # Debugging line to check the chunk content
+            status_code = chunk.status.code
+            #print(status_code)  # Debugging line to check the status code
+            if status_code == 10000:
+                text_chunk = chunk.outputs[0].data.text.raw
+                buffer += text_chunk
+                
+                # Flush buffer on sentence boundaries
+                if len(buffer) > 30 or any(punct in buffer for punct in ".!?\n"):
+                    yield buffer
+                    buffer = ""
+                    time.sleep(0.02)  # Simulate natural typing speed
+            else:
+                yield f"⚠️ Error: {chunk.status.description}"
+        
+        if buffer:  # Final flush
+            yield buffer
+
+    except Exception as e:
+        yield f"🚨 Critical Error: {str(e)}"
+
+
+# UI Setup
+st.set_page_config(page_title="ClarifAI Chat", layout="wide")
+st.title("Clarifai Streaming Chat")
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display previous messages
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Handle new input
+if prompt := st.chat_input("Message ClarifAI"):
+    # Add user message to history and display immediately
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    
+    # Display assistant response
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        full_response = ""
+        
+        # Stream response with typing indicator
+        for chunk in stream_prediction(prompt):
+            full_response += chunk
+            message_placeholder.markdown(f"{full_response}▌")
+        
+        # Final render without cursor
+        message_placeholder.markdown(full_response)
+    
+    # Add assistant response to history
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+# Optional sidebar for debugging
+with st.sidebar:
+    st.subheader("Debug Info")
+    st.write(f"Message count: {len(st.session_state.messages)}")
+    if st.session_state.messages:
+        st.write("Last message:", st.session_state.messages[-1]["content"][:50] + "...")

@@ -1,0 +1,56 @@
+# Clarifai multimodal-to-text model catalog (subset)
+models:
+  - id: mm-poly-8b
+    provider: clarifai
+    label: MM-Poly-8B (Multimodal)
+    tier: multimodal
+    description: Clarifai native 8B multimodal assistant (text+image+audio+video) suited for visual inspection tasks.
+    openai_compat_model: https://clarifai.com/clarifai/main/models/mm-poly-8b
+  - id: claude-3-opus
+    provider: anthropic
+    label: Claude 3 Opus (High Reasoning)
+    tier: premium
+    description: State-of-the-art reasoning & multilingual multimodal LLM.
+    openai_compat_model: https://clarifai.com/anthropic/completion/models/claude-3-opus
+  - id: claude-3_5-sonnet
+    provider: anthropic
+    label: Claude 3.5 Sonnet
+    tier: recommended
+    description: Fast high-quality reasoning balance.
+    openai_compat_model: https://clarifai.com/anthropic/completion/models/claude-3_5-sonnet
+  - id: gpt-4o
+    provider: openai
+    label: GPT-4o
+    tier: premium
+    description: High fidelity multimodal.
+    openai_compat_model: https://clarifai.com/openai/chat-completion/models/gpt-4o
+  - id: gpt-4o-mini
+    provider: openai
+    label: GPT-4o Mini
+    tier: cost-effective
+    description: Cheaper, still strong vision/language.
+    openai_compat_model: https://clarifai.com/openai/chat-completion/models/gpt-4o-mini
+  - id: gemini-1_5-pro
+    provider: gcp
+    label: Gemini 1.5 Pro
+    tier: large-context
+    description: 1M token context experimental.
+    openai_compat_model: https://clarifai.com/gcp/generate/models/gemini-1_5-pro
+  - id: gemini-2_0-flash
+    provider: gcp
+    label: Gemini 2.0 Flash
+    tier: fast
+    description: Low-latency multimodal.
+    openai_compat_model: https://clarifai.com/gcp/generate/models/gemini-2_0-flash
+  - id: phi-3-vision-128k-instruct
+    provider: microsoft
+    label: Phi-3 Vision 128K Instruct
+    tier: economical
+    description: Cost-effective multimodal vision-text.
+    openai_compat_model: https://clarifai.com/microsoft/text-generation/models/phi-3-vision-128k-instruct
+  - id: llava-v1_6-mistral-7b
+    provider: community
+    label: LLaVA v1.6 Mistral 7B
+    tier: open-source
+    description: Self-host friendly visual reasoning.
+    openai_compat_model: https://clarifai.com/liuhaotian/llava/models/llava-v1_6-mistral-7b

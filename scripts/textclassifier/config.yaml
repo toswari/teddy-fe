@@ -1,0 +1,40 @@
+
+model:
+  id: "my-uploaded-model"
+  user_id: "YOUR_USER_ID_HERE"
+  app_id: "YOUR_APP_ID_HERE"
+  model_type_id: "text-classifier"
+
+# Commented out not sure if this is needed
+# method_signatures:
+#   - name: predict
+#     method_type: 1
+#     input_fields:
+#       - name: text
+#         type: 1
+#     output_fields:
+#       - name: return
+#         type: 7
+
+build_info:
+  python_version: "3.11"
+
+inference_compute_info:
+  cpu_limit: "2000m"
+  cpu_requests: "1"
+  cpu_memory: "4Gi"
+  cpu_memory_requests: "2Gi"
+  num_accelerators: 0
+
+# Commented out not sure if this is needed
+# concepts:
+#   - id: 'safe'
+#     name: 'safe'
+#   - id: 'drug'
+#     name: 'drug'
+#   - id: 'explicit'
+#     name: 'explicit'
+#   - id: 'gore'
+#     name: 'gore'
+#   - id: 'suggestive'
+#     name: 'suggestive'
