@@ -34,6 +34,7 @@ p.add_argument('--max_frames', type=int, default=None, help='Maximum number of f
 p.add_argument('--smooth', action='store_true', help='Apply B-spline smoothing to the object traces')
 p.add_argument('--show_untracked', action='store_true', help='Show untracked objects in the output frames')
 p.add_argument('--no-cache', action='store_true', help='Do not use cached .pb file if available')
+p.add_argument('--show_inferred_field_points', action='store_true', help='Show inferred field points on the video frame')
 args = p.parse_args()
 
 video_path = args.video_path
@@ -285,6 +286,28 @@ for frame, group in mot_df.groupby('frame'):
         fov_points = np.array([[0,0], [video_frame.shape[1], 0], [video_frame.shape[1], video_frame.shape[0]], [0, video_frame.shape[0]]])
         fov_points_transformed = np.array([field_to_pixel(*pt, hom_img, field_info) for pt in transform_points(fov_points, homography_matrix)]).astype(int)
         cv2.polylines(hom_img, [np.int32(fov_points_transformed)], isClosed=True, color=(0, 255, 0), thickness=2)
+
+        if args.show_inferred_field_points:
+            near_sideline = np.array([[i, field_info.width] for i in range(0, field_info.length+1, 5)])
+            near_sideline_transformed = np.array([pt for pt in transform_points(near_sideline, homography_matrix, inverse=True)]).astype(int)
+            for pt in near_sideline_transformed:
+                cv2.circle(video_frame, tuple(pt), 5, (0, 255, 0), 2)
+
+            far_sideline = np.array([[i, 0] for i in range(0, field_info.length+1, 5)])
+            far_sideline_transformed = np.array([pt for pt in transform_points(far_sideline, homography_matrix, inverse=True)]).astype(int)
+            for pt in far_sideline_transformed:
+                cv2.circle(video_frame, tuple(pt), 5, (0, 255, 0), 2)
+
+            inner_hashes = np.array([[i, field_info.hash_mark_distance] for i in range(0, field_info.length+1, 1)])
+            inner_hashes = np.vstack((inner_hashes, np.array([[i, field_info.width - field_info.hash_mark_distance] for i in range(0, field_info.length+1, 1)])))
+            inner_hashes_transformed = np.array([pt for pt in transform_points(inner_hashes, homography_matrix, inverse=True)]).astype(int)
+            for pt in inner_hashes_transformed:
+                cv2.circle(video_frame, tuple(pt), 5, (0, 255, 0), 2)
+
+            yard_lines = np.array([[i, j] for i in range(0, field_info.length+1, 5) for j in [0, field_info.width]])
+            yard_lines_transformed = np.array([pt for pt in transform_points(yard_lines, homography_matrix, inverse=True)]).astype(int)
+            for pt1, pt2 in zip(yard_lines_transformed[::2], yard_lines_transformed[1::2]):
+                cv2.line(video_frame, tuple(pt1), tuple(pt2), (0, 255, 0), 2)
 
     prev_frame = video_frame.copy()
     prev_homography_matrix = homography_matrix

@@ -11,16 +11,13 @@ import logging
 from clarifai.runners.models.model_class import ModelClass
 from clarifai.runners.utils.data_types.data_types import Video, Frame as dtFrame
 import clarifai.utils.logging as logging_utils
-from clarifai_grpc.grpc.api.resources_pb2 import Frame, Data
-from clarifai_pff.auto_homography import compute_camera_motion, transform_points
+from clarifai_grpc.grpc.api.resources_pb2 import Frame
 from google.protobuf.struct_pb2 import Struct
 
 import clarifai_pff.utils.video as video_utils
 from clarifai_pff.runners.detection_runner import DetectionRunner
 from clarifai_pff.runners.tracking_runner import TrackingRunner
 from clarifai_pff.runners.homography_runner import HomographyRunner
-import scipy
-import numpy as np
 
 logger = logging_utils.get_logger(logging.INFO, name=__name__)
 
@@ -78,9 +75,11 @@ class CompositeRunner(ModelClass):
         if video.url:
             return video_utils.stream_frames_from_url(video.url, download_ok=True)
         elif video.bytes:
-            def _bytes_iterator():
-                yield video.bytes
-            return video_utils.stream_frames_from_bytes(_bytes_iterator())
+            from io import BytesIO
+            bytes_io = BytesIO(video.bytes)
+
+            import av
+            return av.open(bytes_io).decode(video=0)
         else:
             raise ValueError("Video must have either bytes or url set.")
 
