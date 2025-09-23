@@ -276,9 +276,6 @@ for frame, group in mot_df.groupby('frame'):
         video_writer.write(combined)
         continue
 
-    for pt_idx,pt in enumerate(image_points):
-        cv2.circle(video_frame, (int(pt[0]), int(pt[1])), 5, (255, 0, 0) if homography_mask[pt_idx] else (0, 0, 255), -1)
-
     for pt_idx,pt in enumerate(field_points[homography_mask==1]):
         cv2.circle(hom_img, field_to_pixel(*pt, hom_img, field_info), 5, (0, 255, 0), -1)
 
@@ -308,6 +305,9 @@ for frame, group in mot_df.groupby('frame'):
             yard_lines_transformed = np.array([pt for pt in transform_points(yard_lines, homography_matrix, inverse=True)]).astype(int)
             for pt1, pt2 in zip(yard_lines_transformed[::2], yard_lines_transformed[1::2]):
                 cv2.line(video_frame, tuple(pt1), tuple(pt2), (0, 255, 0), 2)
+
+    for pt_idx,pt in enumerate(image_points):
+        cv2.circle(video_frame, (int(pt[0]), int(pt[1])), 5, (255, 0, 0) if homography_mask[pt_idx] else (0, 0, 255), -1)
 
     prev_frame = video_frame.copy()
     prev_homography_matrix = homography_matrix
