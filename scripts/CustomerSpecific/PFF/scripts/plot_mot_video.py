@@ -431,42 +431,34 @@ for frame, group in mot_df.groupby('frame'):
                 x_filt[0] = x_init
                 P_filt[0] = P_init
 
+                from clarifai_pff.filters import KalmanFilter, RauchTungStriebelSmoother
+
+                kf = KalmanFilter(F, H, Q, R, P_init, x_init)
+                rts = RauchTungStriebelSmoother(F, Q)
+
+                rts.add_filtered_estimate(x_filt[0], P_filt[0], P_pred[0])
+
                 for k in range(1, n_timesteps):
-                    # Predict
-                    x_pred[k] = F @ x_filt[k-1]
-                    P_pred[k] = F @ P_filt[k-1] @ F.T + Q
+                    kf.predict()
+                    x_pred[k] = kf.x
+                    P_pred[k] = kf.P
                     
-                    # Update
                     z = np.array([x[k], y_upper_envelope[k]])
-                    y_res = z - H @ x_pred[k]
-                    S = H @ P_pred[k] @ H.T + R
-                    K = P_pred[k] @ H.T @ np.linalg.inv(S)
-                    
-                    x_filt[k] = x_pred[k] + K @ y_res
-                    P_filt[k] = (np.eye(n_states) - K @ H) @ P_pred[k]
+                    kf.update(z)
+                    x_filt[k] = kf.x
+                    P_filt[k] = kf.P
 
-                # Backward pass (RTS smoother)
-                x_smooth = np.zeros((n_timesteps, n_states))
-                P_smooth = np.zeros((n_timesteps, n_states, n_states))
+                    rts.add_filtered_estimate(x_filt[k], P_filt[k], P_pred[k])
 
-                # Initialize with filtered estimates
-                x_smooth[-1] = x_filt[-1]
-                P_smooth[-1] = P_filt[-1]
-
-                for k in range(n_timesteps-2, -1, -1):
-                    A = P_filt[k] @ F.T @ np.linalg.inv(P_pred[k+1])
-                    x_smooth[k] = x_filt[k] + A @ (x_smooth[k+1] - x_pred[k+1])
-                    P_smooth[k] = P_filt[k] + A @ (P_smooth[k+1] - P_pred[k+1]) @ A.T
+                x_smooth, P_smooth = rts.smooth()
 
                 # Extract smoothed positions
                 y_smooth = x_smooth[:, 1]
                 x_smooth = x_smooth[:, 0]
 
-                # # Interpolate smoothed positions for all original time points
+                # Interpolate smoothed positions for all time points
                 x_smooth = np.interp(range(t.min(), t.max()+1), t, x_smooth)
                 y_smooth = np.interp(range(t.min(),t.max()+1), t, y_smooth)
-                # spl, u = make_splprep([x_smooth, y_smooth], u=t, s=10, k=min(3, len(trace)-1))
-                # x_smooth, y_smooth = spl(range(t.min(), t.max()+1))
 
                 # Compute velocity vectors (first derivative)
                 velocity_x = np.gradient(x_smooth, 1 / 30) / 1760 * 3600  # Convert to mph
