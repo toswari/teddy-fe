@@ -1,0 +1,4 @@
+clarifai
+pydantic
+python-dotenv
+requests

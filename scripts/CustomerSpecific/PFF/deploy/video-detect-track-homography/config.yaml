@@ -1,0 +1,14 @@
+build_info:
+  python_version: '3.12'
+inference_compute_info:
+  accelerator_memory: 6Gi
+  accelerator_type:
+  - NVIDIA-*
+  cpu_limit: '4'
+  cpu_memory: 4Gi
+  num_accelerators: 1
+model:
+  app_id: labelstudio-unified
+  id: video-end-to-end
+  model_type_id: any-to-any
+  user_id: pff-org

@@ -21,3 +21,10 @@ __pycache__/
 !models/*.pt
 !models/*.safetensors
 !models/*.pth
+
+# Deployment directories
+deploy/linefinder/*
+!deploy/linefinder/1/model.py
+!deploy/linefinder/config.yaml
+!deploy/linefinder/Dockerfile
+!deploy/linefinder/requirements.txt

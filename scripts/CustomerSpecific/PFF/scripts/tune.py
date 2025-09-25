@@ -14,12 +14,14 @@ import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
 
 def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.25, reid_model_path=None, tracker_seed:dict =None):
-    # initial_confidence = trial.suggest_float("initialization_confidence", 0.65, 1)
-    # min_confidence = trial.suggest_float("min_confidence", 0.5, initial_confidence)
-    # max_distance = trial.suggest_float("max_distance", 0, 1)
-    # association_confidence = trial.suggest_float("association_confidence", 0, 1)
+    initial_confidence = trial.suggest_float("initialization_confidence", 0.65, 1)
+    min_confidence = trial.suggest_float("min_confidence", 0.5, initial_confidence)
+    max_distance = trial.suggest_float("max_distance", 0, 1)
+    association_confidence = trial.suggest_float("association_confidence", 0, 1)
     max_emb_distance = trial.suggest_float("max_emb_distance", 0, 1)
-    # max_disappeared = trial.suggest_int("max_disappeared", 0, 30)
+    max_disappeared = trial.suggest_int("max_disappeared", 0, 30)
+    cov_error = trial.suggest_int("covariance_error", 5, 150)
+    obs_error = trial.suggest_int("observation_error", 1, 100)
 
     tracker_params = {
         "max_dead": 100,
@@ -45,12 +47,14 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
         tracker_params.update(tracker_seed)
     
     tracker_params.update({
-        # "initialization_confidence": initial_confidence,
-        # "min_confidence": min_confidence,
-        # "max_distance": [max_distance],
-        # "association_confidence": [association_confidence],
+        "initialization_confidence": initial_confidence,
+        "min_confidence": min_confidence,
+        "max_distance": [max_distance],
+        "association_confidence": [association_confidence],
         "max_emb_distance": max_emb_distance,
-        # "max_disappeared": max_disappeared,
+        "max_disappeared": max_disappeared,
+        "covariance_error": cov_error,
+        "observation_error": obs_error,
     })
     if reid_model_path is not None:
         tracker_params["reid_model_path"] = reid_model_path
@@ -92,7 +96,7 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
                     'y': r.region_info.bounding_box.top_row * h,
                     'xx': r.region_info.bounding_box.right_col * w,
                     'yy': r.region_info.bounding_box.bottom_row * h,
-                    'conf': r.value,
+                    'conf': r.data.concepts[0].value,
                     'category': r.data.concepts[0].name
                 })
         for fi, f in enumerate(det_data.frames):
@@ -104,7 +108,7 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
                     'y': r.region_info.bounding_box.top_row * h,
                     'xx': r.region_info.bounding_box.right_col * w,
                     'yy': r.region_info.bounding_box.bottom_row * h,
-                    'conf': r.value,
+                    'conf': r.data.concepts[0].value,
                     'category': r.data.concepts[0].name
                 })
         
@@ -130,6 +134,7 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
         for frame_idx, frame in enumerate(det_data.frames, 1):
             for region in frame.data.regions:
                 region.track_id = ''
+                region.value = region.data.concepts[0].value
             tracker(frame.data)
             new_dets.append(
                 pd.DataFrame.from_records(
@@ -141,7 +146,7 @@ def obj(trial, mot_dir, gt_dir, target_class, metrics, association_threshold=0.2
                             'y': region.region_info.bounding_box.top_row * h,
                             'xx': region.region_info.bounding_box.right_col * w,
                             'yy': region.region_info.bounding_box.bottom_row * h,
-                            'conf': region.value,
+                            'conf': region.data.concepts[0].value,
                             'category': region.data.concepts[0].name if region.data.concepts else ''
                         }
                     for region in frame.data.regions if region.track_id != ''
@@ -209,6 +214,7 @@ if __name__ == "__main__":
     parser.add_argument("--association-threshold", type=float, default=0.25, help="Association threshold for IOU")
     parser.add_argument("--reid-model-path", type=str, default=None, help="Path to the reid model file")
     parser.add_argument("--tracker-seed", type=str, default=None, help="Path to a JSON file with tracker seed parameters")
+    parser.add_argument("--storage", type=str, default="optuna.log", help="Path to the optuna storage journal file")
     args = parser.parse_args()
 
     if args.tracker_seed:
@@ -216,7 +222,7 @@ if __name__ == "__main__":
         with open(args.tracker_seed, 'r') as f:
             tracker_seed = json.load(f)
 
-    storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend('optuna.log'))
+    storage = optuna.storages.JournalStorage(optuna.storages.journal.JournalFileBackend(args.storage))
 
     study = optuna.create_study(study_name=args.study_name, directions=["maximize"]*len(args.metrics), load_if_exists=True, storage=storage)
     study.optimize(partial(obj, mot_dir=args.mot_dir, gt_dir=args.gt_dir, target_class=args.target_class, metrics=args.metrics, association_threshold=args.association_threshold, reid_model_path=args.reid_model_path, tracker_seed=tracker_seed), n_trials=args.num_trials)
