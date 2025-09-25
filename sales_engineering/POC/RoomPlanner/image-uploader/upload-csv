@@ -1,0 +1,471 @@
+#!/usr/bin/env python3
+"""
+Clarifai Batch Image Upload Tool
+================================
+This script uploads images from a CSV file to Clarifai with concept annotations.
+It processes images in batches to handle large datasets efficiently.
+
+For beginners: This script does the following:
+1. Reads a CSV file containing image URLs and concept labels
+2. Downloads images from the URLs
+3. Uploads them to Clarifai in batches
+4. Creates concept annotations for each image
+"""
+
+# Import required libraries (these are like tools we need to use)
+import os          # For working with operating system (files, environment variables)
+import csv         # For reading CSV (spreadsheet) files
+import sys         # For accessing command line arguments
+import base64      # For encoding image data (not used in current version)
+import requests    # For downloading images from internet URLs
+from dotenv import load_dotenv           # For loading environment variables from .env file
+from clarifai.client.user import User    # Main Clarifai library for API access
+
+# === ENVIRONMENT SETUP AND DEBUGGING ===
+# This section loads our configuration and shows debug information
+
+print("=== DOTENV DEBUG ===")
+# Show current folder location (helpful for debugging file paths)
+print(f"Current working directory: {os.getcwd()}")
+# Check if our .env configuration file exists
+print(f".env file exists: {os.path.exists('.env')}")
+# Show full path to .env file
+print(f".env file path: {os.path.abspath('.env')}")
+
+# Read and display .env file contents for debugging
+# (This helps us see what configuration is being loaded)
+if os.path.exists('.env'):
+    with open('.env', 'r') as f:
+        env_content = f.read()
+    print(f".env file contents:\n{env_content}")
+else:
+    print("ERROR: .env file not found!")
+
+# Load environment variables from .env file into the program
+# verbose=True: Show detailed loading information
+# override=True: .env file values take priority over existing environment variables
+dotenv_loaded = load_dotenv(verbose=True, override=True)
+print(f"load_dotenv(override=True) returned: {dotenv_loaded}")
+print("====================")
+
+# === CONCEPT ID SANITIZATION FUNCTION ===
+# Clarifai has strict rules for concept IDs, so we need to clean them up
+def sanitize_concept_id(concept_name):
+    """
+    Clean up concept names to make them valid for Clarifai.
+    
+    For beginners: Clarifai concept IDs can only contain:
+    - Letters (a-z, A-Z)
+    - Numbers (0-9) 
+    - Hyphens (-)
+    
+    This function takes any concept name and converts it to follow these rules.
+    
+    Examples:
+    - "Twin Bed" becomes "twin-bed"
+    - "KING SIZE" becomes "king-size" 
+    - "Queen_Bed_XL" becomes "queen-bed-xl"
+    
+    Args:
+        concept_name (str): The original concept name from CSV
+        
+    Returns:
+        str: A cleaned concept ID that Clarifai will accept
+    """
+    # Handle empty or None input
+    if not concept_name:
+        return ""
+    
+    # Step 1: Remove leading/trailing whitespace
+    sanitized = concept_name.strip()
+    
+    # Step 2: Replace spaces with hyphens (Clarifai doesn't allow spaces)
+    sanitized = sanitized.replace(' ', '-')
+    
+    # Step 3: Replace underscores with hyphens (normalize to one separator type)
+    sanitized = sanitized.replace('_', '-')
+    
+    # Step 4: Remove any characters that aren't letters, numbers, or hyphens
+    # This uses "regular expressions" - a pattern matching tool
+    import re  # Import regex library
+    sanitized = re.sub(r'[^a-zA-Z0-9-]', '', sanitized)
+    
+    # Step 5: Clean up multiple consecutive hyphens (---, --, etc. become -)
+    sanitized = re.sub(r'-+', '-', sanitized)
+    
+    # Step 6: Remove leading/trailing hyphens (remove - from start and end)
+    sanitized = sanitized.strip('-')
+    
+    # Step 7: Handle edge case where we might end up with empty string
+    if not sanitized:
+        sanitized = "unknown-concept"  # Fallback name
+    
+    # Step 8: Convert to lowercase for consistency (Clarifai best practice)
+    return sanitized.lower()
+
+# === CONFIGURATION LOADING ===
+# Load settings from environment variables (from .env file)
+
+# Read Clarifai credentials from environment variables
+# os.getenv() reads environment variables that were loaded from .env file
+USER_ID = os.getenv("CLARIFAI_USER_ID")        # Your Clarifai username
+APP_ID = os.getenv("CLARIFAI_APP_ID")          # Your Clarifai application ID  
+CLARIFAI_PAT = os.getenv("CLARIFAI_PAT")       # Your Clarifai Personal Access Token
+
+# Get CSV file path from command line argument or use default
+# sys.argv is a list of command line arguments: [script_name, arg1, arg2, ...]
+# If user provides a filename as argument, use it; otherwise use default
+CSV_FILE_PATH = sys.argv[1] if len(sys.argv) > 1 else "./inputs.csv"
+
+# Get batch size from environment variable or use default value
+# int() converts the string to a number, default is "16" if BATCH_SIZE not set
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "16"))
+
+# Set environment variables in the system for other parts of the program to use
+# This ensures the variables are available throughout the entire program
+if USER_ID:
+    os.environ["CLARIFAI_USER_ID"] = USER_ID    # Set system environment variable
+    os.environ["USER_ID"] = USER_ID             # Also set backup without prefix
+
+if APP_ID:
+    os.environ["CLARIFAI_APP_ID"] = APP_ID      # Set system environment variable
+    os.environ["APP_ID"] = APP_ID               # Also set backup without prefix
+
+if CLARIFAI_PAT:
+    os.environ["CLARIFAI_PAT"] = CLARIFAI_PAT   # Set system environment variable
+
+# === DEBUG OUTPUT ===
+# Print configuration information for debugging and verification
+print("=== DEBUG: Environment Variables ===")
+print(f"USER_ID: {USER_ID}")                   # Show user ID
+print(f"APP_ID: {APP_ID}")                     # Show app ID
+# Mask the PAT for security - show asterisks instead of actual token
+print(f"CLARIFAI_PAT: {'*' * len(CLARIFAI_PAT) if CLARIFAI_PAT else None} (masked)")
+print(f"CSV_FILE_PATH: {CSV_FILE_PATH}")       # Show which CSV file we're using
+print(f"BATCH_SIZE: {BATCH_SIZE}")             # Show batch size setting
+
+print("--- OS Environment Variables ---")
+# Double-check that environment variables are properly set in the system
+print(f"os.environ['CLARIFAI_USER_ID']: {os.environ.get('CLARIFAI_USER_ID', 'NOT SET')}")
+print(f"os.environ['CLARIFAI_APP_ID']: {os.environ.get('CLARIFAI_APP_ID', 'NOT SET')}")
+print(f"os.environ['CLARIFAI_PAT']: {'SET' if os.environ.get('CLARIFAI_PAT') else 'NOT SET'}")
+print("=====================================")
+
+# === MAIN PROGRAM FUNCTION ===
+
+
+def main():
+    """
+    Main function that orchestrates the entire upload process.
+    
+    For beginners: This function does the following steps:
+    1. Validates that we have the required configuration (credentials)
+    2. Reads the CSV file to get image URLs and concept labels
+    3. Downloads images in batches 
+    4. Uploads images to Clarifai
+    5. Creates concept annotations for each image
+    
+    This is called the "main" function because it's the entry point of our program.
+    """
+    
+    # === STEP 1: VALIDATE CONFIGURATION ===
+    # Before we start, make sure we have all the required information
+    
+    # Check if required environment variables are set
+    if not USER_ID or not APP_ID:
+        print("Error: USER_ID and APP_ID must be set in the .env file.")
+        print("Please check your .env file and ensure these values are properly configured.")
+        return  # Exit the function early if we don't have required config
+        
+    if "CLARIFAI_PAT" not in os.environ:
+        print("Error: CLARIFAI_PAT environment variable not set.")
+        print("Please set your Personal Access Token in the .env file.")
+        return  # Exit the function early if we don't have required config
+
+    print(f"Starting upload to application: {APP_ID}")
+
+    # === STEP 2: INITIALIZE CLARIFAI CONNECTION ===
+    # Create connection objects to interact with Clarifai API
+    
+    # Create a User object that represents you on Clarifai
+    user = User(user_id=USER_ID)
+    
+    # Get your specific application within Clarifai
+    app = user.app(app_id=APP_ID)
+
+    try:
+        # === STEP 3: READ AND PARSE CSV FILE ===
+        # Open the CSV file and read all the image URLs and concept labels
+        
+        # Open CSV file for reading with UTF-8 encoding (handles international characters)
+        with open(CSV_FILE_PATH, mode='r', encoding='utf-8') as csvfile:
+            # Create a CSV reader object that can parse the file row by row
+            reader = csv.reader(csvfile)
+            
+            # Skip the first row (header row) since it contains column names, not data
+            # next() reads one row and throws it away
+            next(reader, None)
+
+            print(f"Reading data from '{CSV_FILE_PATH}'...")
+
+            # === STEP 4: COLLECT URL-CONCEPT PAIRS FROM CSV ===
+            # Read through all rows and collect image URLs and their concept labels
+            
+            # Create empty list to store URL-concept pairs
+            url_concept_pairs = []
+            
+            # Loop through each row in the CSV file
+            # enumerate() gives us both the row number (i) and the row data (row)
+            for i, row in enumerate(reader):
+                
+                # === CSV COLUMN MAPPING ===
+                # This section defines which columns contain what data
+                # Adjust these indices based on your CSV file structure:
+                # Column 0: ID (row[0]) - usually just a number
+                # Column 1: Image URL (row[1]) - the web address of the image
+                # Column 2: Concept/Annotation (row[2]) - the label/category for this image
+                
+                try:
+                    # Extract data from specific columns
+                    image_url = row[1]        # Second column (index 1) = image URL
+                    concept_raw = row[2]      # Third column (index 2) = concept name
+                    
+                    # Clean up the concept name to make it valid for Clarifai
+                    concept = sanitize_concept_id(concept_raw)
+                    
+                except IndexError:
+                    # IndexError happens when a row doesn't have enough columns
+                    # This means the CSV row is malformed (missing data)
+                    print(f"Warning: Skipping malformed row {i + 1}: {row}")
+                    continue  # Skip this row and go to the next one
+                    
+                # === DATA VALIDATION ===
+                
+                # Skip if the concept is empty after sanitization
+                if not concept:
+                    print(f"Warning: Skipping row {i + 1} due to empty/invalid concept '{concept_raw}'. URL: {image_url}")
+                    continue  # Skip this row and go to the next one
+
+                # Show user when concept names were changed for Clarifai compatibility
+                if concept != concept_raw:
+                    print(f"Row {i + 1}: Transformed concept '{concept_raw}' -> '{concept}'")
+
+                # Add this URL-concept pair to our collection
+                # We store it as a dictionary (key-value pairs) for easy access later
+                url_concept_pairs.append({
+                    "url": image_url,                # The web address of the image
+                    "concept": concept,              # The cleaned concept name for Clarifai
+                    "concept_raw": concept_raw,      # Keep original name for reference
+                    "row_number": i + 1             # Row number for error reporting
+                })
+
+            # === VALIDATION: CHECK IF WE HAVE DATA TO PROCESS ===
+            if not url_concept_pairs:
+                print("No valid URL-concept pairs found in CSV file.")
+                return  # Exit if there's nothing to upload
+
+            print(f"Found {len(url_concept_pairs)} valid entries in CSV file.")
+
+            # === STEP 5: BATCH PROCESSING SETUP ===
+            # Instead of processing all images at once, we do them in batches
+            # This is more efficient and prevents memory/network overload
+            
+            # Calculate how many batches we need
+            # Math explanation: (total_items + batch_size - 1) // batch_size gives us ceiling division
+            total_batches = (len(url_concept_pairs) + BATCH_SIZE - 1) // BATCH_SIZE
+            print(f"Processing in {total_batches} batch(es) of {BATCH_SIZE} items each.")
+            
+            # === STEP 6: PROCESS EACH BATCH ===
+            # Loop through each batch and process it
+            for batch_num in range(total_batches):
+                # Calculate which items belong to this batch
+                start_idx = batch_num * BATCH_SIZE                    # First item in this batch
+                end_idx = min((batch_num + 1) * BATCH_SIZE, len(url_concept_pairs))  # Last item in this batch
+                batch_pairs = url_concept_pairs[start_idx:end_idx]    # Get the items for this batch
+                
+                print(f"\n--- Processing Batch {batch_num + 1}/{total_batches} ({len(batch_pairs)} items) ---")
+                
+                # === STEP 6A: DOWNLOAD IMAGES FOR THIS BATCH ===
+                # Create empty list to store downloaded image data
+                batch_inputs = []
+                for pair in batch_pairs:
+                    try:
+                        print(f"Batch {batch_num + 1}: Downloading image from: {pair['url']}")
+                        response = requests.get(pair['url'], timeout=10)
+                        response.raise_for_status()
+                        image_bytes = response.content
+
+                        batch_inputs.append({
+                            "image_bytes": image_bytes,
+                            "concepts": [pair['concept']]
+                        })
+                    except requests.exceptions.RequestException as e:
+                        print(f"Batch {batch_num + 1}: Warning: Could not download image from {pair['url']}. Error: {e}. Skipping row {pair['row_number']}.")
+                        continue
+
+                if not batch_inputs:
+                    print(f"Batch {batch_num + 1}: No valid images downloaded for this batch.")
+                    continue
+
+                print(f"Batch {batch_num + 1}: Successfully downloaded {len(batch_inputs)} images.")
+                
+                # Process this batch (upload images and create annotations)
+                process_batch(app, batch_inputs, batch_num)
+
+            print("\nAll uploads completed successfully!")
+        
+    except FileNotFoundError:
+        print(f"Error: The file '{CSV_FILE_PATH}' was not found.")
+        print("Please make sure the CSV file is in the same directory as the script.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+    print("\nUpload process finished.")
+    print("Check your Clarifai application to see the uploaded images and annotations.")
+
+# === BATCH PROCESSING FUNCTION ===
+# This function handles the upload of one batch of images to Clarifai
+def process_batch(app, inputs_to_upload, batch_num):
+    """
+    Process a batch of inputs - upload images and create annotations.
+    
+    For beginners: This function does two main things:
+    1. Uploads image data to Clarifai
+    2. Creates concept annotations for each uploaded image
+    
+    Args:
+        app: Clarifai application object (connection to your Clarifai app)
+        inputs_to_upload: List of dictionaries containing image data and concepts
+        batch_num: Which batch number this is (for unique naming)
+        
+    Returns:
+        None (but prints status updates)
+    """
+    
+    # Import time library to create unique timestamps
+    import time
+    timestamp = int(time.time())                    # Get current time as number
+    batch_timestamp = f"{timestamp}_{batch_num}"   # Create unique batch identifier
+    
+    # Get the inputs manager from Clarifai (this handles image uploads)
+    inputs_manager = app.inputs()
+    
+    # Create list to keep track of what we've uploaded
+    uploaded_inputs = []  # Store info about uploaded images and their concepts
+    
+    # === STEP 1: UPLOAD ALL IMAGES IN THIS BATCH ===
+    # Loop through each image in this batch and upload it
+    for i, item in enumerate(inputs_to_upload):
+        
+        # Create a unique ID for this image
+        # Format: "bed_image_timestamp_batchnum_imagenum"
+        unique_input_id = f"bed_image_{batch_timestamp}_{i}"
+        
+        # Upload the image bytes to Clarifai
+        # image_bytes contains the actual image data we downloaded
+        input_id = inputs_manager.upload_from_bytes(
+            input_id=unique_input_id,          # Unique name for this image
+            image_bytes=item["image_bytes"]    # The actual image data
+        )
+        
+        # Keep track of what we uploaded so we can add concepts later
+        uploaded_inputs.append({
+            'input_id': unique_input_id,
+            'concepts': item['concepts']
+        })
+        print(f"Batch {batch_num+1}: Uploaded image {i+1}/{len(inputs_to_upload)}: {unique_input_id}")
+    
+    print(f"Batch {batch_num+1}: Successfully uploaded {len(uploaded_inputs)} images.")
+    
+    # Step 2: Wait for inputs to be processed before creating annotations
+    print(f"Batch {batch_num+1}: Waiting for inputs to be processed...")
+    time.sleep(5)  # Wait 5 seconds for inputs to be processed
+    
+    # Step 3: Create annotations for each uploaded input
+    from clarifai_grpc.grpc.api import resources_pb2, service_pb2, service_pb2_grpc
+    from clarifai_grpc.channel.clarifai_channel import ClarifaiChannel
+    from clarifai_grpc.grpc.api.status import status_code_pb2
+    
+    # Get environment variables (they should be available from main)
+    import os
+    USER_ID = os.getenv("CLARIFAI_USER_ID")
+    APP_ID = os.getenv("CLARIFAI_APP_ID") 
+    CLARIFAI_PAT = os.getenv("CLARIFAI_PAT")
+    
+    channel = ClarifaiChannel.get_grpc_channel()
+    stub = service_pb2_grpc.V2Stub(channel)
+    metadata = (('authorization', 'Key ' + CLARIFAI_PAT),)
+    userDataObject = resources_pb2.UserAppIDSet(user_id=USER_ID, app_id=APP_ID)
+    
+    # Create annotations for all inputs
+    annotations_to_create = []
+    for item in uploaded_inputs:
+        annotation = resources_pb2.Annotation(
+            input_id=item['input_id'],
+            data=resources_pb2.Data(
+                concepts=[
+                    resources_pb2.Concept(id=concept, value=1.0) 
+                    for concept in item['concepts']
+                ]
+            )
+        )
+        annotations_to_create.append(annotation)
+    
+    # Upload all annotations in one batch
+    if annotations_to_create:
+        post_annotations_response = stub.PostAnnotations(
+            service_pb2.PostAnnotationsRequest(
+                user_app_id=userDataObject,
+                annotations=annotations_to_create
+            ),
+            metadata=metadata
+        )
+        
+        if post_annotations_response.status.code != status_code_pb2.SUCCESS:
+            print(f"Batch {batch_num+1}: Annotation creation status: {post_annotations_response.status}")
+            
+            # Check individual annotation statuses
+            for i, annotation in enumerate(post_annotations_response.annotations):
+                if hasattr(annotation, 'status'):
+                    print(f"  Annotation {i+1}: {annotation.status.description} - {annotation.status.details}")
+            
+            # Even if mixed status, some might have succeeded
+            if post_annotations_response.status.code == 10020:  # MIXED_STATUS
+                success_count = sum(1 for ann in post_annotations_response.annotations 
+                                  if hasattr(ann, 'status') and ann.status.code == status_code_pb2.SUCCESS)
+                print(f"Batch {batch_num+1}: Mixed status: {success_count} annotations succeeded out of {len(annotations_to_create)}")
+        else:
+            print(f"Batch {batch_num+1}: Successfully created annotations for {len(annotations_to_create)} inputs.")
+    
+    print(f"Batch {batch_num+1}: Upload complete: {len(uploaded_inputs)} inputs with annotations.")
+
+
+# === PROGRAM EXECUTION ===
+# This is the entry point of the program - it runs when you execute the script
+
+if __name__ == "__main__":
+    """
+    This special if statement ensures that main() only runs when this file
+    is executed directly (not when imported as a module by another program).
+    
+    For beginners: When you run "python upload-csv", this condition becomes True
+    and the main() function is called, starting the entire upload process.
+    """
+    main()  # Start the main function, which does all the work
+
+
+# === END OF PROGRAM ===
+# 
+# Summary for beginners:
+# This script does the following in order:
+# 1. Loads configuration from .env file
+# 2. Reads CSV file with image URLs and concept labels  
+# 3. Downloads images in batches from the URLs
+# 4. Uploads image data to Clarifai
+# 5. Creates concept annotations for each image
+# 6. Reports success/failure for each batch
+#
+# The batch processing approach makes it efficient for large datasets
+# and provides better error recovery if something goes wrong.
+
+
