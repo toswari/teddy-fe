@@ -116,7 +116,7 @@ class Registry:
 
             if name in self._registry:
                 raise ValueError(f"Function '{name}' is already registered.")
-            
+
             if build_func is None:
                 build_func = functools.partial if inspect.isfunction(func) else lambda f, *args, **kwargs: f(*args, **kwargs)
 
@@ -134,10 +134,10 @@ class Registry:
             func = build_func(func, *args, **kwargs)
 
         return func
-    
+
     def __repr__(self):
         return f"Registry({self._registry})"
-    
+
 IMAGE_TRANSFORMS = Registry()
 
 @IMAGE_TRANSFORMS.register()
@@ -148,22 +148,22 @@ def mean_blur_2d(img, kernel_size: int = 3) -> np.ndarray:
 
 @IMAGE_TRANSFORMS.register()
 def luminosity_percentile(
-        img: np.ndarray, 
+        img: np.ndarray,
         percentile: int = 90,
     ) -> np.ndarray:
     return hls_filter(img, percentile)
 
 @IMAGE_TRANSFORMS.register()
 def gaussian_adaptive_threshold(
-        img: np.ndarray, 
-        block_size: int, 
+        img: np.ndarray,
+        block_size: int,
         c: int,
     ) -> np.ndarray:
     """Apply adaptive thresholding to the image."""
     return cv2.adaptiveThreshold(
-        img, 255, 
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-        cv2.THRESH_BINARY, 
+        img, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
         block_size, c
     )
 
@@ -176,7 +176,7 @@ class ExampleTransform:
     def __call__(self, img, *args, **kwargs):
         print(self.args, self.kwargs)
         return img
-    
+
 @IMAGE_TRANSFORMS.register()
 def cvtColor(img: np.ndarray, code: str) -> np.ndarray:
     """Convert image color space using OpenCV."""
@@ -194,8 +194,8 @@ def canny_edge(img: np.ndarray, low_threshold: int = 50, high_threshold: int = 1
 
 @IMAGE_TRANSFORMS.register()
 def hough_lines_xyxy(
-    img: np.ndarray, 
-    rho: float = 1, 
+    img: np.ndarray,
+    rho: float = 1,
     theta: float = np.pi/180,
     threshold: int = 150,
 ) -> np.ndarray:
@@ -203,8 +203,8 @@ def hough_lines_xyxy(
     all_lines = cv2.HoughLines(img, rho, theta, threshold)
     if all_lines is None:
         return np.empty(shape=(0, 2), dtype=np.float32)
-    
-    result = [] 
+
+    result = []
     for i in range(0, len(all_lines)):
         rho = all_lines[i][0][0]
         theta = all_lines[i][0][1]
@@ -450,33 +450,33 @@ def extract_yard_lines(
     # find lines that intersect yard boxes only through bottom and top edges
     yard_mask = line_intersects_box(all_lines, yard_boxes, mode='vertical').any(axis=1)
     yard_lines = all_lines[yard_mask]
-    
+
     # compute directional vectors of the yard lines
     unit = yard_lines[:,2:] - yard_lines[:,:2]
     unit = unit / np.linalg.norm(unit, axis=1, keepdims=True)
-    
+
     # compute the slopes, for use in directional filtering
     slopes = unit[:,1]/unit[:,0]
-    
+
     mask = np.ones((all_lines.shape[0])).astype(bool)
     for slope_mask in [slopes >= 0, slopes < 0]:
         if slope_mask.sum() == 0:
             # we don't have any vectors, so just skip it
             continue
-    
+
         _unit = unit[slope_mask]
-    
+
         # compute prototypical angle and unit vector
         proto_angle = np.mean(np.arctan(_unit[:,1]/_unit[:,0]))
         proto_unit = np.array([np.cos(proto_angle), np.sin(proto_angle)])
-    
+
         # keep if directionally ok
         mask &= directional_filter(all_lines, proto_unit, directional_threshold)
 
     inner_mask = line_intersects_box(all_lines, inner_boxes, mode='vertical').any(axis=1)
     # also keep lines which intersect "inner" hash marks
     mask |= (yard_mask & inner_mask) | inner_mask
-    
+
     yard_lines = all_lines[mask]
 
     return yard_lines, mask
@@ -494,7 +494,7 @@ def deduplicate_lines(yard_lines: np.ndarray, inner_boxes: np.ndarray) -> np.nda
     # while we're at it, let's classify the inner hash marks into upper/lower
     upper = np.dot(inner_abc, np.hstack((inner_xywh[:,:2], np.ones_like(inner_xywh[:,:1]))).T) < 0
     inner_to_upper = dict(np.hstack((np.arange(upper.shape[1])[:,None], upper.T)).astype(int))
-    
+
     transverse = np.array([lstsq.T])
     clustered, proto_lines = transverse_clustering(yard_lines, transverse)
     proto_lines = transverse_gap_fill(proto_lines, transverse)
@@ -503,8 +503,8 @@ def deduplicate_lines(yard_lines: np.ndarray, inner_boxes: np.ndarray) -> np.nda
 
 class LineAssociationError(Exception):
     def __init__(
-            self, 
-            message: str, 
+            self,
+            message: str,
             all_lines: Optional[np.ndarray] = None,
             yard_lines: Optional[np.ndarray] = None,
             proto_lines: Optional[np.ndarray] = None,
@@ -529,8 +529,8 @@ class LineLabelDuplicateError(LineAssociationError):
 
 class CorrespondenceError(Exception):
     def __init__(
-            self, 
-            message: str, 
+            self,
+            message: str,
             all_lines: Optional[np.ndarray] = None,
             yard_lines: Optional[np.ndarray] = None,
             proto_lines: Optional[np.ndarray] = None,
@@ -555,13 +555,13 @@ def extract_correspondence_points(
     inner_boxes: np.ndarray,
     up_edge_boxes: np.ndarray,
     inner_yard_map: Dict[int, int],
-    up_edge_yard_map: Dict[int, int], 
+    up_edge_yard_map: Dict[int, int],
     inner_to_upper: Dict[int, bool],
     field_info: FieldInfo,
 ) -> Tuple[np.ndarray, np.ndarray]:
     image_points = []
     field_points = []
-    
+
     # Add yard line intersections with hash marks
     for inner_idx, yard_num in inner_yard_map.items():
         if inner_idx < len(inner_boxes):
@@ -570,7 +570,7 @@ def extract_correspondence_points(
             center_x = bbox[0] + bbox[2] / 2
             center_y = bbox[1] + bbox[3] / 2
             image_points.append([center_x, center_y])
-            
+
             # Find corresponding field coordinate using league-specific hash mark distance
             hash_distance = field_info.hash_mark_distance
             field_y = hash_distance if inner_to_upper.get(inner_idx, False) else (field_info.width - hash_distance)
@@ -583,7 +583,7 @@ def extract_correspondence_points(
             center_x = bbox[0] + bbox[2] / 2
             center_y = bbox[1] + bbox[3] / 2
             image_points.append([center_x, center_y])
-            
+
             # Upper edge is at field boundary
             field_points.append([yard_num+field_info.end_zone_depth, 0])
 
@@ -591,10 +591,11 @@ def extract_correspondence_points(
         raise ValueError(
             f"Not enough correspondence points found: {len(image_points)} < 4"
         )
-    
+
     return np.array(image_points, dtype=np.float32), np.array(field_points, dtype=np.float32)
 
-class HomographyResult(NamedTuple):
+@dataclass
+class HomographyResult:
     """Result from homography computation."""
     matrix: np.ndarray
     image_points: np.ndarray
@@ -611,9 +612,9 @@ def compute_homography(
 ) -> HomographyResult:
     """
     Compute homography matrix from correspondence points.
-    
+
     Pure function - returns everything needed, no hidden state.
-    
+
     Parameters
     ----------
     image_points : np.ndarray
@@ -622,12 +623,12 @@ def compute_homography(
         Nx2 array of field coordinates
     method : int
         OpenCV method for homography computation
-        
+
     Returns
     -------
     result : HomographyResult
         Homography result containing matrix and correspondence points
-        
+
     Raises
     ------
     InsufficientDataError
@@ -648,7 +649,7 @@ def compute_homography(
 
     if H is None:
         raise HomographyError("OpenCV failed to compute homography matrix")
-    
+
     return HomographyResult(
         matrix=H,
         image_points=image_points,
@@ -657,12 +658,12 @@ def compute_homography(
     )
 
 def conflict_dfs(
-        proto_lines: np.ndarray, 
-        boxes: np.ndarray, 
-        labels: np.ndarray, 
+        proto_lines: np.ndarray,
+        boxes: np.ndarray,
+        labels: np.ndarray,
         inner_field_length: int,
-        path: tuple, 
-        visited: set, 
+        path: tuple,
+        visited: set,
         out: list
     ):
     """Backtracking DFS to find all consistent associations of boxes to proto lines.
@@ -694,7 +695,7 @@ def conflict_dfs(
     else:
         max_gap, max_gap_idx = gaps.max(), gaps.argmax()
         min_gap, min_gap_idx = gaps.min(), gaps.argmin()
-        
+
     if len(line_yard_map) <= 1:
         return
     elif len(np.unique(line_yard_map[:, 0])) != line_yard_map.shape[0]:
@@ -776,7 +777,7 @@ class ProcessingResult(NamedTuple):
     warnings: List[CorrespondenceError]
 
 def process_image(
-        image: np.ndarray, 
+        image: np.ndarray,
         yard_boxes: np.ndarray,
         yard_labels: np.ndarray,
         inner_boxes: np.ndarray,
@@ -811,12 +812,12 @@ def process_image(
     # we use a backtracking DFS to find all consistent associations of boxes to proto lines
     candidate_associations = []
     conflict_dfs(
-        proto_lines, 
-        yard_boxes, 
-        yard_labels, 
+        proto_lines,
+        yard_boxes,
+        yard_labels,
         inner_field_length=config.field_info.inner_field_length,
-        path=tuple(), 
-        visited=set(), 
+        path=tuple(),
+        visited=set(),
         out=candidate_associations
     )
 
@@ -853,7 +854,7 @@ def process_image(
             ))
             image_points = np.empty((0, 2), dtype=np.float32)
             field_points = np.empty((0, 2), dtype=np.float32)
-        
+
         try:
             homography_result = compute_homography(image_points, field_points)
 
@@ -913,9 +914,9 @@ def transform_points(
 ) -> np.ndarray:
     """
     Transform points using a homography matrix.
-    
+
     Pure function - explicitly requires the homography matrix.
-    
+
     Parameters
     ----------
     points : np.ndarray
@@ -925,7 +926,7 @@ def transform_points(
     inverse : bool
         If True, transform from field to image coordinates.
         If False, transform from image to field coordinates.
-        
+
     Returns
     -------
     transformed_points : np.ndarray
@@ -934,9 +935,9 @@ def transform_points(
     points = np.array(points, dtype=np.float32)
     if points.ndim == 1:
         points = points.reshape(1, -1)
-    
+
     H = np.linalg.inv(homography_matrix) if inverse else homography_matrix
-    
+
     transformed = cv2.perspectiveTransform(points.reshape(-1, 1, 2), H)
     return transformed.reshape(-1, 2)
 
@@ -964,9 +965,9 @@ def draw_proto_lines(
             cv2.putText(detected_img, f'{yard_label}', mid_pt, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
 def draw_yard_boxes(
-        detected_img: np.ndarray, 
-        yard_boxes: np.ndarray, 
-        yard_labels: Optional[np.ndarray] = None, 
+        detected_img: np.ndarray,
+        yard_boxes: np.ndarray,
+        yard_labels: Optional[np.ndarray] = None,
         color: Optional[Tuple[int, int, int]] = (0, 255, 255)
     ):
     if yard_labels is None:
@@ -999,7 +1000,7 @@ def field_to_pixel(x, y, field_img, field_info: FieldInfo) -> np.ndarray:
 def gen_field(h, w, field_info: FieldInfo, exclude_hash_marks: bool = False) -> np.ndarray:
     field_img = np.zeros((h, w, 3), dtype=np.uint8)
     field_img.fill(34)
-    
+
     # Draw field outline
     field_corners = [(0, 0), (field_info.length, 0), (field_info.length, field_info.width), (0, field_info.width)]
     field_corners_px = [field_to_pixel(x, y, field_img, field_info) for x, y in field_corners]
@@ -1016,10 +1017,10 @@ def gen_field(h, w, field_info: FieldInfo, exclude_hash_marks: bool = False) -> 
         # Add yard numbers
         if x % 10 == 0 and field_info.end_zone_depth < x < field_info.length - field_info.end_zone_depth:
             yard_num = min(x - field_info.end_zone_depth, field_info.length - field_info.end_zone_depth - x)  # Distance from nearest goal line
-            cv2.putText(field_img, str(yard_num), 
-                    field_to_pixel(x - 2, field_info.width / 2, field_img, field_info), 
+            cv2.putText(field_img, str(yard_num),
+                    field_to_pixel(x - 2, field_info.width / 2, field_img, field_info),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
-            
+
     if exclude_hash_marks:
         return field_img
 
@@ -1032,7 +1033,7 @@ def gen_field(h, w, field_info: FieldInfo, exclude_hash_marks: bool = False) -> 
     for x, _ in field_info.top_edge_hash_mark_coords:
         px, py = field_to_pixel(x, field_info.width - field_info.hash_mark_distance, field_img, field_info)
         cv2.circle(field_img, (px, py), 3, (0,255,255), -1)
-            
+
     return field_img
 
 def compute_camera_motion(
@@ -1041,14 +1042,14 @@ def compute_camera_motion(
 ):
     """
     Compute camera motion between two images using optical flow (Lucas-Kanade).
-    
+
     Parameters
     ----------
     img1 : np.ndarray
         First image
     img2 : np.ndarray
         Second image
-        
+
     Returns
     -------
     motion : np.ndarray
@@ -1078,6 +1079,40 @@ def compute_camera_motion(
 
     return motion
 
+def is_convex_polygon(pts):
+    pts = np.array(pts)
+    n = len(pts)
+    if n < 4:
+        return True  # triangles are always convex
+    sign = None
+    for i in range(n):
+        dx1 = pts[(i+1)%n][0] - pts[i][0]
+        dy1 = pts[(i+1)%n][1] - pts[i][1]
+        dx2 = pts[(i+2)%n][0] - pts[(i+1)%n][0]
+        dy2 = pts[(i+2)%n][1] - pts[(i+1)%n][1]
+        zcross = dx1 * dy2 - dy1 * dx2
+        if zcross != 0:
+            if sign is None:
+                sign = np.sign(zcross)
+            elif np.sign(zcross) != sign:
+                return False
+    return True
+
+def process_response(response) -> Tuple[List[List[float]], List[int], List[List[float]], List[List[float]]]:
+    yard_boxes, yard_labels, inner_boxes, up_edge_boxes = [], [], [], []
+    for region in response:
+        cls = region.concepts[0].name
+        box = region.box
+        score = region.concepts[0].value
+        if cls in ('10', '20', '30','40', '50'):
+            yard_boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1], score])
+            yard_labels.append(int(cls))
+        elif cls == 'inner':
+            inner_boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1], score])
+        elif cls == 'up_edge':
+            up_edge_boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1], score])
+    return yard_boxes, yard_labels, inner_boxes, up_edge_boxes
+
 def main(image_path: str,
          clarifai_model_url: str,
          output_dir: str,
@@ -1093,27 +1128,16 @@ def main(image_path: str,
         img_bytes = img_file.read()
     response = model.predict(image=Image(bytes=img_bytes), relative=False)
 
-    yard_boxes, yard_labels, inner_boxes, up_edge_boxes = [], [], [], []
-    for region in response:
-        cls = region.concepts[0].name
-        box = region.box
-        score = region.concepts[0].value
-        if cls in ('10', '20', '30','40', '50'):
-            yard_boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1], score])
-            yard_labels.append(int(cls))
-        elif cls == 'inner':
-            inner_boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1], score])
-        elif cls == 'up_edge':
-            up_edge_boxes.append([box[0], box[1], box[2]-box[0], box[3]-box[1], score])
-        
+    yard_boxes, yard_labels, inner_boxes, up_edge_boxes = process_response(response)
+
     image_base = os.path.basename(os.path.splitext(image_path)[0])
     img = cv2.imread(image_path)
     if img is None:
         raise ValueError(f"Could not read image from {image_path}")
-    
+
     detected_img = img.copy()
     hom_img = img.copy()
-    
+
     h, w = hom_img.shape[:2]
     field_info = config.field_info
     field_img = gen_field(h, w, field_info, exclude_hash_marks=False)
@@ -1183,46 +1207,28 @@ def main(image_path: str,
             px, py = tuple(pt.astype(int))
             color = (255, 0, 0) if homography_result.mask[i] else (0, 0, 255)
             cv2.circle(hom_img, (px, py), 5, color, -1)
-            cv2.putText(hom_img, f'{i}', 
-                        (px + 5, py), 
+            cv2.putText(hom_img, f'{i}',
+                        (px + 5, py),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         for i, pt in enumerate(homography_result.field_points):
             px, py = field_to_pixel(pt[0], pt[1], field_img, field_info)
             color = (255, 0, 0) if homography_result.mask[i] else (0, 0, 255)
             cv2.circle(field_img, (px, py), 5, color, -1)
-            cv2.putText(field_img, f'{i}', 
-                        (px + 5, py), 
+            cv2.putText(field_img, f'{i}',
+                        (px + 5, py),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         for i, pt in enumerate(transform_points(homography_result.image_points, homography_result.matrix)):
             px, py = field_to_pixel(pt[0], pt[1], field_img, field_info)
             cv2.circle(field_img, (px, py), 5, (0, 255, 0), -1)
-            cv2.putText(field_img, f'{i}', 
-                        (px + 5, py), 
+            cv2.putText(field_img, f'{i}',
+                        (px + 5, py),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
 
         # TODO: check if field of view is convex
         fov_pts = [field_to_pixel(*x, field_img, field_info) for x in transform_points([(0, 0), (w, 0), (w, h), (0, h)], homography_result.matrix)]
         # Check if fov_pts forms a convex polygon
-        def is_convex_polygon(pts):
-            pts = np.array(pts)
-            n = len(pts)
-            if n < 4:
-                return True  # triangles are always convex
-            sign = None
-            for i in range(n):
-                dx1 = pts[(i+1)%n][0] - pts[i][0]
-                dy1 = pts[(i+1)%n][1] - pts[i][1]
-                dx2 = pts[(i+2)%n][0] - pts[(i+1)%n][0]
-                dy2 = pts[(i+2)%n][1] - pts[(i+1)%n][1]
-                zcross = dx1 * dy2 - dy1 * dx2
-                if zcross != 0:
-                    if sign is None:
-                        sign = np.sign(zcross)
-                    elif np.sign(zcross) != sign:
-                        return False
-            return True
 
         is_convex = is_convex_polygon(fov_pts)
         if not is_convex:
@@ -1231,7 +1237,7 @@ def main(image_path: str,
 
         if burn_metrics:
             singular_values = np.linalg.svd(homography_result.matrix, compute_uv=False)
-            cv2.putText(field_img, f'MSE: {mse:.2f}, Cond: {cond:.2f}, S[0]/S[1]: {singular_values[0] / singular_values[1]:.2f}', (10, 30), 
+            cv2.putText(field_img, f'MSE: {mse:.2f}, Cond: {cond:.2f}, S[0]/S[1]: {singular_values[0] / singular_values[1]:.2f}', (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
             cv2.putText(field_img, f'Warn: {[type(w).__name__ for w in warnings]}', (10, 55),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 1)
@@ -1244,7 +1250,7 @@ def main(image_path: str,
         draw_yard_boxes(detected_img, yard_boxes, yard_labels, color=(255, 255, 0))
         draw_inner_boxes(detected_img, inner_boxes, e.inner_to_upper)
         draw_up_edge_boxes(detected_img, up_edge_boxes)
-        cv2.putText(detected_img, f'Error: {type(e).name}', (10, 30), 
+        cv2.putText(detected_img, f'Error: {type(e).name}', (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     except CorrespondenceError as e:
         print(f"CorrespondenceError extracting correspondence points: {e}")
@@ -1252,7 +1258,7 @@ def main(image_path: str,
         draw_yard_boxes(detected_img, yard_boxes, yard_labels, color=(255, 255, 0))
         draw_inner_boxes(detected_img, inner_boxes, e.inner_to_upper)
         draw_up_edge_boxes(detected_img, up_edge_boxes)
-        cv2.putText(detected_img, f'Error: {type(e).name}', (10, 30), 
+        cv2.putText(detected_img, f'Error: {type(e).name}', (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     except HomographyError as e:
         print(f"Error computing homography: {e}")
@@ -1276,13 +1282,13 @@ if __name__ == "__main__":
                        help='Output directory for visualizations')
     parser.add_argument('--league', default='NFL', choices=League.__members__.values(), type=League,
                        help='Football league (affects hash mark positioning)')
-    parser.add_argument('--clarifai_model_url', default=None,
+    parser.add_argument('--clarifai_model_url', default='https://clarifai.com/pff-org/labelstudio-unified/models/hash-yard-letterbox-gpu-agnostic',
                    help='URL of remote detector service for yard/hash boxes (overrides local JSONs)')
     parser.add_argument('--verbose', action='store_true',
                        help='Enable verbose output')
     parser.add_argument('--burn_metrics', action='store_true',
                        help='Burn metrics into output images (for debugging)')
-    parser.add_argument('--config', default='union_config.yaml',
+    parser.add_argument('--config', default=None,
                        help='Path to custom configuration yaml file (optional)')
 
     args = parser.parse_args()
@@ -1293,7 +1299,7 @@ if __name__ == "__main__":
         os.makedirs(output_dir)
     for x in ['detected', 'homography', 'visualization']:
         os.makedirs(os.path.join(output_dir, x), exist_ok=True)
-        
+
     # Create configuration
     if args.config:
         with open(args.config, 'r') as f:
