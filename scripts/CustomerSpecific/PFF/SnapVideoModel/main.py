@@ -293,7 +293,7 @@ if __name__ == "__main__":
             model.head[1] = torch.nn.Linear(model.head[1].in_features, 2)
         else:
             import mvit_fork
-            weights = mvit_fork.MViT_V2_S_Weights.KINETICS400_V1
+            weights = getattr(mvit_fork.MViT_V2_S_Weights, f"KINETICS400_V1_{args.clip_length}FRAME")
             preprocess = weights.transforms()
             model = mvit_fork.mvit_v2_s2(temporal_size=args.clip_length, weights=weights)
             model.head[1] = torch.nn.Linear(model.head[1].in_features, 2)

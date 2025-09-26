@@ -673,7 +673,7 @@ class MViT_V2_S_Weights(WeightsEnum):
         ),
         meta={
             "min_size": (224, 224),
-            "min_temporal_size": 2,
+            "min_temporal_size": 8,
             "categories": _KINETICS400_CATEGORIES,
             "recipe": "https://github.com/facebookresearch/SlowFast/blob/main/MODEL_ZOO.md",
             "_docs": (
