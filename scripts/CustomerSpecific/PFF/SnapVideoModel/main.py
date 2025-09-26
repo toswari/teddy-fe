@@ -286,11 +286,17 @@ if __name__ == "__main__":
 
         model.fc = torch.nn.Linear(model.fc.in_features, 2)
     elif args.model == 'mvit':
-        assert args.clip_length == 16, "MViT model currently only supports clip_length of 16"
-        weights = tv.models.video.MViT_V2_S_Weights.KINETICS400_V1
-        preprocess = weights.transforms()
-        model = tv.models.video.mvit_v2_s(weights=weights)
-        model.head[1] = torch.nn.Linear(model.head[1].in_features, 2)
+        if args.clip_length == 16:
+            weights = tv.models.video.MViT_V2_S_Weights.KINETICS400_V1
+            preprocess = weights.transforms()
+            model = tv.models.video.mvit_v2_s(weights=weights)
+            model.head[1] = torch.nn.Linear(model.head[1].in_features, 2)
+        else:
+            import mvit_fork
+            weights = mvit_fork.MViT_V2_S_Weights.KINETICS400_V1
+            preprocess = weights.transforms()
+            model = mvit_fork.mvit_v2_s2(temporal_size=args.clip_length, weights=weights)
+            model.head[1] = torch.nn.Linear(model.head[1].in_features, 2)
     else:
         raise ValueError(f"Unsupported model architecture: {args.model}")
     
