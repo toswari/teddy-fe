@@ -2,8 +2,8 @@
 
 model:
   id: "linefinder"  # TODO: please fill in - replace with your model ID
-  user_id: "peter-rizzi"  # TODO: please fill in - replace with your user ID
-  app_id: "test"  # TODO: please fill in - replace with your app ID
+  user_id: "pff-org"  # TODO: please fill in - replace with your user ID
+  app_id: "labelstudio-unified"  # TODO: please fill in - replace with your app ID
   model_type_id: "visual-detector"  # TODO: please fill in - replace if different model type ID
 
 build_info:
@@ -24,5 +24,5 @@ inference_compute_info:
 #   when: "build"  # or "runtime", "upload"
 
 concepts:
-- id: "line"
-  name: "line"
+- id: "yard-line"
+  name: "yard-line"

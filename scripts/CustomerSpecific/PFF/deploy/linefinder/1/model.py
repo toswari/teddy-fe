@@ -9,6 +9,7 @@ from clarifai.runners.utils.data_types.data_types import Image, Region, Concept
 from clarifai_grpc.grpc.api import resources_pb2
 import cv2
 import numpy as np
+import yaml
 from lines import find_yard_lines, Lines, WarpError
 
 import logging
@@ -35,6 +36,15 @@ class MyModel(ModelClass):
         """
         # Initialize detection runner
         self.folder = os.path.dirname(os.path.dirname(__file__))
+        self.config = os.path.join(self.folder, 'config.yaml')
+        with open(self.config) as f:
+            self.cfg = yaml.safe_load(f)
+        self.concepts = [Concept(id=c['id'], name=c['name']) for c in self.cfg['concepts']]
+        if len(self.concepts) == 0:
+            raise ValueError("No concepts defined in config.yaml")
+        elif len(self.concepts) > 1:
+            raise ValueError("Multiple concepts defined in config.yaml, only one supported")
+        self.concept = self.concepts[0]
 
         self.detector_url = "https://clarifai.com/pff-org/labelstudio-unified/models/unified-model"
 
@@ -85,7 +95,7 @@ class MyModel(ModelClass):
                     ),
                     data=resources_pb2.Data(
                         concepts=[
-                            resources_pb2.Concept(id="line", name="line", value=1.0)
+                            resources_pb2.Concept(id=self.concept.id, name=self.concept.name, value=1.0)
                         ]
                     )
                 ),
