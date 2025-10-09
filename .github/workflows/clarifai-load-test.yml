@@ -44,7 +44,7 @@ on:
 
 jobs:
   load-test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -58,7 +58,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r scripts/locust/loadtestv1/locust_v2/requirements.txt
+          pip install -r scripts/loadtestv1/locust_v2/requirements.txt
 
       - name: Validate Model URL
         if: inputs.environment != 'test'
@@ -108,7 +108,7 @@ jobs:
         run: |
           echo "=== Model Warmup Check ==="
           echo "Verifying model is responding before starting load test..."
-          python scripts/locust/loadtestv1/locust_v2/tests/warmup_check.py
+          python scripts/loadtestv1/locust_v2/tests/warmup_check.py
           echo ""
 
       - name: Run Locust Load Test
@@ -116,6 +116,7 @@ jobs:
           CLARIFAI_PAT: ${{ inputs.pat }}
           CLARIFAI_MODEL_URL: ${{ inputs.model_url }}
           CLARIFAI_DEPLOYMENT_USER_ID: ${{ inputs.deployment_user_id }}
+          PYTHONPATH: ${{ github.workspace }}/scripts/locust/loadtestv1:$PYTHONPATH
         run: |
           echo "Starting load test..."
           echo "Environment: ${{ inputs.environment }}"
