@@ -18,7 +18,7 @@ class ApiUser(GrpcUser):
 
     def _setup_req(self, batch_size=1):
         if self.req is None:
-            TEXT = """Write a very long paragraph about India"""
+            TEXT = """TESTING"""
 
             kwargs = {
                 "prompt": TEXT
