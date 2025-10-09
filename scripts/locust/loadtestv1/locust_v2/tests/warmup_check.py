@@ -42,7 +42,6 @@ def warmup_model():
         start_time = time.time()
         result = model.predict(
             prompt="Test",
-            number_of_letters=10,
         )
         duration = time.time() - start_time
 
