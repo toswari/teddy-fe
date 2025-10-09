@@ -58,7 +58,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r scripts/locust/loadtestv1/locust_v2/requirements.txt
+          pip install -r scripts/locust/locust_v2/requirements.txt
 
       - name: Validate Model URL
         if: inputs.environment != 'test'
@@ -108,7 +108,7 @@ jobs:
         run: |
           echo "=== Model Warmup Check ==="
           echo "Verifying model is responding before starting load test..."
-          python scripts/locust/loadtestv1/locust_v2/tests/warmup_check.py
+          python scripts/locust/locust_v2/tests/warmup_check.py
           echo ""
 
       - name: Run Locust Load Test
@@ -116,17 +116,17 @@ jobs:
           CLARIFAI_PAT: ${{ inputs.pat }}
           CLARIFAI_MODEL_URL: ${{ inputs.model_url }}
           CLARIFAI_DEPLOYMENT_USER_ID: ${{ inputs.deployment_user_id }}
-          PYTHONPATH: ${{ github.workspace }}/scripts/locust/loadtestv1:$PYTHONPATH
+          PYTHONPATH: ${{ github.workspace }}/scripts/locust:$PYTHONPATH
         run: |
           echo "Starting load test..."
           echo "Environment: ${{ inputs.environment }}"
 
           # Determine which test file to use
           if [ "${{ inputs.environment }}" == "test" ]; then
-            TEST_FILE="scripts/locust/loadtestv1/locust_v2/tests/mock_test.py"
+            TEST_FILE="scripts/locust/locust_v2/tests/mock_test.py"
             echo "Using MOCK test file (no real API calls)"
           else
-            TEST_FILE="scripts/locust/loadtestv1/locust_v2/tests/new_inference.py"
+            TEST_FILE="scripts/locust/locust_v2/tests/new_inference.py"
             echo "API Base: $CLARIFAI_API_BASE"
             echo "Model URL: $CLARIFAI_MODEL_URL"
           fi
@@ -143,7 +143,8 @@ jobs:
           # Note: Headless mode is required for --html flag to work properly
           locust \
             -f ${TEST_FILE} \
-            --headless \
+            --autoquit 2 \
+            --autostart \
             --users ${{ inputs.users }} \
             --spawn-rate ${{ inputs.spawn_rate }} \
             --run-time ${TOTAL_DURATION}s \
