@@ -16,6 +16,7 @@ import time
 from datetime import datetime
 from typing import Callable
 
+import gevent
 import grpc.experimental.gevent as grpc_gevent
 from clarifai.client import BaseClient, Model
 from clarifai_grpc.grpc.api import service_pb2_grpc
@@ -111,7 +112,11 @@ class GrpcUser(User):
                 GrpcUser.test_start_time = time.time()
             GrpcUser.request_count += 1
             log.debug(f"Request {GrpcUser.request_count} started at {datetime.now()}")
-            resp = func(*args, **kwargs)
+
+            # Wrap with 30 second timeout
+            with gevent.Timeout(30):
+                resp = func(*args, **kwargs)
+
             log.debug(
                 f"Request {GrpcUser.request_count} ended at {datetime.now()} duration {time.time() - start_time}"
             )
