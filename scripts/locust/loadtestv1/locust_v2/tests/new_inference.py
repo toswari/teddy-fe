@@ -30,8 +30,9 @@ class ApiUser(GrpcUser):
     @task
     def call_predict(self):
         kwargs = self._setup_req(1)
-        # Add timeout to prevent hanging
-        kwargs['inference_params'] = {'max_tokens': 500, 'temperature': 0.7}
+        # Add inference params to prevent hanging
+        kwargs['max_tokens'] = 500
+        kwargs['temperature'] = 0.7
 
         # print(req)
 
