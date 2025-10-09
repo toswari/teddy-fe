@@ -116,7 +116,7 @@ jobs:
           CLARIFAI_PAT: ${{ inputs.pat }}
           CLARIFAI_MODEL_URL: ${{ inputs.model_url }}
           CLARIFAI_DEPLOYMENT_USER_ID: ${{ inputs.deployment_user_id }}
-          PYTHONPATH: ${{ github.workspace }}/scripts/locust:$PYTHONPATH
+          PYTHONPATH: ${{ github.workspace }}/scripts/locust/loadtestv1:$PYTHONPATH
         run: |
           echo "Starting load test..."
           echo "Environment: ${{ inputs.environment }}"
