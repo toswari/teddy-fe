@@ -108,7 +108,7 @@ jobs:
         run: |
           echo "=== Model Warmup Check ==="
           echo "Verifying model is responding before starting load test..."
-          python scripts/loadtestv1/locust_v2/tests/warmup_check.py
+          python scripts/locust/loadtestv1/locust_v2/tests/warmup_check.py
           echo ""
 
       - name: Run Locust Load Test
