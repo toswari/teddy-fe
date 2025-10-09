@@ -21,8 +21,7 @@ class ApiUser(GrpcUser):
             TEXT = """Write a very long paragraph about India"""
 
             kwargs = {
-                "prompt": TEXT,
-                "number_of_letters": 10,
+                "prompt": TEXT
             }
             self.req = kwargs
 
