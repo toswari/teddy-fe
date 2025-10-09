@@ -58,7 +58,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r scripts/loadtestv1/locust_v2/requirements.txt
+          pip install -r scripts/locust/loadtestv1/locust_v2/requirements.txt
 
       - name: Validate Model URL
         if: inputs.environment != 'test'
