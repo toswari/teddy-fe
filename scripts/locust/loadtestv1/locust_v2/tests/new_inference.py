@@ -18,10 +18,10 @@ class ApiUser(GrpcUser):
 
     def _setup_req(self, batch_size=1):
         if self.req is None:
-            TEXT = """TESTING"""
+            TEXT = """Testing"""
 
             kwargs = {
-                "prompt": TEXT
+                "prompt": TEXT,
             }
             self.req = kwargs
 
@@ -30,6 +30,9 @@ class ApiUser(GrpcUser):
     @task
     def call_predict(self):
         kwargs = self._setup_req(1)
+        # Add timeout to prevent hanging
+        kwargs['inference_params'] = {'max_tokens': 500, 'temperature': 0.7}
+
         # print(req)
 
         # res = self.model.predict(**kwargs)
