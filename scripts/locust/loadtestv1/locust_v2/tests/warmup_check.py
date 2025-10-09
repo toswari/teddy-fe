@@ -24,7 +24,7 @@ def warmup_model():
     if api_base:
         print(f"API Base: {api_base}")
     print(f"Making initial test call to verify model is responding...")
-
+ 
     try:
         # Initialize model with base_url if specified
         model_kwargs = {
