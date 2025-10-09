@@ -58,7 +58,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r scripts/loadtestv1/locust_v2/requirements.txt
+          pip install -r scripts/locust/loadtestv1/locust_v2/requirements.txt
 
       - name: Validate Model URL
         if: inputs.environment != 'test'
@@ -108,7 +108,7 @@ jobs:
         run: |
           echo "=== Model Warmup Check ==="
           echo "Verifying model is responding before starting load test..."
-          python scripts/loadtestv1/locust_v2/tests/warmup_check.py
+          python scripts/locust/loadtestv1/locust_v2/tests/warmup_check.py
           echo ""
 
       - name: Run Locust Load Test
@@ -122,10 +122,10 @@ jobs:
 
           # Determine which test file to use
           if [ "${{ inputs.environment }}" == "test" ]; then
-            TEST_FILE="scripts/loadtestv1/locust_v2/tests/mock_test.py"
+            TEST_FILE="scripts/locust/loadtestv1/locust_v2/tests/mock_test.py"
             echo "Using MOCK test file (no real API calls)"
           else
-            TEST_FILE="scripts/loadtestv1/locust_v2/tests/new_inference.py"
+            TEST_FILE="scripts/locust/loadtestv1/locust_v2/tests/new_inference.py"
             echo "API Base: $CLARIFAI_API_BASE"
             echo "Model URL: $CLARIFAI_MODEL_URL"
           fi
