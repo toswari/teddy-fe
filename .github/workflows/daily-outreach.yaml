@@ -1,0 +1,94 @@
+name: Daily Outreach Generation
+
+on:
+  # Run daily at midnight UTC (commented out for now)
+  # schedule:
+  #   - cron: '0 0 * * *'
+
+  # Allow manual triggering with options
+  workflow_dispatch:
+    inputs:
+      article_age_hours:
+        description: 'Article age filter (hours)'
+        required: false
+        default: '12'
+        type: choice
+        options:
+          - '6'
+          - '12'
+          - '24'
+          - '48'
+          - '168'
+      search_limit:
+        description: 'Max articles to search'
+        required: false
+        default: '2000'
+        type: string
+      message_limit:
+        description: 'Max messages to generate'
+        required: false
+        default: '2000'
+        type: string
+      deduplicate_events:
+        description: 'Enable event deduplication'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  generate-outreach:
+    runs-on: self-hosted
+    # Required secrets: SALES_LEAD_GEN_CLARIFAI_PAT, SALES_LEAD_GEN_SLACK_BOT_TOKEN, SALES_LEAD_GEN_SLACK_CHANNEL
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t outreach-app sales_lead-gen/
+
+      - name: Create temporary config
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Override config with workflow inputs
+          python3 << EOF
+          import yaml
+          with open('sales_lead-gen/config.yaml', 'r') as f:
+              config = yaml.safe_load(f)
+
+          config['article_age_hours'] = int('${{ inputs.article_age_hours }}')
+          config['search_limit'] = int('${{ inputs.search_limit }}')
+          config['message_limit'] = int('${{ inputs.message_limit }}')
+          config['deduplicate_events'] = '${{ inputs.deduplicate_events }}' == 'true'
+
+          with open('sales_lead-gen/config.yaml', 'w') as f:
+              yaml.dump(config, f, default_flow_style=False)
+          EOF
+
+      - name: Run outreach generation
+        run: |
+          docker run --rm \
+            --env CLARIFAI_PAT=${{ secrets.SALES_LEAD_GEN_CLARIFAI_PAT }} \
+            --env SLACK_BOT_TOKEN=${{ secrets.SALES_LEAD_GEN_SLACK_BOT_TOKEN }} \
+            --env SLACK_CHANNEL=${{ secrets.SALES_LEAD_GEN_SLACK_CHANNEL }} \
+            -v $(pwd)/sales_lead-gen/config.yaml:/app/config.yaml \
+            -v $(pwd)/sales_lead-gen/background_info.txt:/app/background_info.txt \
+            -v $(pwd)/sales_lead-gen/output:/app/output \
+            -v $(pwd)/sales_lead-gen/logs:/app/logs \
+            outreach-app
+
+      - name: Upload generated messages
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: outreach-messages-${{ github.run_number }}
+          path: sales_lead-gen/output/
+          retention-days: 30
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logs-${{ github.run_number }}
+          path: sales_lead-gen/logs/
+          retention-days: 7
