@@ -1,0 +1,10 @@
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pyyaml>=6.0.0
+clarifai>=11.7.5
+feedparser>=6.0.10
+pandas>=2.0.0
+python-dotenv>=1.0.0
+flask>=3.0.0
+lxml>=4.9.0
+slack-sdk>=3.23.0

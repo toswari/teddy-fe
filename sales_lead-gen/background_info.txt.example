@@ -1,0 +1,55 @@
+# Company/Product Background Information
+
+This file contains information about your company and products that will be used by the AI
+to generate personalized outreach messages. The AI will use this context to make relevant
+connections between news events and your solutions.
+
+## Instructions
+
+1. Copy this file to `background_info.txt`
+2. Add as much detail as you want about:
+   - Your company/product overview
+   - Key features and capabilities
+   - Target industries and use cases
+   - Recent achievements, benchmarks, or case studies
+   - Unique selling points
+   - Technical specifications (if relevant)
+
+3. The AI will read this entire file, so you can add:
+   - Multiple paragraphs
+   - Bullet points
+   - Technical details
+   - Case studies
+   - Performance metrics
+   - Whatever information helps create better outreach messages
+
+## Example Format
+
+### Company Overview
+[Your company description here]
+
+### Products and Services
+- Product 1: [Description]
+- Product 2: [Description]
+
+### Key Features
+- Feature 1
+- Feature 2
+
+### Use Cases
+- Industry 1: [How you help]
+- Industry 2: [How you help]
+
+### Recent Achievements
+- [Benchmark results]
+- [Customer success stories]
+- [Awards or recognition]
+
+### Unique Selling Points
+- [What makes you different]
+- [Key competitive advantages]
+
+---
+
+The more specific and detailed you are, the better the AI can tailor outreach messages
+to each company's news and situation.
