@@ -50,6 +50,8 @@ jobs:
       - name: Create temporary config
         if: github.event_name == 'workflow_dispatch'
         run: |
+          # Install PyYAML for config modification
+          pip3 install PyYAML
           # Override config with workflow inputs
           python3 << EOF
           import yaml
