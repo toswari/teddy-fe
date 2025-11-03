@@ -78,19 +78,3 @@ jobs:
             -v $(pwd)/sales_lead-gen/output:/app/output \
             -v $(pwd)/sales_lead-gen/logs:/app/logs \
             outreach-app
-
-      - name: Upload generated messages
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: outreach-messages-${{ github.run_number }}
-          path: sales_lead-gen/output/
-          retention-days: 30
-
-      - name: Upload logs
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: logs-${{ github.run_number }}
-          path: sales_lead-gen/logs/
-          retention-days: 7
