@@ -17,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('--user_id', type=str, help='Clarifai user ID', required=True)
     parser.add_argument('--dataset_name', type=str, default='mot-test', help='Dataset name to use or create')
     parser.add_argument('--batch_size', type=int, default=100, help='Batch size for uploading annotations')
+    parser.add_argument('--video', type=str, default=None, help='Path to the video file (if needed)')
     args = parser.parse_args()
 
     with open(args.pb_file, 'rb') as f:
@@ -38,19 +39,23 @@ if __name__ == "__main__":
 
     dataset = a.dataset(dataset_name)
 
-    session = boto3.Session(profile_name='pff-ls', region_name='us-east-2')
-    client = session.client('s3')
+    if args.video is None:
+        session = boto3.Session(profile_name='pff-ls', region_name='us-east-2')
+        client = session.client('s3')
 
-    bytes = io.BytesIO()
-    client.download_fileobj(
-        Bucket='fb2b-label-studio-projects',
-        Key=data.video.url.split('s3://fb2b-label-studio-projects/')[1],
-        Fileobj=bytes
-    )
+        video_bytes = io.BytesIO()
+        client.download_fileobj(
+            Bucket='fb2b-label-studio-projects',
+            Key=data.video.url.split('s3://fb2b-label-studio-projects/')[1],
+            Fileobj=video_bytes
+        )
+    else:
+        with open(args.video, 'rb') as f:
+            video_bytes = io.BytesIO(f.read())
 
     input = Inputs.get_input_from_bytes(
         data.video.url.split('/')[-1].replace('.mp4', ''),
-        video_bytes=bytes.getvalue(),
+        video_bytes=video_bytes.getvalue(),
     )
     input.data.metadata.update({
         'purpose': 'mot-test',
