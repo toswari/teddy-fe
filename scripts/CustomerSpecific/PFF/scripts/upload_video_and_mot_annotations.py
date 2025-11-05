@@ -60,8 +60,25 @@ if __name__ == "__main__":
     input.dataset_ids.append(dataset.id)
 
     annotations = []
-    for frame_idx, frame in enumerate(data.frames[:30]):
+    tracks = {}
+    for frame_idx, frame in enumerate(data.frames):
         for i, region in enumerate(frame.data.regions):
+            if region.track_id not in tracks:
+                track = resources_pb2.AnnotationTrack()
+                track.input_id = input.id
+                track.id = region.track_id
+                track.start_frame_nr = frame_idx
+                track.end_frame_nr = frame_idx
+                track.sample_rate_frame = 1
+                # track.sample_rate_ms = int(1/30.0 * 1000)  # Assuming 30 FPS
+                # track.start_frame_ms = int(frame_idx / 30.0 * 1000)  # Assuming 30 FPS
+                track.concept.CopyFrom(region.data.concepts[0])
+                track.concept.id = concepts.get(track.concept.name)
+                tracks[region.track_id] = track
+
+            tracks[region.track_id].end_frame_nr = frame_idx
+            # tracks[region.track_id].end_frame_ms = int(frame_idx / 30.0 * 1000)  # Assuming 30 FPS
+
             annotation = resources_pb2.Annotation()
             annotation.input_id = input.id
             f = annotation.data.frames.add()
@@ -74,13 +91,31 @@ if __name__ == "__main__":
 
     a.inputs().upload_inputs([input])
 
+    import time
+    time.sleep(5) # wait for input to be fully processed
+
     channel = ClarifaiChannel.get_json_channel()
     stub = service_pb2_grpc.V2Stub(channel)
     user_app_id = resources_pb2.UserAppIDSet(user_id=u.id, app_id=a.id)
     metadata = (('authorization', f'Key {u.pat}'),)
+    response = stub.PostAnnotationTracks(
+        service_pb2.PostAnnotationTracksRequest(
+            user_app_id=user_app_id,
+            annotation_tracks=list(tracks.values()),
+            input_id=input.id
+        ),
+        metadata=metadata
+    )
+    if response.status.code != status_code_pb2.SUCCESS:
+        print(f"Error uploading annotation tracks: {response.status.description}. {response.status.details}")
 
-    for i in tqdm(range(0, len(annotations), args.batch_size)):
-        batch = annotations[i:i + args.batch_size]
+
+    def go(u, batch):
+        channel = ClarifaiChannel.get_json_channel()
+        stub = service_pb2_grpc.V2Stub(channel)
+        user_app_id = resources_pb2.UserAppIDSet(user_id=u.id, app_id=a.id)
+        metadata = (('authorization', f'Key {u.pat}'),)
+
         response = stub.PostAnnotations(
             service_pb2.PostAnnotationsRequest(
                 user_app_id=user_app_id,
@@ -89,5 +124,17 @@ if __name__ == "__main__":
             metadata=metadata
         )
         if response.status.code != status_code_pb2.SUCCESS:
-            print(f"Error uploading annotations (batch {i // args.batch_size}): {response.status.description}")
-            break
+            raise Exception(f"Error uploading annotations (batch {i // args.batch_size}): {response.status.description}. {response.status.details}")
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = []
+        for i in tqdm(range(0, len(annotations), args.batch_size)):
+            batch = annotations[i:i + args.batch_size]
+            futures.append(executor.submit(go, u, batch))
+
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            try:
+                future.result()
+            except Exception as e:
+                tqdm.write(f"Error occurred: {e}")
