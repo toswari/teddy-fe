@@ -150,9 +150,8 @@ class SlackNotifier:
         top_events = sorted(event_types.items(), key=lambda x: x[1], reverse=True)[:3]
         events_text = ", ".join([f"{event}: {count}" for event, count in top_events])
         
-        summary = f"""**New Lead Generation Results**
+        summary = f"""**V2 Lead Generation Results**
 
-**Summary:**
 • {len(messages)} new messages generated
 • {run_stats.get('articles_processed', 0)} articles processed
 • Top companies: {companies_text}
@@ -310,3 +309,4 @@ if __name__ == "__main__":
     # Test the Slack integration when run directly
 
     test_slack_integration()
+
