@@ -204,8 +204,8 @@ Individual prospect details with reasoning posted as replies below."""
             else:
                 regular_prospects.append(msg)
         
-        # Send high-value prospects first, then regular ones (limit to top 10 total)
-        prospects_to_send = (high_value_prospects + regular_prospects)[:10]
+        # Send high-value prospects first, then regular ones (limit to top 50 total)
+        prospects_to_send = (high_value_prospects + regular_prospects)[:50]
         
         for i, msg in enumerate(prospects_to_send, 1):
             try:
@@ -308,4 +308,5 @@ def test_slack_integration():
 
 if __name__ == "__main__":
     # Test the Slack integration when run directly
+
     test_slack_integration()
