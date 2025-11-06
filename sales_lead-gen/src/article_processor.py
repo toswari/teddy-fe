@@ -101,7 +101,7 @@ def process_with_clarifai(article: Dict, config: Dict) -> Optional[Dict]:
                 logging.warning(f"Error reading background info file: {e}")
 
         # Build prompt for extraction and message generation
-        prompt = f"""You are analyzing news articles to find potential B2B sales opportunities. Analyze this article and determine if it mentions a company that could be a good prospect for our solutions.
+        prompt = f"""You are analyzing news articles to find potential B2B sales opportunities. Analyze this article and determine if it mentions a company that could be a good prospect for our solutions. We need to avoid large enterprise customers like Google, Nvidia, etc. We need to focus on fast moving companies and startups alike.
 
 Context - Our Company/Product:
 {background_info}
@@ -110,16 +110,16 @@ Article Title: {article['title']}
 Article Content: {content[:2000]}
 
 INSTRUCTIONS:
-1. Only extract companies that are clearly mentioned and could benefit from our AI/ML solutions
+1. Only extract companies that are clearly mentioned and could benefit from our AI/ML solutions and services
 2. If no relevant company is found, set company_name to null
-3. Generate messages only for companies with clear business opportunities
+3. Generate messages only for companies with clear business opportunities for Clarifai to support
 
 REQUIRED JSON RESPONSE FORMAT (respond with ONLY valid JSON):
 {{
     "company_name": "Exact company name mentioned in article OR null if no relevant company",
     "event_type": "funding/product_launch/partnership/acquisition/expansion/hiring OR null",
     "event_details": "Brief 1-2 sentence summary of the event OR null",
-    "priority": "high/standard - HIGH for major enterprises, significant funding rounds ($10M+), major partnerships, or companies with clear AI/ML needs. STANDARD for smaller companies or less strategic opportunities",
+    "priority": "high/standard - HIGH for fast moving companies, significant funding rounds ($10M+), major partnerships, or companies with clear AI/ML needs. STANDARD for smaller companies or less strategic opportunities that may have potential but possibly not moving as fast.",
     "reasoning": "2-3 sentences explaining why Clarifai should reach out and what specific value we could provide OR null",
     "linkedin_message": "Professional 2-3 sentence LinkedIn message congratulating them and mentioning relevant Clarifai capabilities OR null"
 }}
