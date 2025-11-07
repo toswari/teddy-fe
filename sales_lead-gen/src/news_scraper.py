@@ -9,12 +9,14 @@ import urllib3
 # Silence noisy SSL warnings when verify=False
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+
 def _first(*candidates):
     """Return the first non-None, non-empty value (strips strings)."""
     for c in candidates:
         if c:
             return c.strip() if isinstance(c, str) else c
     return ""
+
 
 def fetch_rss_feed(
     feed_config: Dict,
@@ -90,31 +92,63 @@ def fetch_rss_feed(
            'RSS feeds are disabled on this site' in content_str:
             logging.error(f"Feed URL returned HTML content instead of RSS for {feed_name}")
             return []
+        
+        # Try to parse with different encoding options to handle malformed XML
+        feed = None
+        try:
+            # First try with original content
+            feed = feedparser.parse(resp.content)
+        except Exception:
+            try:
+                # Try with UTF-8 encoding and error handling
+                content_utf8 = resp.content.decode('utf-8', errors='replace')
+                feed = feedparser.parse(content_utf8)
+            except Exception:
+                try:
+                    # Try with latin-1 encoding as fallback
+                    content_latin1 = resp.content.decode('latin-1', errors='replace')
+                    feed = feedparser.parse(content_latin1)
+                except Exception:
+                    # Last resort: clean up common problematic characters
+                    content_clean = resp.content.decode('utf-8', errors='replace')
+                    # Remove common problematic characters
+                    content_clean = content_clean.replace('\x00', '').replace('\x08', '').replace('\x0b', '').replace('\x0c', '')
+                    # Remove non-printable characters except newlines and tabs
+                    content_clean = ''.join(char for char in content_clean if ord(char) >= 32 or char in '\n\r\t')
+                    feed = feedparser.parse(content_clean)
+        
+        if not feed:
+            logging.error(f"feedparser failed on {feed_name}: Could not parse with any encoding")
+            return []
             
-        feed = feedparser.parse(resp.content)
     except Exception as e:
         logging.error(f"feedparser failed on {feed_name}: {e}")
         return []
 
     # Handle malformed XML warnings (common with RSS feeds)
     if feed.bozo and hasattr(feed, "bozo_exception"):
-        # Only log as warning if we still got some entries, otherwise it's an error
+        error_msg = str(feed.bozo_exception)
+        
+        # Check if we still got some entries despite XML issues
         if hasattr(feed, 'entries') and len(feed.entries) > 0:
-            logging.warning(f"Feed parsing warning for {feed_name}: {feed.bozo_exception}")
-        else:
-            # Check if it's a common "feeds disabled" scenario
-            if "RSS feeds are disabled" in str(feed.bozo_exception) or \
-               "not well-formed" in str(feed.bozo_exception):
-                logging.error(f"Feed parsing failed for {feed_name}: {feed.bozo_exception}")
+            # We got entries despite XML issues - just log as warning and continue
+            if "not well-formed" in error_msg or "invalid token" in error_msg:
+                logging.warning(f"Feed has XML parsing warnings but extracted {len(feed.entries)} entries from {feed_name}: {error_msg}")
             else:
-                logging.error(f"Feed parsing failed for {feed_name}: {feed.bozo_exception}")
+                logging.warning(f"Feed parsing warning for {feed_name}: {error_msg}")
+        else:
+            # No entries extracted - this is a real problem
+            if "RSS feeds are disabled" in error_msg:
+                logging.error(f"RSS feeds disabled for {feed_name}: {error_msg}")
+            elif "not well-formed" in error_msg or "invalid token" in error_msg:
+                logging.error(f"Feed has severe XML parsing errors for {feed_name}: {error_msg}")
+            else:
+                logging.error(f"Feed parsing failed for {feed_name}: {error_msg}")
             return []
 
     cutoff = datetime.now() - timedelta(hours=article_age_hours)
     recent_articles: List[Dict] = []
     older = 0
-
-    logging.debug(f"Date filter cutoff for {feed_name}: {cutoff.isoformat()} (articles older than {article_age_hours}h will be filtered)")
 
     # ----- walk entries -----
     for entry in feed.entries[: limit_per_feed * 3]:
@@ -182,12 +216,9 @@ def fetch_rss_feed(
             if not pub_date:
                 pub_date = datetime.now()
 
-            logging.debug(f"Article '{title[:50]}...' published: {pub_date.isoformat()}, cutoff: {cutoff.isoformat()}")
-
             # ---- AGE FILTER ----
             if pub_date <= cutoff:
                 older += 1
-                logging.debug(f"Filtering old article: {title[:50]}... (published {pub_date.isoformat()})")
                 continue
 
             article = {
