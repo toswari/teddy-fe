@@ -100,8 +100,41 @@ def process_with_clarifai(article: Dict, config: Dict) -> Optional[Dict]:
             except Exception as e:
                 logging.warning(f"Error reading background info file: {e}")
 
+        # Get targeting instructions from config
+        targeting_instructions = config['clarifai'].get('targeting_instructions', '')
+        if not targeting_instructions:
+            # Fallback to default instructions if not in config
+            targeting_instructions = """INSTRUCTIONS:
+1. EXCLUDE these types of companies (NOT good targets):
+   - Major AI/ML platform providers (OpenAI, Anthropic, Google AI, Microsoft AI, AWS AI, Meta AI, etc.)
+   - Large cloud/infrastructure providers (CoreWeave, Lambda Labs, RunPod, etc.)
+   - Pure cybersecurity companies (unless they need computer vision/AI for security applications)
+   - Clarifai's direct competitors (other computer vision API providers)
+   - Major tech giants (Google, Microsoft, Apple, Meta, Amazon) unless specific business unit with clear use case
+
+2. INCLUDE these types of companies (good targets):
+   - Mid-market companies adopting AI for business operations
+   - Retail/e-commerce companies needing visual search, content moderation, or product recognition
+   - Healthcare/medical companies using AI for imaging or diagnostics
+   - Manufacturing companies implementing visual inspection or quality control
+   - Media/entertainment companies needing content analysis or automated tagging
+   - Startups building AI-powered applications (especially computer vision)
+   - Government agencies or contractors with AI initiatives
+   - Financial services implementing AI for document processing or fraud detection
+   - Companies announcing AI initiatives but lacking the infrastructure
+
+3. Focus on companies with these qualifying events:
+   - Funding rounds ($1M-$100M range - not mega-rounds by giants)
+   - New AI product launches (especially involving images/video/text processing)
+   - Digital transformation initiatives
+   - New hires for AI/ML teams
+   - Partnerships to build AI capabilities
+   - Expansion into new markets requiring AI
+
+4. If no relevant target company is found, set company_name to null"""
+
         # Build prompt for extraction and message generation
-        prompt = f"""You are analyzing news articles to find potential B2B sales opportunities. Analyze this article and determine if it mentions a company that could be a good prospect for our solutions. We need to avoid large enterprise customers like Google, Nvidia, etc. We need to focus on fast moving companies and startups alike.
+        prompt = f"""You are analyzing news articles to find potential B2B sales opportunities for Clarifai's AI platform. Analyze this article and determine if it mentions a company that could be a good prospect for our computer vision, NLP, and AI inference solutions.
 
 Context - Our Company/Product:
 {background_info}
@@ -109,19 +142,16 @@ Context - Our Company/Product:
 Article Title: {article['title']}
 Article Content: {content[:2000]}
 
-INSTRUCTIONS:
-1. Only extract companies that are clearly mentioned and could benefit from our AI/ML solutions and services
-2. If no relevant company is found, set company_name to null
-3. Generate messages only for companies with clear business opportunities for Clarifai to support
+{targeting_instructions}
 
 REQUIRED JSON RESPONSE FORMAT (respond with ONLY valid JSON):
 {{
-    "company_name": "Exact company name mentioned in article OR null if no relevant company",
+    "company_name": "Exact company name mentioned in article OR null if no relevant target",
     "event_type": "funding/product_launch/partnership/acquisition/expansion/hiring OR null",
     "event_details": "Brief 1-2 sentence summary of the event OR null",
-    "priority": "high/standard - HIGH for fast moving companies, significant funding rounds ($10M+), major partnerships, or companies with clear AI/ML needs. STANDARD for smaller companies or less strategic opportunities that may have potential but possibly not moving as fast.",
-    "reasoning": "2-3 sentences explaining why Clarifai should reach out and what specific value we could provide OR null",
-    "linkedin_message": "Professional 2-3 sentence LinkedIn message congratulating them and mentioning relevant Clarifai capabilities OR null"
+    "priority": "high/standard - HIGH for companies with $5M+ funding, clear computer vision needs, or strategic partnerships. STANDARD for smaller opportunities",
+    "reasoning": "2-3 sentences explaining why Clarifai should reach out and what specific computer vision/AI capabilities we could provide OR null",
+    "linkedin_message": "Professional 2-3 sentence LinkedIn message congratulating them and mentioning relevant Clarifai capabilities (computer vision, AI inference, model hosting) OR null"
 }}
 
 CRITICAL: Respond with ONLY the JSON object, no extra text before or after."""
