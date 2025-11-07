@@ -42,7 +42,7 @@ output:
 
 # Slack notification settings (configured via environment variables)
 slack:
-  enabled: true  # Set to false to disable notifications even if credentials are provided
+  enabled: false  # Set to false to disable notifications even if credentials are provided
   notification_type: "detailed"  # Options: "summary", "detailed"
   mention_on_high_value: false  # Mention channel when high-value prospects found
 
