@@ -4,6 +4,36 @@ clarifai:
   pat: ""  # Environment variable CLARIFAI_PAT
   url: "https://clarifai.com/openai/chat-completion/models/gpt-oss-120b"
   background_info_file: "background_info.txt"  # Path to file with company/product info
+  targeting_instructions: |
+    INSTRUCTIONS:
+    1. EXCLUDE these types of companies (NOT good targets):
+       - Major AI/ML platform providers (OpenAI, Anthropic, Google AI, Microsoft AI, AWS AI, Meta AI, etc.)
+       - Large cloud/infrastructure providers (CoreWeave, Lambda Labs, RunPod, etc.)
+       - Pure cybersecurity companies (unless they need computer vision/AI for security applications)
+       - Clarifai's direct competitors (other computer vision API providers)
+       - Major tech giants (Google, Microsoft, Apple, Meta, Amazon) unless specific business unit with clear use case
+
+    2. INCLUDE these types of companies (good targets):
+       - Mid-market companies adopting AI for business operations
+       - Retail/e-commerce companies needing visual search, content moderation, or product recognition
+       - Healthcare/medical companies using AI for imaging or diagnostics
+       - Manufacturing companies implementing visual inspection or quality control
+       - Media/entertainment companies needing content analysis or automated tagging
+       - Startups building AI-powered applications (especially computer vision)
+       - Government agencies or contractors with AI initiatives
+       - Financial services implementing AI for document processing or fraud detection
+       - Companies announcing AI initiatives but lacking the infrastructure
+
+    3. Focus on companies with these qualifying events:
+       - Funding rounds ($1M-$100M range - not mega-rounds by giants)
+       - New AI product launches (especially involving images/video/text processing)
+       - Digital transformation initiatives
+       - New hires for AI/ML teams
+       - Partnerships to build AI capabilities
+       - Expansion into new markets requiring AI
+
+    4. If no relevant target company is found, set company_name to null
+
 
 output:
   format: "json"  # Options: json, csv, txt
