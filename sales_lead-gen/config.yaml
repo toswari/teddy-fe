@@ -10,29 +10,44 @@ clarifai:
        - Major AI/ML platform providers (OpenAI, Anthropic, Google AI, Microsoft AI, AWS AI, Meta AI, etc.)
        - Large cloud/infrastructure providers (CoreWeave, Lambda Labs, RunPod, etc.)
        - Pure cybersecurity companies (unless they need computer vision/AI for security applications)
-       - Clarifai's direct competitors (other computer vision API providers)
+       - Clarifai's direct competitors (other computer vision API providers like Roboflow, Viso.ai)
        - Major tech giants (Google, Microsoft, Apple, Meta, Amazon) unless specific business unit with clear use case
+       - Large consulting firms and financial institutions (EY, PwC, Deloitte, JPMorgan Chase, Goldman Sachs, etc.) - they typically build their own solutions
+       - Foreign IPOs or companies going public (usually too large and well-funded)
+       - Case studies or product announcements from existing ML/AI platforms showcasing customer usage
+       - Companies with $500M+ funding rounds or valuations over $5B
+       - Major automotive companies (Audi, BMW, Tesla, etc.) - they have internal AI teams
+       - Large enterprises that typically have dedicated AI/ML infrastructure teams
 
     2. INCLUDE these types of companies (good targets):
-       - Mid-market companies adopting AI for business operations
+       - Mid-market companies ($10M-$500M revenue) adopting AI for business operations
        - Retail/e-commerce companies needing visual search, content moderation, or product recognition
-       - Healthcare/medical companies using AI for imaging or diagnostics
+       - Healthcare/medical companies using AI for imaging or diagnostics (not Big Pharma)
        - Manufacturing companies implementing visual inspection or quality control
        - Media/entertainment companies needing content analysis or automated tagging
-       - Startups building AI-powered applications (especially computer vision)
+       - Early to mid-stage startups building AI-powered applications (especially computer vision)
        - Government agencies or contractors with AI initiatives
-       - Financial services implementing AI for document processing or fraud detection
-       - Companies announcing AI initiatives but lacking the infrastructure
+       - Regional financial services implementing AI for document processing or fraud detection
+       - SaaS companies adding AI capabilities to their existing products
+       - Companies announcing AI initiatives but lacking the infrastructure to build in-house
 
     3. Focus on companies with these qualifying events:
-       - Funding rounds ($1M-$100M range - not mega-rounds by giants)
+       - Series A to Series C funding rounds ($1M-$100M range)
        - New AI product launches (especially involving images/video/text processing)
-       - Digital transformation initiatives
-       - New hires for AI/ML teams
-       - Partnerships to build AI capabilities
-       - Expansion into new markets requiring AI
+       - Digital transformation initiatives at mid-market companies
+       - New hires for AI/ML teams at companies without existing AI infrastructure
+       - Partnerships to build AI capabilities (not case studies of existing usage)
+       - Expansion into new markets requiring AI by companies under $1B valuation
 
-    4. If no relevant target company is found, set company_name to null
+    4. AVOID these scenarios:
+       - Articles about how Company X used Platform Y (case studies)
+       - IPO announcements from foreign markets
+       - Product showcases from established AI/ML platforms
+       - Partnerships between two large enterprises
+       - Companies that explicitly mention building AI in-house
+
+    5. If no relevant target company is found, set company_name to null
+
 
 
 output:
@@ -46,8 +61,8 @@ slack:
   notification_type: "detailed"  # Options: "summary", "detailed"
   mention_on_high_value: false  # Mention channel when high-value prospects found
 
-search_limit: 200  # Process many more articles for better coverage
-message_limit: 150  # Significantly higher message limit
+search_limit: 2000  # Process many more articles for better coverage
+message_limit: 3500  # Significantly higher message limit
 deduplicate_events: true  # Group messages by company and merge duplicate events
 article_age_hours: 48  # Expand to 48 hours for more opportunities (weekends, holidays)
 
