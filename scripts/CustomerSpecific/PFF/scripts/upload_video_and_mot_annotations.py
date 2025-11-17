@@ -17,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument('--user_id', type=str, help='Clarifai user ID', required=True)
     parser.add_argument('--dataset_name', type=str, default='mot-test', help='Dataset name to use or create')
     parser.add_argument('--batch_size', type=int, default=100, help='Batch size for uploading annotations')
+    parser.add_argument('--max_workers', type=int, default=4, help='Maximum number of worker threads for uploading')
     parser.add_argument('--video', type=str, default=None, help='Path to the video file (if needed)')
     args = parser.parse_args()
 
@@ -64,6 +65,7 @@ if __name__ == "__main__":
     })
     input.dataset_ids.append(dataset.id)
 
+    from clarifai_grpc.grpc.api.status import status_pb2, status_code_pb2
     annotations = []
     tracks = {}
     for frame_idx, frame in enumerate(data.frames):
@@ -79,6 +81,7 @@ if __name__ == "__main__":
                 # track.start_frame_ms = int(frame_idx / 30.0 * 1000)  # Assuming 30 FPS
                 track.concept.CopyFrom(region.data.concepts[0])
                 track.concept.id = concepts.get(track.concept.name)
+                track.status.CopyFrom(status_pb2.Status(code=status_code_pb2.ANNOTATION_TRACK_PENDING))
                 tracks[region.track_id] = track
 
             tracks[region.track_id].end_frame_nr = frame_idx
@@ -87,7 +90,8 @@ if __name__ == "__main__":
             annotation = resources_pb2.Annotation()
             annotation.input_id = input.id
             f = annotation.data.frames.add()
-            f.frame_info.time = max(1, int(frame_idx / 30.0 * 1000))  # Assuming 30 FPS
+            f.frame_info.time = int(frame_idx / 30.0 * 1000)  # Assuming 30 FPS
+            f.frame_info.number = frame_idx
             r = f.data.regions.add()
             r.CopyFrom(region)
             r.data.concepts[0].id = concepts.get(r.data.concepts[0].name)
@@ -132,7 +136,7 @@ if __name__ == "__main__":
             raise Exception(f"Error uploading annotations (batch {i // args.batch_size}): {response.status.description}. {response.status.details}")
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
         futures = []
         for i in tqdm(range(0, len(annotations), args.batch_size)):
             batch = annotations[i:i + args.batch_size]
