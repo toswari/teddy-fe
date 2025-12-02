@@ -137,7 +137,7 @@ class SlackStatsNotifier:
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": f"OpenRouter Stats - {display_name}",
+                        "text": f"{display_name}",
                         "emoji": True,
                     },
                 },
@@ -245,3 +245,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
