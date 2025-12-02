@@ -1,4 +1,4 @@
-name: Extract OpenRouter Stats with Slack Notification
+name: OpenRouter Stats
 
 on:
   schedule:
