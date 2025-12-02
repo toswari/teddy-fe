@@ -3,6 +3,6 @@
 
 models:
   - slug: "arcee-ai/trinity-mini"
-    channel: "#test-slack-integrations-hackday"
+    channel: "#int-arcee"
     display_name: "Arcee AI - Trinity Mini"
   
