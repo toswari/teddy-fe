@@ -1,0 +1,8 @@
+# Configuration for OpenRouter Stats Extraction
+# Define models to extract and their Slack channels
+
+models:
+  - slug: "arcee-ai/trinity-mini"
+    channel: "#test-slack-integrations-hackday"
+    display_name: "Arcee AI - Trinity Mini"
+  
