@@ -129,7 +129,7 @@ class SlackStatsNotifier:
 
         # Build the full message with model-specific link (no preview)
         display_name = self.config.display_name
-        model_url = f"https://openrouter.ai/{model}"
+        model_url = f"openrouter.ai/{model}"
         message = {
             "channel": self.config.slack_channel,
             "blocks": [
@@ -145,7 +145,7 @@ class SlackStatsNotifier:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"Updated: {timestamp}\n<{model_url}|View Model>",
+                        "text": f"Updated: {timestamp}\n<{model_url}>",
                     },
                 },
                 {"type": "divider"},
@@ -245,4 +245,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
