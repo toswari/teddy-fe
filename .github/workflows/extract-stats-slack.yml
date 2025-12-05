@@ -2,8 +2,8 @@ name: OpenRouter Stats
 
 on:
   schedule:
-    # Run every 4 hours
-    - cron: '0 */4 * * *'
+    # Run every 8 hours
+    - cron: '0 */8 * * *'
   # Allow manual trigger
   workflow_dispatch:
   # Run on push to main for testing
