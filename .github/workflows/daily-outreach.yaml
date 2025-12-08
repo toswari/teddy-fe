@@ -1,9 +1,9 @@
 name: Daily Outreach Generation
 
 on:
-  # Run daily at midnight UTC (commented out for now)
-  # schedule:
-  #   - cron: '0 0 * * *'
+  schedule:
+    # Run once per day at 1300 UTC
+    - cron: '0 14 * * *'
 
   # Allow manual triggering with options
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
       article_age_hours:
         description: 'Article age filter (hours)'
         required: false
-        default: '12'
+        default: '24'
         type: choice
         options:
           - '6'
