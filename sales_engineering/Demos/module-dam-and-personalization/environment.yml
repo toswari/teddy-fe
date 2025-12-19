@@ -1,0 +1,15 @@
+name: dam-312
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - clarifai>=11.12.1
+      - clarifai-grpc>=11.11.4
+      - protobuf>=5
+      - pillow>=10.4.0
+      - st-annotated-text>=4.0.1
+      - streamlit-image-select>=0.6.0
+      - streamlit>=1.32.2

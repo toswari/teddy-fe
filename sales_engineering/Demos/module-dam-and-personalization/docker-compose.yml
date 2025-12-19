@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  clarifai-dam-demo:
+    build: .
+    container_name: clarifai-dam-demo
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount secrets file (recommended)
+      - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
+    environment:
+      # Alternative: Uncomment and set these if not using secrets.toml
+      # CLARIFAI_PAT: ${CLARIFAI_PAT}
+      # CLARIFAI_USER_ID: ${CLARIFAI_USER_ID}
+      # CLARIFAI_APP_ID: ${CLARIFAI_APP_ID}
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+    restart: unless-stopped
