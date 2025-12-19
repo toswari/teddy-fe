@@ -102,8 +102,9 @@ def analyze():
 
         # Clean up video file
         try:
-            os.remove(filepath)
-            logger.info(f"Cleaned up video file: {filepath}")
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                logger.info(f"Cleaned up video file: {filepath}")
         except Exception as e:
             logger.warning(f"Failed to clean up video file: {e}")
 
@@ -284,7 +285,8 @@ def analyze_stream():
                     yield f"data: {json.dumps(progress)}\n\n"
             finally:
                 try:
-                    os.remove(filepath)
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
                 except Exception as e:
                     logger.warning(f"Failed to clean up video file: {e}")
 

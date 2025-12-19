@@ -85,22 +85,14 @@ Please provide a clear and concise answer based on the analysis above."""
 
         try:
             # Get streaming response from model
-            response = self.model.generate(
-                prompt=prompt,
-                images=[],
-                audios=[],
-                videos=[],
-                chat_history=[],
-                audio=None,
-                video=None,
-                image=None,
-                tools=None,
-                tool_choice=None,
-                system_prompt="You are a helpful AI assistant that analyzes video content. Keep it short and to the point",
-                max_tokens=1000,
-                temperature=0.7,
-                top_p=0.9,
-                reasoning_effort="low"
+            response = self.model.predict_by_bytes(
+                input_bytes=prompt.encode('utf-8'),
+                input_type="text",
+                inference_params={
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                }
             )
             
             # Stream response chunks
