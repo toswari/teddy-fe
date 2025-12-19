@@ -207,12 +207,33 @@ For a clean, isolated environment using conda:
 
 # Docker Deployment
 
-Docker Compose Option: 
+### Quick Docker Setup (Recommended)
+
+Use the automated script to build and run the container:
+
 ```bash
-docker-compose up --build -d
+./create-docker.sh
 ```
 
-Regular Docker Image:
+This will:
+- Check if Docker is installed
+- Verify .env file exists (creates from .env.example if needed)
+- Handle existing containers and images
+- Build Docker image named `video-analysis-platform`
+- Run container on port 5001 with restart policy
+- Mount uploads directory
+- Load environment variables from .env
+
+Access at `http://localhost:5001`
+
+### Docker Compose Option
+
+```bash
+docker compose up --build -d
+```
+
+### Manual Docker Build
+
 1. Build the Docker image:
 ```bash
 docker build -t video-analysis-platform .

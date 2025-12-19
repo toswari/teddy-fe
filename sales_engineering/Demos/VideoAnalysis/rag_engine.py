@@ -4,6 +4,7 @@ from typing import Dict, List, Any
 import logging
 from clarifai.client import Model
 import os
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -83,28 +84,49 @@ Question: {question}
 
 Please provide a clear and concise answer based on the analysis above."""
 
-        try:
-            # Get streaming response from model
-            response = self.model.predict_by_bytes(
-                input_bytes=prompt.encode('utf-8'),
-                input_type="text",
-                inference_params={
-                    "max_tokens": 1000,
-                    "temperature": 0.7,
-                    "top_p": 0.9
-                }
-            )
-            
-            # Stream response chunks
-            for chunk in response:
-                if isinstance(chunk, str):
-                    yield chunk
-                elif hasattr(chunk, 'text'):
-                    yield chunk.text
+        max_retries = 5
+        retry_delay = 2  # Start with 2 seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Get streaming response from model
+                response = self.model.predict_by_bytes(
+                    input_bytes=prompt.encode('utf-8'),
+                    input_type="text",
+                    inference_params={
+                        "max_tokens": 1000,
+                        "temperature": 0.7,
+                        "top_p": 0.9
+                    }
+                )
+                
+                # Stream response chunks
+                for chunk in response:
+                    if isinstance(chunk, str):
+                        yield chunk
+                    elif hasattr(chunk, 'text'):
+                        yield chunk.text
+                    else:
+                        logger.warning(f"Unexpected chunk type: {type(chunk)}")
+                
+                # If we get here, prediction was successful
+                break
+                        
+            except Exception as e:
+                error_msg = str(e)
+                
+                # Check if model is still loading
+                if "MODEL_LOADING" in error_msg or "Model is deploying" in error_msg:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Model is loading, retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        logger.error("Model failed to load after maximum retries")
+                        yield "The AI model is currently loading. Please wait a moment and try again."
                 else:
-                    logger.warning(f"Unexpected chunk type: {type(chunk)}")
-                    
-        except Exception as e:
-            logger.error(f"Error getting response from model: {str(e)}")
-            logger.error(traceback.format_exc())
+                    # For other errors, log and return error message
+                    logger.error(f"Error getting response from model: {error_msg}")
+                    logger.error(traceback.format_exc())
             yield "I apologize, but I encountered an error while processing your question. Please try again." 
