@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Streamlit
+.streamlit.pid
+streamlit.log
+# Keep config.toml and secrets.toml - they're needed in the image
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+Dockerfile
+
+# Scripts (already in image)
+start.sh
+stop.sh
+create-docker.sh
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
