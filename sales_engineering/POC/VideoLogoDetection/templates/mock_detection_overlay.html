@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="space-y-6">
+  <div class="rounded-2xl bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div>
+        <p class="text-sm uppercase tracking-wide text-slate-400">Reference Mock</p>
+        <h2 class="text-2xl font-semibold">Detection Overlay Demo</h2>
+        <p class="mt-1 text-sm text-slate-500">Use this page as inspiration when implementing the real video detail screen.</p>
+      </div>
+      <span class="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white">/demo/detection-overlay</span>
+    </div>
+    <div class="mt-6 grid gap-8 lg:grid-cols-[2fr,1fr]">
+      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div class="relative overflow-hidden rounded-xl bg-black">
+          <img src="{{ sample_image_url }}" alt="Sample frame" class="block w-full" />
+          {% for detection in detections %}
+          {% set top = (detection.bbox.top * 100) | round(2) %}
+          {% set left = (detection.bbox.left * 100) | round(2) %}
+          {% set height = ((detection.bbox.bottom - detection.bbox.top) * 100) | round(2) %}
+          {% set width = ((detection.bbox.right - detection.bbox.left) * 100) | round(2) %}
+          <span class="absolute rounded-lg border-2 px-2 py-1 text-xs font-semibold text-white" style="top: {{ top }}%; left: {{ left }}%; height: {{ height }}%; width: {{ width }}%; border-color: {{ detection.color }}; background-color: rgba(15,23,42,0.35);">
+            {{ detection.label }} · {{ (detection.confidence * 100) | round(1) }}%
+          </span>
+          {% endfor %}
+        </div>
+        <p class="mt-4 text-xs text-slate-500">Bounding boxes use Clarifai's normalized coordinates converted to percentages for CSS positioning.</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-sm uppercase tracking-wide text-slate-400">Sample payload</p>
+        <ul class="mt-4 space-y-4">
+          {% for detection in detections %}
+          <li class="rounded-xl bg-slate-50 p-4">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold">{{ detection.label }}</span>
+              <span class="text-sm font-medium text-slate-500">{{ detection.timestamp }}</span>
+            </div>
+            <div class="mt-2 text-sm text-slate-600">
+              Confidence: {{ (detection.confidence * 100) | round(1) }}%
+            </div>
+            <dl class="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
+              <div>
+                <dt class="font-semibold uppercase tracking-wide">Top / Left</dt>
+                <dd>{{ detection.bbox.top }} · {{ detection.bbox.left }}</dd>
+              </div>
+              <div>
+                <dt class="font-semibold uppercase tracking-wide">Bottom / Right</dt>
+                <dd>{{ detection.bbox.bottom }} · {{ detection.bbox.right }}</dd>
+              </div>
+            </dl>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

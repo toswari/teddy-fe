@@ -47,3 +47,22 @@ For detailed requirements and design, see:
 - Technical implementation plan: Technical Implementation Plan.md
 - Technology stack details: TechnologyStack.md
 - UI coding guidance: UI Coding Guidance.md
+- API examples: docs/api-examples.md
+- Media storage layout: docs/storage-layout.md
+- Sample data loader: scripts/load_sample_data.py
+- Detection overlay mock: visit `/demo/detection-overlay` in the running app to see a reference UI for drawing bounding boxes and concept badges on top of a frame.
+
+## Running Tests
+
+Install dev deps (pytest) and run:
+
+```bash
+pytest
+```
+
+The fixtures boot the app in test mode with an in-memory SQLite DB so agents can quickly validate services and APIs before wiring additional features.
+
+## Reference UI Mock
+
+- Start the Flask server (`./start.sh`) and open `http://localhost:5000/demo/detection-overlay` to preview the static detection overlay example.
+- The page renders Clarifai-style bounding boxes using Tailwind utility classes so future UI work can copy the structure when implementing the real video detail view.

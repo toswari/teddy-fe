@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-slate-50">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VideoLogoDetection</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+</head>
+<body class="min-h-screen text-slate-900">
+  <header class="bg-white shadow-sm">
+    <div class="mx-auto max-w-6xl px-6 py-4">
+      <h1 class="text-xl font-semibold tracking-tight">VideoLogoDetection – Mission Control</h1>
+    </div>
+  </header>
+  <main class="mx-auto max-w-6xl px-6 py-8">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}" type="module"></script>
+</body>
+</html>

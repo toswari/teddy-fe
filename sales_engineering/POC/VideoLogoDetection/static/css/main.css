@@ -1,0 +1,21 @@
+:root {
+  --accent: #101828;
+  --accent-subtle: #f1f5f9;
+}
+
+body {
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 60%, #fdf2f8 100%);
+}
+
+#video-list li {
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  padding: 0.75rem 1rem;
+}
+
+#inference-cards .card {
+  border-radius: 1.5rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+  background-color: white;
+}

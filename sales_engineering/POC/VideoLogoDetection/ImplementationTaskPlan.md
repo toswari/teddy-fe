@@ -14,6 +14,7 @@ This document is written for a **coding agent** implementing the VideoLogoDetect
 - Always ensure `setup-env.sh` and `podman-compose.yaml` remain the **single source of truth** for DB connection details.
 - The app must remain **single-user**, **local**, and **project-centric** (multiple projects, no auth).
 - Long-running work (video probing, clipping, inference) should initially run **in-process**; if you introduce backgrounding, do it without Redis (e.g., simple Python threads or a lightweight in-memory queue), keeping infrastructure minimal.
+- Clarifai credentials and model defaults belong in `.env` (see `.env.example`); all reference scripts and services read from there, so keep it authoritative.
 
 ### Architecture Directives (Non-Negotiable for MVP)
 
@@ -133,6 +134,7 @@ Implement `app/services/inference_service.py` for Clarifai integration.
   - [ ] Implement `run_single_model_inference(frames, model_id, config)` that:
     - [ ] Sends frames in batches.
     - [ ] Returns normalized detection data suitable for JSONB storage.
+  - [ ] Use `docs/ClarifaiAPI.md` for parameter/reference patterns and `scripts/demo_logo_detection.py` to manually verify PAT + model IDs before wiring the service.
 
 - [ ] **Endpoint to trigger inference**
   - [ ] `POST /videos/<id>/inference` – starts an inference run for a given model.
@@ -155,6 +157,7 @@ Implement basic Mission Control UI/API for Phase 1.
     - [ ] Shows project selection and active project.
     - [ ] Lists uploaded videos and their status.
     - [ ] Allows triggering pre-processing and inference.
+  - [ ] Copy interaction patterns and bounding-box overlay styles from the `/demo/detection-overlay` reference page (`templates/mock_detection_overlay.html`).
 
 ### 1.8 Word Report Export (Minimal)
 
@@ -238,5 +241,10 @@ Goal: extend the MVP to support multi-model inference and basic benchmarking/cos
   - `Technical Implementation Plan.md`
   - `TechnologyStack.md`
   - `UI Coding Guidance.md`
+- Reuse the shipped reference assets before writing new scaffolding:
+  - `docs/ClarifaiAPI.md` for SDK parameters, auth, and batching examples.
+  - `scripts/demo_logo_detection.py` to validate PAT/model settings or capture sample payloads.
+  - `.env.example` / `.env` for Clarifai configuration shared between CLI tools and Flask services.
+  - `/demo/detection-overlay` (template in `templates/mock_detection_overlay.html`) for bounding-box overlay patterns and payload layout.
 - When in doubt, default to **simplicity** and **single-user, local POC** constraints.
 - Prefer small, well-named modules and functions that map clearly to these tasks.
