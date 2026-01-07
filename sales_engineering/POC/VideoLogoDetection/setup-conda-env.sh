@@ -5,11 +5,11 @@
 
 set -e  # Exit on error
 
-ENV_NAME="VideoAnalysis-311"
-PYTHON_VERSION="3.11"
+ENV_NAME="VideoDetection-312"
+PYTHON_VERSION="3.12"
 
 echo "=========================================="
-echo "Setting up VideoAnalysis Conda Environment"
+echo "Setting up VideoDetection Conda Environment"
 echo "=========================================="
 echo ""
 
@@ -45,6 +45,7 @@ conda activate ${ENV_NAME}
 
 # Install pip packages from requirements.txt
 if [ -f "requirements.txt" ]; then
+go
     echo "Installing packages from requirements.txt..."
     pip install -r requirements.txt
 else

@@ -107,48 +107,48 @@ Implement a `api.videos` blueprint and matching service logic.
 
 Implement `app/services/video_service.py` with functions that can be called either synchronously (Phase 1) or from a lightweight, in-process background executor if later introduced.
 
-- [ ] **Metadata probing**
-  - [ ] Implement `probe_video_metadata(path)` using ffmpeg-python or PyAV to get duration, resolution, etc.
-  - [ ] Update the `Video` record with `duration_seconds` and `resolution`.
+- [x] **Metadata probing**
+  - [x] Implement `probe_video_metadata(path)` using ffmpeg-python or PyAV to get duration, resolution, etc.
+  - [x] Update the `Video` record with `duration_seconds` and `resolution`.
 
-- [ ] **Clipping into 20s segments**
-  - [ ] Implement `generate_clips(source_path, clip_length=20)` using FFmpeg `-c copy`.
-  - [ ] Store clips under a structured path (e.g., `media/<project_id>/<video_id>/clips/`).
-  - [ ] Optionally, track basic metadata about each clip (e.g., file name, start time) in JSONB on `Video` or a separate table.
+- [x] **Clipping into 20s segments**
+  - [x] Implement `generate_clips(source_path, clip_length=20)` using FFmpeg `-c copy`.
+  - [x] Store clips under a structured path (e.g., `media/<project_id>/<video_id>/clips/`).
+  - [x] Optionally, track basic metadata about each clip (e.g., file name, start time) in JSONB on `Video` or a separate table.
 
-- [ ] **Triggering pre-processing**
-  - [ ] Provide an endpoint `POST /videos/<id>/preprocess` that:
-    - [ ] Runs pre-processing (probe + clipping) synchronously for the MVP.
-    - [ ] Optionally, if you later add a simple in-process background executor (no Redis), adapt this endpoint to enqueue work there instead of blocking.
-    - [ ] Updates `Video.status` accordingly (`processed` when complete).
+- [x] **Triggering pre-processing**
+  - [x] Provide an endpoint `POST /videos/<id>/preprocess` that:
+    - [x] Runs pre-processing (probe + clipping) synchronously for the MVP.
+    - [x] Optionally, if you later add a simple in-process background executor (no Redis), adapt this endpoint to enqueue work there instead of blocking.
+    - [x] Updates `Video.status` accordingly (`processed` when complete).
 
 ### 1.6 Sampling & Single-Model Inference
 
 Implement `app/services/inference_service.py` for Clarifai integration.
 
-- [ ] **Frame sampling**
-  - [ ] Implement frame extraction using PyAV and OpenCV:
-    - [ ] Fixed FPS (e.g., 1 FPS for Phase 1).
-    - [ ] Optionally prepare hooks for motion-based filtering but keep Phase 1 minimal.
+- [x] **Frame sampling**
+  - [x] Implement frame extraction using PyAV and OpenCV:
+    - [x] Fixed FPS (e.g., 1 FPS for Phase 1).
+    - [x] Optionally prepare hooks for motion-based filtering but keep Phase 1 minimal.
 
-- [ ] **Clarifai single-model call**
-  - [ ] Use the Clarifai SDK with PAT from `.env` / environment.
-  - [ ] Implement `run_single_model_inference(frames, model_id, config)` that:
-    - [ ] Sends frames in batches.
-    - [ ] Returns normalized detection data suitable for JSONB storage.
-  - [ ] Use `docs/ClarifaiAPI.md` for parameter/reference patterns and `scripts/demo_logo_detection.py` to manually verify PAT + model IDs before wiring the service.
+- [x] **Clarifai single-model call**
+  - [x] Use the Clarifai SDK with PAT from `.env` / environment.
+  - [x] Implement `run_single_model_inference(frames, model_id, config)` that:
+    - [x] Sends frames in batches.
+    - [x] Returns normalized detection data suitable for JSONB storage.
+  - [x] Use `docs/ClarifaiAPI.md` for parameter/reference patterns and `scripts/demo_logo_detection.py` to manually verify PAT + model IDs before wiring the service.
 
-- [ ] **Endpoint to trigger inference**
-  - [ ] `POST /videos/<id>/inference` – starts an inference run for a given model.
-  - [ ] Create an `InferenceRun` record with status transitions (`pending` → `running` → `completed/failed`).
+- [x] **Endpoint to trigger inference**
+  - [x] `POST /videos/<id>/inference` – starts an inference run for a given model.
+  - [x] Create an `InferenceRun` record with status transitions (`pending` → `running` → `completed/failed`).
 
 ### 1.7 Minimal Dashboard & Progress
 
 Implement basic Mission Control UI/API for Phase 1.
 
-- [ ] **API endpoints**
-  - [ ] `GET /projects/<id>/overview` – aggregate basic stats (video count, runs, last activity).
-  - [ ] `GET /videos/<id>/status` – return pre-processing + inference status.
+- [x] **API endpoints**
+  - [x] `GET /projects/<id>/overview` – aggregate basic stats (video count, runs, last activity).
+  - [x] `GET /videos/<id>/status` – return pre-processing + inference status.
 
 - [ ] **SocketIO events (minimal)**
   - [ ] Emit events for pre-processing and inference state changes.

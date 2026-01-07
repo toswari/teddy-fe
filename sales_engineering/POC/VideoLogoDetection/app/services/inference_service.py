@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Iterable
+
+import cv2
+import av
 
 from app.extensions import db
 from app.models import InferenceRun, Video
@@ -10,36 +14,55 @@ logger = logging.getLogger(__name__)
 
 
 
+def sample_frames(video_path: str, fps: float = 1.0) -> list[bytes]:
+    """Sample frames from video at given FPS, return as JPEG bytes."""
+    frames = []
+    container = av.open(video_path)
+    stream = container.streams.video[0]
+    duration = float(stream.duration * stream.time_base)
+    
+    for timestamp in range(0, int(duration), int(1 / fps)):
+        container.seek(timestamp, stream=stream)
+        for frame in container.decode(stream):
+            if frame.time >= timestamp:
+                img = frame.to_image()
+                # Convert to JPEG bytes
+                import io
+                buf = io.BytesIO()
+                img.save(buf, format='JPEG')
+                frames.append(buf.getvalue())
+                break
+    return frames
+
+
 class ClarifaiClientStub:
-    """Drop-in stand-in for the real Clarifai SDK usage.
-
-    Replace with something like:
-
-    ```python
-    from clarifai.client.model import Model
-    model = Model(model_id)
-    response = model.predict_by_bytes(frame_bytes)
-    ```
-
-    Keeping this stub documented helps downstream agents know exactly
-    where to plug the official SDK calls.
-    """
+    """Real Clarifai client using SDK."""
 
     def __init__(self, pat: str | None = None) -> None:
-        self.pat = pat
+        from clarifai.client.model import Model
+        import os
+        self.pat = pat or os.getenv("CLARIFAI_PAT")
+        self.user_id = os.getenv("CLARIFAI_USER_ID")
+        self.app_id = os.getenv("CLARIFAI_APP_ID")
 
-    def run_models(self, frames: Iterable[str], model_ids: list[str]) -> list[dict]:
+    def run_models(self, frames: list[bytes], model_ids: list[str]) -> list[dict]:
         detections = []
-        for frame in frames:
-            for model in model_ids:
-                detections.append(
-                    {
-                        "frame": frame,
-                        "model_id": model,
-                        "label": "sample-logo",
-                        "confidence": 0.87,
-                    }
-                )
+        for model_id in model_ids:
+            model = Model(model_id, pat=self.pat, user_id=self.user_id, app_id=self.app_id)
+            for i, frame_bytes in enumerate(frames):
+                try:
+                    response = model.predict_by_bytes(frame_bytes, input_type="image")
+                    # Parse response
+                    concepts = response.outputs[0].data.concepts
+                    for concept in concepts:
+                        detections.append({
+                            "frame_index": i,
+                            "model_id": model_id,
+                            "label": concept.name,
+                            "confidence": concept.value,
+                        })
+                except Exception as e:
+                    logger.error("Clarifai prediction failed for model %s: %s", model_id, e)
         return detections
 
 
@@ -54,8 +77,12 @@ def run_inference(video: Video, model_ids: list[str]) -> InferenceRun:
         model_ids,
     )
 
+    # Sample frames
+    frames = sample_frames(video.original_path, fps=1.0)
+    logger.debug("Sampled %s frames from video %s", len(frames), video.id)
+
+    # Run inference
     client = ClarifaiClientStub()
-    frames = ["frame_001.jpg", "frame_020.jpg"]
     detections = client.run_models(frames, model_ids)
     inference_run.results = {"detections": detections}
     inference_run.status = "completed"

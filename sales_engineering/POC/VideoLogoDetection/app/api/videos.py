@@ -36,9 +36,45 @@ def upload_video(project_id: int):
 
 
 @bp.post("/<int:video_id>/inference")
-def run_inference(video_id: int):
+def run_inference(project_id: int, video_id: int):
     video = Video.query.get_or_404(video_id)
+    if video.project_id != project_id:
+        return {"error": "Video not in project"}, 404
     data = request.get_json(silent=True) or {}
     model_ids = data.get("model_ids", ["general-image-recognition"])
     inference_run = inference_service.run_inference(video, model_ids)
     return jsonify({"inference_run_id": inference_run.id, "status": inference_run.status})
+
+
+@bp.post("/<int:video_id>/preprocess")
+def preprocess_video(project_id: int, video_id: int):
+    video = Video.query.get_or_404(video_id)
+    if video.project_id != project_id:
+        return {"error": "Video not in project"}, 404
+    try:
+        metadata = video_service.probe_video_metadata(video)
+        clips = video_service.generate_clips(video)
+        return {
+            "video_id": video.id,
+            "status": video.status,
+            "metadata": metadata,
+            "clips": [str(path) for path in clips],
+        }
+    except VideoProcessingError as e:
+        return {"error": str(e)}, 500
+
+
+@bp.get("/<int:video_id>/status")
+def get_video_status(project_id: int, video_id: int):
+    video = Video.query.get_or_404(video_id)
+    if video.project_id != project_id:
+        return {"error": "Video not in project"}, 404
+    inference_runs = InferenceRun.query.filter_by(video_id=video_id).all()
+    return {
+        "video_id": video.id,
+        "status": video.status,
+        "inference_runs": [
+            {"id": run.id, "status": run.status, "model_ids": run.model_ids}
+            for run in inference_runs
+        ],
+    }

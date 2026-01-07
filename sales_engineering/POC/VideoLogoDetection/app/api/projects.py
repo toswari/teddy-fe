@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 from marshmallow import Schema, ValidationError, fields
 
 from app.extensions import db
-from app.models import Project
+from app.models import Project, Video, InferenceRun
 from app.services import project_service
 
 bp = Blueprint("projects", __name__, url_prefix="/api/projects")
@@ -71,3 +71,19 @@ def update_project(project_id: int):
     project.updated_at = datetime.utcnow()
     db.session.commit()
     return project_schema.dump(project)
+
+
+@bp.get("/<int:project_id>/overview")
+def get_project_overview(project_id: int):
+    project = Project.query.get_or_404(project_id)
+    video_count = Video.query.filter_by(project_id=project_id).count()
+    inference_run_count = InferenceRun.query.filter_by(project_id=project_id).count()
+    last_inference = InferenceRun.query.filter_by(project_id=project_id).order_by(InferenceRun.created_at.desc()).first()
+    last_activity = last_inference.created_at if last_inference else project.last_opened_at
+    return {
+        "project_id": project.id,
+        "name": project.name,
+        "video_count": video_count,
+        "inference_run_count": inference_run_count,
+        "last_activity": last_activity.isoformat() if last_activity else None,
+    }
