@@ -1,4 +1,4 @@
-Technical Implementation Plan – VideoLogoDetection
+Technical Implementation Plan – VideoLogoDetection Snapshot v1.0.0
 
 This document translates the VideoLogoDetection Software Specification into a concrete, phased implementation plan. It assumes the stack defined in SoftwareSpecification.md (Python 3.11, Flask, PostgreSQL/JSONB, Clarifai, Gemini, PyAV, OpenCV, python-docx), with long-running work initially executed in-process (no Redis or external task broker).
 

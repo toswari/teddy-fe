@@ -1,5 +1,7 @@
 # Implementation Task Plan – VideoLogoDetection
 
+**Version:** 1.0.0
+
 This document is written for a **coding agent** implementing the VideoLogoDetection POC. It breaks the work into phases aligned with SoftwareSpecification.md and Technical Implementation Plan.md.
 
 - Treat **Phase 1 + Phase 2** as the MVP scope. These require detailed implementation.

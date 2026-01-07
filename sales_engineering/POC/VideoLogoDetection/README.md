@@ -1,5 +1,7 @@
 # VideoLogoDetection POC
 
+**Version:** 1.0.0
+
 VideoLogoDetection is a single-user, forensic video analysis proof-of-concept focused on:
 
 - Running AI-based logo/object detection on long-form videos

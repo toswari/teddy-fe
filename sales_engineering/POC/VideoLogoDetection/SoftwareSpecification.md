@@ -1,4 +1,4 @@
-# VideoLogoDetection Software Specification – Snapshot v2.2.0
+# VideoLogoDetection Software Specification – Snapshot v1.0.0
 
 ## 1. Project Overview
 

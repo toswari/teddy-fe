@@ -1,6 +1,8 @@
 """VideoLogoDetection Flask application factory."""
 from __future__ import annotations
 
+__version__ = "1.0.0"
+
 import logging
 import os
 from pathlib import Path
