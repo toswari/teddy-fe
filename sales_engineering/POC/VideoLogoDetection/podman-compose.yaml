@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: videologo_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-videologo_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-videologo_pass}
+      POSTGRES_DB: ${DB_NAME:-videologo_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "35432:5432" # non-standard host port, app connects to localhost:35432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-videologo_user}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
