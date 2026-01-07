@@ -69,6 +69,15 @@ def configure_shell_context(app: Flask) -> None:
 
 
 def register_ui_routes(app: Flask) -> None:
+    @app.route("/health")
+    def health():
+        try:
+            db.engine.execute("SELECT 1")
+            return {"status": "healthy", "database": "connected"}
+        except Exception as e:
+            app.logger.error("Health check failed: %s", e)
+            return {"status": "unhealthy", "database": "disconnected"}, 500
+
     @app.route("/")
     def dashboard():
         return render_template("dashboard.html")

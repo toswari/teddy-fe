@@ -7,11 +7,10 @@ from marshmallow import Schema, ValidationError, fields
 from app.models import Project, Video
 from app.services import video_service, inference_service
 
-bp = Blueprint("videos", __name__, url_prefix="/api/videos")
+bp = Blueprint("videos", __name__, url_prefix="/api/projects/<int:project_id>/videos")
 
 
 class VideoCreateSchema(Schema):
-    project_id = fields.Int(required=True)
     source_path = fields.Str(required=True)
 
 
@@ -19,14 +18,14 @@ video_create_schema = VideoCreateSchema()
 
 
 @bp.post("")
-def upload_video():
+def upload_video(project_id: int):
     try:
         payload = video_create_schema.load(request.json)
     except ValidationError as err:
         return {"errors": err.messages}, 400
 
-    Project.query.get_or_404(payload["project_id"])
-    video = video_service.register_video(payload["project_id"], payload["source_path"])
+    Project.query.get_or_404(project_id)
+    video = video_service.register_video(project_id, payload["source_path"])
     metadata = video_service.probe_video_metadata(video)
     clips = video_service.generate_clips(video)
     return {

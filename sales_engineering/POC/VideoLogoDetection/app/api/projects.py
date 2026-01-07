@@ -1,6 +1,8 @@
 """Projects API blueprint."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from flask import Blueprint, jsonify, request
 from marshmallow import Schema, ValidationError, fields
 
@@ -11,18 +13,26 @@ from app.services import project_service
 bp = Blueprint("projects", __name__, url_prefix="/api/projects")
 
 
-class ProjectSchema(Schema):
-    id = fields.Int(dump_only=True)
+class ProjectCreateSchema(Schema):
     name = fields.Str(required=True)
     description = fields.Str(load_default="")
     settings = fields.Dict(load_default=dict)
     budget_limit = fields.Float(load_default=0)
     currency = fields.Str(load_default="USD")
-    last_opened_at = fields.DateTime(dump_only=True)
+
+
+class ProjectUpdateSchema(Schema):
+    name = fields.Str()
+    description = fields.Str()
+    settings = fields.Dict()
+    budget_limit = fields.Float()
+    currency = fields.Str()
 
 
 project_schema = ProjectSchema()
 projects_schema = ProjectSchema(many=True)
+project_create_schema = ProjectCreateSchema()
+project_update_schema = ProjectUpdateSchema()
 
 
 @bp.get("")
@@ -34,7 +44,7 @@ def list_projects():
 @bp.post("")
 def create_project():
     try:
-        payload = project_schema.load(request.json)
+        payload = project_create_schema.load(request.json)
     except ValidationError as err:
         return {"errors": err.messages}, 400
     project = project_service.create_project(payload)
@@ -45,5 +55,19 @@ def create_project():
 def get_project(project_id: int):
     project = Project.query.get_or_404(project_id)
     project.touch()
+    db.session.commit()
+    return project_schema.dump(project)
+
+
+@bp.patch("/<int:project_id>")
+def update_project(project_id: int):
+    project = Project.query.get_or_404(project_id)
+    try:
+        payload = project_update_schema.load(request.json, partial=True)
+    except ValidationError as err:
+        return {"errors": err.messages}, 400
+    for key, value in payload.items():
+        setattr(project, key, value)
+    project.updated_at = datetime.utcnow()
     db.session.commit()
     return project_schema.dump(project)

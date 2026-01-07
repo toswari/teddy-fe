@@ -39,65 +39,65 @@ Goal: deliver a working single-user POC that can:
 
 ### 1.1 Project Skeleton & Environment
 
-- [ ] **Create Python package structure**
-  - [ ] Create `app/__init__.py` implementing `create_app()` using the Application Factory pattern.
-  - [ ] Add `app/config.py` with a `Config` class reading from `DATABASE_URL` and other env vars.
-  - [ ] Ensure `create_app()` initializes:
-    - [ ] SQLAlchemy
-    - [ ] Flask-SocketIO
-    - [ ] Any shared utilities needed for optional background execution (but **do not** add Redis or external brokers in MVP).
+- [x] **Create Python package structure**
+  - [x] Create `app/__init__.py` implementing `create_app()` using the Application Factory pattern.
+  - [x] Add `app/config.py` with a `Config` class reading from `DATABASE_URL` and other env vars.
+  - [x] Ensure `create_app()` initializes:
+    - [x] SQLAlchemy
+    - [x] Flask-SocketIO
+    - [x] Any shared utilities needed for optional background execution (but **do not** add Redis or external brokers in MVP).
 
-- [ ] **Wire environment & DB connectivity**
-  - [ ] Confirm the app uses `DATABASE_URL` from the environment (as set by `setup-env.sh`).
-  - [ ] Implement a simple health-check endpoint (`GET /health`) that verifies DB connectivity.
-  - [ ] Document in comments or README that DB is expected at `localhost:35432` via Podman.
+- [x] **Wire environment & DB connectivity**
+  - [x] Confirm the app uses `DATABASE_URL` from the environment (as set by `setup-env.sh`).
+  - [x] Implement a simple health-check endpoint (`GET /health`) that verifies DB connectivity.
+  - [x] Document in comments or README that DB is expected at `localhost:35432` via Podman.
 
 ### 1.2 Data Model (Core Entities)
 
 Implement SQLAlchemy models in `app/models/`:
 
-- [ ] **Project model** (`app/models/project.py`)
-  - [ ] Fields: `id`, `name`, `description`, `settings` (JSONB), `budget_limit`, `currency`, `created_at`, `updated_at`, `last_opened_at`.
-  - [ ] Add relationship(s) to `Video` and `InferenceRun`.
+- [x] **Project model** (`app/models/project.py`)
+  - [x] Fields: `id`, `name`, `description`, `settings` (JSONB), `budget_limit`, `currency`, `created_at`, `updated_at`, `last_opened_at`.
+  - [x] Add relationship(s) to `Video` and `InferenceRun`.
 
-- [ ] **Video model** (`app/models/video.py`)
-  - [ ] Fields: `id`, `project_id`, `original_path`, `storage_path`, `duration_seconds`, `resolution`, `status`, `created_at`.
-  - [ ] Relationship back to `Project`.
+- [x] **Video model** (`app/models/video.py`)
+  - [x] Fields: `id`, `project_id`, `original_path`, `storage_path`, `duration_seconds`, `resolution`, `status`, `created_at`.
+  - [x] Relationship back to `Project`.
 
-- [ ] **InferenceRun model** (`app/models/inference_run.py`)
-  - [ ] Fields: `id`, `project_id`, `video_id`, `model_ids`, `params` (JSONB), `results` (JSONB), `cost_actual`, `cost_projected`, `efficiency_ratio`, `status`, `created_at`.
-  - [ ] Relationship to `Project` and `Video`.
+- [x] **InferenceRun model** (`app/models/inference_run.py`)
+  - [x] Fields: `id`, `project_id`, `video_id`, `model_ids`, `params` (JSONB), `results` (JSONB), `cost_actual`, `cost_projected`, `efficiency_ratio`, `status`, `created_at`.
+  - [x] Relationship to `Project` and `Video`.
 
-- [ ] **(Optional for Phase 1) Detection model**
-  - [ ] Only implement if needed immediately; otherwise, defer to Phase 2.
+- [x] **(Optional for Phase 1) Detection model**
+  - [x] Only implement if needed immediately; otherwise, defer to Phase 2.
 
-- [ ] **Migrations / schema setup**
-  - [ ] Provide a simple schema init script or Alembic configuration to create tables based on these models.
+- [x] **Migrations / schema setup**
+  - [x] Provide a simple schema init script or Alembic configuration to create tables based on these models.
 
 ### 1.3 Project Management API
 
 Implement a `api.projects` blueprint under `app/api/projects.py`:
 
-- [ ] **Routes**
-  - [ ] `GET /projects` – list all projects with summary info (id, name, last_opened_at, #videos).
-  - [ ] `POST /projects` – create a new project.
-  - [ ] `GET /projects/<id>` – retrieve details of a single project.
-  - [ ] `PATCH /projects/<id>` – update name/description/settings.
+- [x] **Routes**
+  - [x] `GET /projects` – list all projects with summary info (id, name, last_opened_at, #videos).
+  - [x] `POST /projects` – create a new project.
+  - [x] `GET /projects/<id>` – retrieve details of a single project.
+  - [x] `PATCH /projects/<id>` – update name/description/settings.
 
-- [ ] **Schemas / validation**
-  - [ ] Implement `ProjectCreateSchema` and `ProjectUpdateSchema` using Marshmallow.
-  - [ ] Ensure invalid data returns clear 4xx responses.
+- [x] **Schemas / validation**
+  - [x] Implement `ProjectCreateSchema` and `ProjectUpdateSchema` using Marshmallow.
+  - [x] Ensure invalid data returns clear 4xx responses.
 
-- [ ] **Last opened tracking**
-  - [ ] Whenever a project is accessed from the UI (e.g., via `GET /projects/<id>` for the main dashboard), update `last_opened_at`.
+- [x] **Last opened tracking**
+  - [x] Whenever a project is accessed from the UI (e.g., via `GET /projects/<id>` for the main dashboard), update `last_opened_at`.
 
 ### 1.4 Video Upload & Storage
 
 Implement a `api.videos` blueprint and matching service logic.
 
-- [ ] **Endpoint for video registration/upload**
-  - [ ] `POST /projects/<project_id>/videos` – accept a file upload or a local path reference (for POC, either is acceptable).
-  - [ ] Persist a `Video` record with status `uploaded` and the original path.
+- [x] **Endpoint for video registration/upload**
+  - [x] `POST /projects/<project_id>/videos` – accept a file upload or a local path reference (for POC, either is acceptable).
+  - [x] Persist a `Video` record with status `uploaded` and the original path.
 
 - [ ] **Storage & directories**
   - [ ] Use a predictable directory under the project (e.g., `media/<project_id>/` or similar) for stored video files.
