@@ -105,6 +105,30 @@ def upload_video(project_id: int):
     return response, 201
 
 
+@bp.delete("/<int:video_id>")
+def delete_video(project_id: int, video_id: int):
+    video = db.session.get(Video, video_id)
+    if video is None:
+        return {"error": "Video not found"}, 404
+    if video.project_id != project_id:
+        return {"error": "Video not in project"}, 404
+    
+    # Check if video has inference runs
+    if video.inference_runs:
+        return {"error": "Cannot delete video with inference runs"}, 400
+    
+    # Local import
+    from app.services import video_service
+    
+    try:
+        video_service.delete_video(video)
+        db.session.commit()
+        return {"message": "Video deleted"}, 200
+    except Exception as exc:
+        db.session.rollback()
+        return {"error": str(exc)}, 500
+
+
 @bp.post("/<int:video_id>/inference")
 def run_inference(project_id: int, video_id: int):
     video = db.session.get(Video, video_id)

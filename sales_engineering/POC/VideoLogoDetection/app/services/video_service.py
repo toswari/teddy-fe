@@ -300,3 +300,20 @@ def generate_multiple_clips(video: Video, clip_segments: list[dict[str, float]])
         video.id,
     )
     return clips
+
+
+def delete_video(video: Video) -> None:
+    """Delete a video and its associated files."""
+    media_root = Path(current_app.config.get("PROJECT_MEDIA_ROOT", "media"))
+    if not media_root.is_absolute():
+        media_root = Path(current_app.root_path).parent / media_root
+    
+    # Delete video directory
+    video_dir = media_root / f"project_{video.project_id}" / f"video_{video.id}"
+    if video_dir.exists():
+        shutil.rmtree(video_dir)
+        logger.info("Deleted video directory: %s", video_dir)
+    
+    # Delete from database
+    db.session.delete(video)
+    logger.info("Deleted video record: id=%s", video.id)

@@ -107,8 +107,14 @@ function renderVideoList() {
     selectBtn.textContent = "Select";
     selectBtn.addEventListener("click", () => selectVideo(video.id));
     
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "rounded-full border border-red-500 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", () => deleteVideo(video.id));
+    
     li.appendChild(leftDiv);
     li.appendChild(selectBtn);
+    li.appendChild(deleteBtn);
     videoList.appendChild(li);
   });
 }
@@ -259,6 +265,38 @@ async function handleFileUpload(event) {
   
   // Reset input
   event.target.value = "";
+}
+
+// Delete a video
+async function deleteVideo(videoId) {
+  if (!confirm("Are you sure you want to delete this video? This action cannot be undone.")) return;
+  
+  try {
+    const response = await fetch(`/api/projects/${state.projectId}/videos/${videoId}`, {
+      method: "DELETE"
+    });
+    
+    if (!response.ok) throw new Error("Delete failed");
+    
+    state.videos.delete(videoId);
+    renderVideoList();
+    populateVideoSelect();
+    
+    // If the deleted video was selected, clear selection
+    if (state.currentVideoId === videoId) {
+      state.currentVideoId = null;
+      // Reset video player and form
+      const videoElement = document.getElementById("preprocess-video");
+      videoElement.src = "";
+      document.getElementById("preprocess-video-select").value = "";
+      initializeClips();
+    }
+    
+    alert("Video deleted successfully!");
+  } catch (error) {
+    console.error("Error deleting video:", error);
+    alert("Failed to delete video");
+  }
 }
 
 // Mark start time for current clip
