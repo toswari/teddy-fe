@@ -1916,15 +1916,22 @@ async function loadMetrics() {
 }
 
 function populateComparisonDropdowns() {
-  // Populate video dropdown
+  // Populate video/clip dropdown
   if (elements.comparisonVideo) {
-    elements.comparisonVideo.innerHTML = '<option value="">Select video</option>';
-    state.videos.forEach(video => {
+    elements.comparisonVideo.innerHTML = '<option value="">Select clip</option>';
+    // Populate with clips
+    state.clips.forEach(clip => {
       const option = document.createElement('option');
-      option.value = video.id;
-      option.textContent = videoLabel(video);
+      option.value = clip.id; // clip.id like "1-1"
+      option.textContent = clipLabel(clip);
       elements.comparisonVideo.appendChild(option);
     });
+  }
+
+  // Populate run dropdown (existing runs for the selected clip)
+  if (elements.comparisonRun) {
+    elements.comparisonRun.innerHTML = '<option value="">Select run</option>';
+    // This would be populated when a clip is selected
   }
 
   // Populate model dropdowns
@@ -1933,6 +1940,58 @@ function populateComparisonDropdowns() {
     const modelOptions = '<option value="">Select model</option>' + models.map(model => `<option value="${model}">${model}</option>`).join('');
     elements.comparisonModelA.innerHTML = modelOptions;
     elements.comparisonModelB.innerHTML = modelOptions;
+  }
+}
+
+async function runComparisonInference() {
+  const clipId = elements.comparisonVideo.value;
+  if (!clipId) {
+    alert('Please select a clip');
+    return;
+  }
+
+  const clip = state.clips.get(clipId);
+  if (!clip) {
+    alert('Clip not found');
+    return;
+  }
+
+  const videoId = clip.videoId;
+  const modelA = elements.comparisonModelA.value;
+  const modelB = elements.comparisonModelB.value;
+
+  const models = [];
+  if (modelA) models.push(modelA);
+  if (modelB) models.push(modelB);
+  if (models.length === 0) {
+    alert('Please select at least one model');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_ids: models,
+        clip_id: clipId,
+        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Inference failed');
+    }
+
+    const result = await response.json();
+    alert(`Inference started on clip ${clipId} with models ${models.join(', ')}! Run ID: ${result.id}`);
+    
+    // Refresh videos to show the new run
+    await loadVideos(state.activeProject.id);
+  } catch (error) {
+    console.error('Inference error:', error);
+    alert('Failed to start inference: ' + error.message);
   }
 }
 

@@ -106,8 +106,7 @@ def upload_video(project_id: int):
 
 
 @bp.delete("/<int:video_id>")
-def delete_video(project_id: int, video_id: int):
-    video = db.session.get(Video, video_id)
+def delete_video_endpoint(project_id: int, video_id: int):
     if video is None:
         return {"error": "Video not found"}, 404
     if video.project_id != project_id:
