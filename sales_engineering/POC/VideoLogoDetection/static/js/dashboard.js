@@ -179,7 +179,7 @@ function createVideoCard(video) {
   preprocessButton.textContent = 'Preprocess';
   preprocessButton.addEventListener('click', (event) => {
     event.stopPropagation();
-    triggerPreprocess(video.id);
+    window.location.href = `/preprocess?project_id=${state.activeProject?.id}&video_id=${video.id}`;
   });
   actions.appendChild(preprocessButton);
 
@@ -200,6 +200,15 @@ function createVideoCard(video) {
     triggerReport(video.id);
   });
   actions.appendChild(reportButton);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'rounded-full border border-red-500 px-3 py-1 text-red-600 hover:bg-red-50';
+  deleteButton.textContent = 'Delete';
+  deleteButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    deleteVideo(video.id);
+  });
+  actions.appendChild(deleteButton);
 
   li.appendChild(actions);
 
@@ -449,6 +458,40 @@ async function triggerReport(videoId) {
     window.alert(`Report created: ${response.report_path}`);
   } catch (error) {
     window.alert(`Report failed: ${error.message}`);
+  }
+}
+
+async function deleteVideo(videoId) {
+  const projectId = state.activeProject?.id;
+  if (!projectId) return;
+  
+  if (!window.confirm('Are you sure you want to delete this video? This action cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/api/projects/${projectId}/videos/${videoId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Delete failed');
+    }
+    
+    // Remove from state
+    state.videos.delete(videoId);
+    
+    // Remove from UI
+    const card = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (card) {
+      card.remove();
+    }
+    
+    // Reload videos to update display
+    await loadVideos(projectId);
+  } catch (error) {
+    window.alert(`Delete failed: ${error.message}`);
   }
 }
 
@@ -1049,20 +1092,39 @@ function setupButtons() {
   }
 
   const uploadVideoBtn = document.getElementById('upload-video-btn');
-  if (uploadVideoBtn) {
-    uploadVideoBtn.addEventListener('click', async () => {
-      const sourcePath = window.prompt('Enter path to local video file');
-      if (!sourcePath) return;
+  const videoFileInput = document.getElementById('video-file-input');
+  
+  if (uploadVideoBtn && videoFileInput) {
+    uploadVideoBtn.addEventListener('click', () => {
+      videoFileInput.click();
+    });
+    
+    videoFileInput.addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      
       const projectId = state.activeProject?.id;
       if (!projectId) return;
+      
       try {
-        await fetchJSON(`/api/projects/${projectId}/videos`, {
+        const formData = new FormData();
+        formData.append('video', file);
+        
+        const response = await fetch(`/api/projects/${projectId}/videos`, {
           method: 'POST',
-          body: JSON.stringify({ source_path: sourcePath }),
+          body: formData,
         });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || 'Upload failed');
+        }
+        
         await loadVideos(projectId);
+        videoFileInput.value = '';
       } catch (error) {
-        window.alert(`Video registration failed: ${error.message}`);
+        window.alert(`Video upload failed: ${error.message}`);
+        videoFileInput.value = '';
       }
     });
   }

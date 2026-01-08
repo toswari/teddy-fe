@@ -10,7 +10,10 @@
   <div class="rounded-2xl bg-white p-6 shadow-sm md:col-span-2">
     <p class="text-sm uppercase tracking-wide text-slate-400">Video Queue</p>
     <ul class="mt-4 space-y-3" id="video-list"></ul>
-    <button class="mt-4 rounded-full border border-slate-900 px-4 py-2 text-sm font-medium" id="upload-video-btn">Register Video</button>
+    <div class="mt-4 flex gap-3">
+      <input type="file" accept="video/*" id="video-file-input" class="hidden" />
+      <button class="rounded-full border border-slate-900 px-4 py-2 text-sm font-medium" id="upload-video-btn">Upload Video</button>
+    </div>
   </div>
 </section>
 

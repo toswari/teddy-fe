@@ -189,3 +189,157 @@ All code referencing `video.metadata` needed to be updated to use `video.video_m
 ---
 
 **Resolution:** Changed column attribute from `metadata` to `video_metadata` and updated all references in the services layer.
+
+---
+
+# Agent Lesson Learned: Missing Database Import in API Blueprint
+
+**Date:** January 7, 2026  
+**Component:** Videos API Blueprint (Flask)  
+**Severity:** High (Runtime Error on DELETE requests)
+
+---
+
+## Problem Summary
+
+The DELETE endpoint for videos returned a 500 Internal Server Error with the following traceback:
+
+```python
+NameError: name 'db' is not defined
+  File "app/api/videos.py", line 258, in delete_video
+    db.session.delete(video)
+NameError: name 'db' is not defined
+```
+
+---
+
+## Root Cause
+
+When adding the DELETE endpoint to `app/api/videos.py`, the code used `db.session.delete()` and `db.session.rollback()` without importing the `db` object from `app.extensions`.
+
+The blueprint module had `socketio` imported but was missing the `db` import:
+
+```python
+# Before (incomplete)
+from app.extensions import socketio
+```
+
+---
+
+## Solution
+
+Add `db` to the imports from `app.extensions`:
+
+```python
+# After (complete)
+from app.extensions import db, socketio
+```
+
+---
+
+## Lessons Learned
+
+1. **Always verify imports** when adding new functionality that uses database operations
+2. **Check import statements** in blueprint files - they may not have all necessary extensions
+3. **Test endpoint immediately** after implementation to catch import errors early
+4. **Use IDE autocomplete warnings** - missing imports often show as unresolved references
+5. **Database operations require explicit db import** - it's not globally available in Flask blueprints
+
+---
+
+## Prevention Strategy
+
+1. Always add database imports at the top of blueprint files that perform CRUD operations
+2. Run the endpoint immediately after implementation to verify it works
+3. Use linters (pylint, flake8) to catch undefined names before runtime
+4. Create a checklist for new endpoints: imports, route decorator, error handling, database commit/rollback
+
+---
+
+**Resolution:** Added `db` to the import statement: `from app.extensions import db, socketio`
+
+---
+
+# Agent Lesson Learned: Media File Serving with Relative Paths
+
+**Date:** January 7, 2026  
+**Component:** Flask Media Serving Route  
+**Severity:** Medium (404 errors on video playback)
+
+---
+
+## Problem Summary
+
+The video player on the preprocessing page failed to load videos, and the media serving route returned 404 errors:
+
+```
+INFO:werkzeug:127.0.0.1 - - [07/Jan/2026 22:25:32] "HEAD /media/1/6/video_6_vlc-record-2025-11-20-11h12m15s-I04_R_3c.MP4-.mp4 HTTP/1.1" 404 -
+```
+
+Despite the video file existing at `media/project_1/video_6/video_6_vlc-record-2025-11-20-11h12m15s-I04_R_3c.MP4-.mp4`.
+
+---
+
+## Root Cause
+
+Flask's `send_from_directory()` function requires an **absolute path** for the directory argument, but the code was passing a relative `Path` object:
+
+```python
+# Before (incorrect - relative path)
+media_root = Path(app.config.get("PROJECT_MEDIA_ROOT", "media"))
+video_dir = media_root / f"project_{project_id}" / f"video_{video_id}"
+return send_from_directory(video_dir, filename)
+```
+
+When `send_from_directory()` received a relative path, it couldn't find the files and returned 404.
+
+---
+
+## Solution
+
+Convert relative paths to absolute paths before passing to `send_from_directory()`:
+
+```python
+# After (correct - absolute path)
+media_root = Path(app.config.get("PROJECT_MEDIA_ROOT", "media"))
+if not media_root.is_absolute():
+    media_root = Path(app.root_path).parent / media_root
+video_dir = media_root / f"project_{project_id}" / f"video_{video_id}"
+return send_from_directory(video_dir, filename)
+```
+
+---
+
+## Lessons Learned
+
+1. **`send_from_directory()` requires absolute paths** - relative paths will fail silently with 404
+2. **Configuration values** like `PROJECT_MEDIA_ROOT` may be relative - always check and convert
+3. **Use `app.root_path`** as the base for converting relative config paths to absolute
+4. **Test file serving routes** with actual file requests, not just endpoint registration
+5. **Check file existence** vs **route functionality** - files existing doesn't mean routes serve them correctly
+
+---
+
+## Testing Verification
+
+After fix, the media route returned proper responses:
+
+```
+HTTP/1.1 200 OK
+Content-Type: video/mp4
+Content-Length: 95582034
+```
+
+---
+
+## Prevention Strategy
+
+1. Always use absolute paths for `send_from_directory()`
+2. Add path resolution logic for config values that may be relative
+3. Test file serving routes with `curl` or browser before marking as complete
+4. Document in code comments that paths must be absolute for file serving
+5. Consider adding validation in config loading to convert relative paths early
+
+---
+
+**Resolution:** Added absolute path resolution logic using `app.root_path` when media_root is relative.

@@ -6,7 +6,7 @@ from marshmallow import Schema, ValidationError, fields, validate
 from sqlalchemy.orm import selectinload
 
 from app.api.schemas import DetectionSchema, InferenceRunSchema, VideoSchema
-from app.extensions import socketio
+from app.extensions import db, socketio
 from app.models import InferenceRun, Project, Video
 from app.services import inference_service, video_service, reporting_service
 from app.services.inference_models import InferenceRequest
@@ -60,18 +60,33 @@ def list_videos(project_id: int):
 
 @bp.post("")
 def upload_video(project_id: int):
-    try:
-        payload = video_create_schema.load(request.json)
-    except ValidationError as err:
-        return {"errors": err.messages}, 400
-
     Project.query.get_or_404(project_id)
-    try:
-        video = video_service.register_video(project_id, payload["source_path"])
-        video_service.probe_video_metadata(video)
-        clips = video_service.generate_clips(video)
-    except video_service.VideoProcessingError as exc:
-        return {"error": str(exc)}, 400
+    
+    # Handle file upload
+    if 'video' in request.files:
+        video_file = request.files['video']
+        if not video_file.filename:
+            return {"error": "No file selected"}, 400
+        
+        try:
+            video = video_service.register_uploaded_video(project_id, video_file)
+            video_service.probe_video_metadata(video)
+            clips = video_service.generate_clips(video)
+        except video_service.VideoProcessingError as exc:
+            return {"error": str(exc)}, 400
+    # Handle path-based registration (backward compatibility)
+    else:
+        try:
+            payload = video_create_schema.load(request.json)
+        except ValidationError as err:
+            return {"errors": err.messages}, 400
+        
+        try:
+            video = video_service.register_video(project_id, payload["source_path"])
+            video_service.probe_video_metadata(video)
+            clips = video_service.generate_clips(video)
+        except video_service.VideoProcessingError as exc:
+            return {"error": str(exc)}, 400
 
     response = video_schema.dump(video)
     response["video_metadata"] = video.video_metadata
@@ -158,6 +173,7 @@ def get_video_status(project_id: int, video_id: int):
     return {
         "video_id": video.id,
         "status": video.status,
+        "storage_path": video.storage_path,
         "video_metadata": video.video_metadata,
         "duration_seconds": video.duration_seconds,
         "resolution": video.resolution,
@@ -217,3 +233,33 @@ def generate_video_report(project_id: int, video_id: int):
 
     report_path = reporting_service.generate_video_report(project, video, inference_run)
     return {"report_path": str(report_path)}, 201
+
+
+@bp.delete("/<int:video_id>")
+def delete_video(project_id: int, video_id: int):
+    video = Video.query.get_or_404(video_id)
+    if video.project_id != project_id:
+        return {"error": "Video not in project"}, 404
+    
+    try:
+        # Delete physical files
+        if video.storage_path:
+            import shutil
+            from pathlib import Path
+            storage_path = Path(video.storage_path)
+            if storage_path.exists():
+                # Delete the video file
+                storage_path.unlink()
+                # Try to delete the parent directory (video folder) if empty
+                video_dir = storage_path.parent
+                if video_dir.exists() and not any(video_dir.iterdir()):
+                    video_dir.rmdir()
+        
+        # Delete database record (cascades to clips, detections, runs)
+        db.session.delete(video)
+        db.session.commit()
+        
+        return {"message": "Video deleted successfully"}, 200
+    except Exception as exc:
+        db.session.rollback()
+        return {"error": f"Failed to delete video: {str(exc)}"}, 500

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from flask import current_app
+from werkzeug.datastructures import FileStorage
 
 from app.extensions import db
 from app.models import Video
@@ -20,6 +21,43 @@ class VideoProcessingError(RuntimeError):
 
 
 DEFAULT_MAX_CLIPS = 450
+
+
+def register_uploaded_video(project_id: int, file: FileStorage) -> Video:
+    """Register a video from a file upload."""
+    if not file.filename:
+        raise VideoProcessingError("No filename provided")
+    
+    # Secure the filename
+    import re
+    filename = re.sub(r'[^a-zA-Z0-9._-]', '_', file.filename)
+    
+    metadata = {
+        "original_filename": file.filename,
+    }
+    video = Video(project_id=project_id, original_path=filename, video_metadata=metadata)
+    db.session.add(video)
+    
+    try:
+        db.session.flush()
+        media_root = Path(current_app.config.get("PROJECT_MEDIA_ROOT", "media"))
+        storage_dir = media_root / f"project_{project_id}" / f"video_{video.id}"
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        dest_file = storage_dir / f"video_{video.id}_{filename}"
+        
+        # Save uploaded file
+        file.save(str(dest_file))
+        
+        video.storage_path = str(dest_file)
+        video.video_metadata = {**(video.video_metadata or {}), "storage_path": str(dest_file)}
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error("Failed to save uploaded video for project %s: %s", project_id, exc)
+        raise VideoProcessingError("Unable to persist uploaded video") from exc
+    
+    logger.info("Video uploaded and registered (id=%s, project_id=%s)", video.id, project_id)
+    return video
 
 
 def register_video(project_id: int, source_path: str) -> Video:

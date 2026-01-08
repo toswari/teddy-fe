@@ -82,6 +82,19 @@ def register_ui_routes(app: Flask) -> None:
     def dashboard():
         return render_template("dashboard.html")
 
+    @app.route("/preprocess")
+    def preprocess():
+        return render_template("preprocess.html")
+
+    @app.route("/media/<int:project_id>/<int:video_id>/<path:filename>")
+    def serve_media(project_id: int, video_id: int, filename: str):
+        from flask import send_from_directory
+        media_root = Path(app.config.get("PROJECT_MEDIA_ROOT", "media"))
+        if not media_root.is_absolute():
+            media_root = Path(app.root_path).parent / media_root
+        video_dir = media_root / f"project_{project_id}" / f"video_{video_id}"
+        return send_from_directory(video_dir, filename)
+
     @app.route("/demo/detection-overlay")
     def detection_overlay():
         sample_detections = [
