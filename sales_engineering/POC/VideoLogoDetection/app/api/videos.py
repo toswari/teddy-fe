@@ -29,6 +29,7 @@ class InferenceRequestSchema(Schema):
     model_ids = fields.List(fields.Str(), load_default=list)
     params = fields.Nested(InferenceParamsSchema, load_default=dict)
     note = fields.Str(allow_none=True, load_default=None)
+    clip_id = fields.Str(load_default=None, allow_none=True)
 
 
 class PreprocessRequestSchema(Schema):
@@ -107,7 +108,10 @@ def run_inference(project_id: int, video_id: int):
     except ValidationError as err:
         return {"errors": err.messages}, 400
     inference_request = InferenceRequest(**data)
-    inference_run = inference_service.run_inference(video, inference_request)
+    try:
+        inference_run = inference_service.run_inference(video, inference_request)
+    except inference_service.InferenceServiceError as exc:
+        return {"error": str(exc)}, 400
     return inference_run_schema.dump(inference_run), 202
 
 
@@ -122,7 +126,10 @@ def run_multi_inference(project_id: int, video_id: int):
     except ValidationError as err:
         return {"errors": err.messages}, 400
     inference_request = InferenceRequest(**data)
-    inference_run = inference_service.run_inference(video, inference_request)
+    try:
+        inference_run = inference_service.run_inference(video, inference_request)
+    except inference_service.InferenceServiceError as exc:
+        return {"error": str(exc)}, 400
     return inference_run_schema.dump(inference_run), 202
 
 
@@ -220,6 +227,7 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
         "models": model_ids,
         "frames": ordered_frames,
         "detections": detections_schema.dump(inference_run.detections),
+        "clip": (inference_run.results or {}).get("clip"),
     }
 
 

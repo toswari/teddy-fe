@@ -196,6 +196,7 @@ def generate_clips(
                 "path": str(clip_path),
                 "start": start_time,
                 "end": clip_end,
+                "segment": len(clips),
             }
         )
 

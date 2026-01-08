@@ -8,7 +8,8 @@ const state = {
   metrics: null,
   palettes: new Map(),
   comparison: {
-    clipId: null, // Changed from videoId to clipId
+    clipId: null,
+    videoId: null,
     runId: null,
     modelA: null,
     modelB: null,
@@ -136,10 +137,13 @@ function videoLabel(video) {
   return leaf || `Video ${video.id}`;
 }
 
-function clipLabel(clip) {
-  const video = state.videos.get(clip.videoId);
+function clipLabel(clip, videoOverride) {
+  const video = videoOverride || state.videos.get(clip.videoId);
   const videoName = video ? videoLabel(video) : `Video ${clip.videoId}`;
-  return `${videoName} - Clip ${clip.segment} (${formatSecondsToClock(clip.start)}-${formatSecondsToClock(clip.end)})`;
+  const segment = Number.isFinite(clip.segment) ? clip.segment : '—';
+  const start = Number.isFinite(clip.start) ? formatSecondsToClock(clip.start) : '0:00';
+  const end = Number.isFinite(clip.end) ? formatSecondsToClock(clip.end) : '—';
+  return `${videoName} · Clip ${segment} (${start} → ${end})`;
 }
 
 function extractClipsFromVideos() {
@@ -149,16 +153,21 @@ function extractClipsFromVideos() {
   videos.forEach((video) => {
     const clips = video.video_metadata?.clips || [];
     clips.forEach((clipData, index) => {
-      const clipId = `${video.id}-${clipData.segment || (index + 1)}`;
+      const segment = clipData.segment || (index + 1);
+      const clipId = `${video.id}-${segment}`;
       const clip = {
         id: clipId,
         videoId: video.id,
         path: clipData.path,
         start: clipData.start,
         end: clipData.end,
-        segment: clipData.segment || (index + 1),
-        duration: clipData.end - clipData.start,
+        segment,
+        duration:
+          Number.isFinite(clipData.end) && Number.isFinite(clipData.start)
+            ? clipData.end - clipData.start
+            : null,
       };
+      clip.label = clipLabel(clip, video);
       state.clips.set(clipId, clip);
     });
   });
@@ -166,6 +175,10 @@ function extractClipsFromVideos() {
 
 function getClipsArray() {
   return Array.from(state.clips.values());
+}
+
+function getClipsForVideo(videoId) {
+  return getClipsArray().filter((clip) => clip.videoId === videoId);
 }
 
 function createVideoCard(video) {
@@ -269,12 +282,15 @@ function populateInferenceRuns(container, runs) {
     const card = document.createElement('div');
     card.className = 'rounded-lg bg-slate-50 p-3';
     const detectionsCount = (run.results?.detections || []).length;
+    const clipInfo = run.results?.clip;
+    const clipText = clipInfo?.label || 'Full video';
     card.innerHTML = `
       <div class="flex items-center justify-between">
         <span class="font-medium">Run #${run.id}</span>
         <span class="text-xs uppercase tracking-wide text-slate-500">${run.status}</span>
       </div>
       <p class="mt-1 text-xs text-slate-500">Models: ${(run.model_ids || []).join(', ') || '—'}</p>
+      <p class="mt-1 text-xs text-slate-500">Scope: ${clipText}</p>
       <p class="mt-1 text-xs text-slate-500">Detections: ${detectionsCount}</p>
     `;
     runsContainer.appendChild(card);
@@ -283,8 +299,10 @@ function populateInferenceRuns(container, runs) {
 
 function updateSelectedVideoHighlight() {
   if (!elements.videoList) return;
+  const clip = state.comparison.clipId ? state.clips.get(state.comparison.clipId) : null;
+  const selectedVideoId = clip ? clip.videoId : state.comparison.videoId;
   document.querySelectorAll('#video-list li').forEach((item) => {
-    const isSelected = Number(item.dataset.videoId) === state.comparison.videoId;
+    const isSelected = Number(item.dataset.videoId) === selectedVideoId;
     item.classList.toggle('ring-2', isSelected);
     item.classList.toggle('ring-slate-400', isSelected);
   });
@@ -482,16 +500,94 @@ async function triggerPreprocess(videoId) {
 async function triggerInference(videoId) {
   const projectId = state.activeProject?.id;
   if (!projectId) return;
-  const modelInput = window.prompt('Enter Clarifai model IDs (comma separated)', 'general-image-recognition');
+
+  const clipsForVideo = getClipsForVideo(videoId);
+  if (!clipsForVideo.length) {
+    window.alert('Preprocess this video to create clips before running inference.');
+    return;
+  }
+
+  const currentClip = state.comparison.clipId ? state.clips.get(state.comparison.clipId) : null;
+  let defaultClip = currentClip && currentClip.videoId === videoId ? currentClip : clipsForVideo[0];
+
+  const clipOptions = clipsForVideo
+    .map((clip) => `${clip.segment}: ${clip.label || clipLabel(clip)}`)
+    .join('\n');
+
+  const clipPrompt = window.prompt(
+    `Select clip segment number to analyze:\n${clipOptions}`,
+    String(defaultClip.segment)
+  );
+  if (clipPrompt === null) {
+    return;
+  }
+  const segmentChoice = Number(clipPrompt.trim());
+  if (!Number.isFinite(segmentChoice) || !Number.isInteger(segmentChoice)) {
+    window.alert('Clip segment must be a whole number.');
+    return;
+  }
+  const selectedClip = clipsForVideo.find((clip) => Number(clip.segment) === segmentChoice);
+  if (!selectedClip) {
+    window.alert('Clip segment not found.');
+    return;
+  }
+
+  const modelInput = window.prompt(
+    'Enter Clarifai model IDs (comma separated)',
+    'general-image-recognition'
+  );
   const modelIds = modelInput ? modelInput.split(',').map((m) => m.trim()).filter(Boolean) : undefined;
+
+  const paramsPrompt = window.prompt(
+    'Optional inference settings (fps,min_confidence,max_concepts). Leave blank for defaults.',
+    ''
+  );
+  const params = {};
+  if (paramsPrompt) {
+    const parts = paramsPrompt.split(',').map((part) => part.trim());
+    if (parts[0]) {
+      const fpsValue = Number(parts[0]);
+      if (!Number.isFinite(fpsValue) || fpsValue <= 0) {
+        window.alert('FPS must be a positive number.');
+        return;
+      }
+      params.fps = fpsValue;
+    }
+    if (parts[1]) {
+      const minValue = Number(parts[1]);
+      if (!Number.isFinite(minValue) || minValue < 0 || minValue > 1) {
+        window.alert('Min confidence must be between 0 and 1.');
+        return;
+      }
+      params.min_confidence = minValue;
+    }
+    if (parts[2]) {
+      const maxValue = Number(parts[2]);
+      if (!Number.isFinite(maxValue) || maxValue <= 0) {
+        window.alert('Max concepts must be a positive number.');
+        return;
+      }
+      params.max_concepts = Math.round(maxValue);
+    }
+  }
+
   try {
-    const payload = modelIds ? { model_ids: modelIds } : {};
+    const payload = { clip_id: selectedClip.id };
+    if (modelIds?.length) {
+      payload.model_ids = modelIds;
+    }
+    if (Object.keys(params).length) {
+      payload.params = params;
+    }
     await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/multi-inference`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
     await refreshVideo(videoId);
     await loadInferenceSummary(projectId);
+    state.comparison.clipId = selectedClip.id;
+    state.comparison.videoId = selectedClip.videoId;
+    await handleClipSelection(selectedClip.id, { preserveRun: false, preserveModels: false });
   } catch (error) {
     window.alert(`Inference failed: ${error.message}`);
   }
@@ -558,6 +654,7 @@ async function refreshVideo(videoId) {
     inference_runs: status.inference_runs,
   };
   state.videos.set(videoId, updated);
+  extractClipsFromVideos();
 
   const card = document.querySelector(`[data-video-id="${videoId}"]`);
   if (card) {
@@ -573,8 +670,11 @@ async function refreshVideo(videoId) {
   }
   updateSelectedVideoHighlight();
   updateComparisonVideoOptions(false);
-  if (state.comparison.videoId === videoId) {
-    void handleVideoSelection(videoId, { preserveRun: true, preserveModels: true });
+  if (state.comparison.clipId) {
+    const activeClip = state.clips.get(state.comparison.clipId);
+    if (activeClip && activeClip.videoId === videoId) {
+      void handleClipSelection(activeClip.id, { preserveRun: true, preserveModels: true });
+    }
   }
 }
 
@@ -600,6 +700,7 @@ function updateComparisonVideoOptions(initial = false) {
   if (!clips.length) {
     elements.comparisonVideo.value = '';
     state.comparison.clipId = null;
+    state.comparison.videoId = null;
     resetComparisonDisplay('Create clips to view detections');
     return;
   }
@@ -622,21 +723,21 @@ function updateComparisonVideoOptions(initial = false) {
 }
 
 function handleVideoCardSelection(videoId) {
-  if (state.comparison.videoId === videoId) {
+  const clipsForVideo = getClipsForVideo(videoId);
+  if (!clipsForVideo.length) {
+    window.alert('Preprocess this video to create clips before analyzing.');
     return;
   }
-  state.comparison.videoId = videoId;
-  updateSelectedVideoHighlight();
-  if (elements.comparisonVideo) {
-    elements.comparisonVideo.value = String(videoId);
-  }
-  void handleClipSelection(videoId);
+  const currentClip = state.comparison.clipId ? state.clips.get(state.comparison.clipId) : null;
+  const nextClip = currentClip && currentClip.videoId === videoId ? currentClip : clipsForVideo[0];
+  void handleClipSelection(nextClip.id);
 }
 
 async function handleClipSelection(clipId, { preserveRun = false, preserveModels = false } = {}) {
   if (!elements.comparisonRun) return;
   if (!clipId) {
     state.comparison.clipId = null;
+    state.comparison.videoId = null;
     populateRunSelect([]);
     resetComparisonDisplay('Select a clip to inspect detections');
     return;
@@ -648,26 +749,50 @@ async function handleClipSelection(clipId, { preserveRun = false, preserveModels
     console.error('Clip not found:', clipId);
     return;
   }
+  state.comparison.videoId = clip.videoId;
+  if (elements.comparisonVideo) {
+    elements.comparisonVideo.value = String(clip.id);
+  }
+  updateSelectedVideoHighlight();
 
-  // For now, we'll use the video's inference runs since clips don't have their own runs yet
-  // In the future, we might want to associate inference runs with specific clips
-  const selectedRunId = await loadComparisonRuns(clip.videoId, { preserveSelection: preserveRun });
+  const selectedRunId = await loadComparisonRuns(clip.videoId, clip.id, { preserveSelection: preserveRun });
   if (selectedRunId) {
     await handleRunSelection(selectedRunId, { preserveModels });
   } else {
     populateModelSelects([]);
-    resetComparisonDisplay('No inference runs yet');
+    resetComparisonDisplay('No inference runs yet for this clip');
   }
 }
 
-async function loadComparisonRuns(videoId, { preserveSelection = false } = {}) {
+async function loadComparisonRuns(videoId, clipId, { preserveSelection = false } = {}) {
   const projectId = state.activeProject?.id;
   if (!projectId) return null;
   const status = await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/status`);
   const existing = state.videos.get(videoId) || {};
-  state.videos.set(videoId, { ...existing, status: status.status, inference_runs: status.inference_runs });
+  const updatedVideo = {
+    ...existing,
+    status: status.status,
+    inference_runs: status.inference_runs,
+    video_metadata: status.video_metadata ?? existing.video_metadata,
+  };
+  state.videos.set(videoId, updatedVideo);
+  extractClipsFromVideos();
 
-  return populateRunSelect(status.inference_runs || [], { preserveSelection });
+  const card = document.querySelector(`[data-video-id="${videoId}"]`);
+  if (card) {
+    populateInferenceRuns(card, status.inference_runs || []);
+  }
+
+  const runs = status.inference_runs || [];
+  const filteredRuns = runs.filter((run) => {
+    const runClipId = run.results?.clip?.id || run.params?.clip_id;
+    if (!clipId) {
+      return !runClipId;
+    }
+    return runClipId === clipId;
+  });
+
+  return populateRunSelect(filteredRuns, { preserveSelection });
 }
 
 function populateRunSelect(runs, { preserveSelection = false } = {}) {
@@ -876,7 +1001,9 @@ function renderOverlay() {
   elements.frameSlider.value = String(clampedIndex);
   elements.frameSlider.disabled = frames.length <= 1;
   if (elements.frameLabel) {
-    elements.frameLabel.textContent = `Frame ${frame.frame_index ?? '—'} · ${formatTimestamp(frame.timestamp_seconds)}`;
+    const clip = state.comparison.clipId ? state.clips.get(state.comparison.clipId) : null;
+    const clipPrefix = clip ? `${clip.label || clipLabel(clip)} · ` : '';
+    elements.frameLabel.textContent = `${clipPrefix}Frame ${frame.frame_index ?? '—'} · ${formatTimestamp(frame.timestamp_seconds)}`;
   }
 }
 

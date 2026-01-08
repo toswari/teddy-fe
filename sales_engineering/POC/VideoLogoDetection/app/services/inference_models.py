@@ -20,6 +20,7 @@ class InferenceRequest(BaseModel):
     model_ids: List[str] = Field(default_factory=lambda: list(DEFAULT_MODEL_IDS))
     params: InferenceParams = Field(default_factory=InferenceParams)
     note: Optional[str] = None
+    clip_id: Optional[str] = None
 
     @validator("model_ids", pre=True)
     def ensure_model_ids(cls, value):
@@ -28,3 +29,12 @@ class InferenceRequest(BaseModel):
         if isinstance(value, str):
             return [value]
         return value
+
+    @validator("clip_id", pre=True)
+    def normalize_clip_id(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return str(value)

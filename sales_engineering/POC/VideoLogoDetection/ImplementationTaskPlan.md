@@ -163,6 +163,11 @@ Implement `app/services/inference_service.py` for Clarifai integration.
   - [x] `POST /videos/<id>/inference` – starts an inference run for a given model.
   - [x] Create an `InferenceRun` record with status transitions (`pending` → `running` → `completed/failed`).
 
+- [x] **Clip-targeted inference (v1.1.0)**
+  - [x] Accept optional `clip_id` in inference request schemas and params
+  - [x] Sample frames directly from generated clip files and store clip metadata
+  - [x] Emit clip-aware run status updates and expose scope details in API responses
+
 ### 1.7 Enhanced Dashboard & Progress (v1.1.0)
 
 Implement comprehensive Mission Control UI/API for Phase 1 with enhanced features.
@@ -192,6 +197,7 @@ Implement comprehensive Mission Control UI/API for Phase 1 with enhanced feature
   - [x] Modified comparison selector to show clips instead of full videos
   - [x] Clip labels showing video name, clip number, and time range
   - [x] Seamless integration with existing inference runs and metrics
+  - [x] Clip-scoped inference trigger with model/parameter prompts and automatic run selection
 
 ### 1.8 Word Report Export (Minimal)
 
