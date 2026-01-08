@@ -342,16 +342,29 @@ function getVideosArray() {
 async function loadVideos(projectId) {
   const videos = await fetchJSON(`/api/projects/${projectId}/videos`);
   state.videos.clear();
-  if (!elements.videoList) {
-    return;
-  }
-  clearContainer(elements.videoList);
+  
+  // Populate state first
   videos.forEach((video) => {
     state.videos.set(video.id, video);
-    elements.videoList.appendChild(createVideoCard(video));
   });
+  
+  // Update preprocessing tab video list
+  const preprocessVideoList = document.getElementById('preprocess-video-list');
+  if (preprocessVideoList) {
+    console.log('Populating preprocessing video list with', videos.length, 'videos');
+    clearContainer(preprocessVideoList);
+    videos.forEach((video) => {
+      preprocessVideoList.appendChild(createVideoCard(video));
+    });
+  } else {
+    console.warn('preprocess-video-list element not found');
+  }
+  
   updateSelectedVideoHighlight();
   updateComparisonVideoOptions(state.comparison.videoId === null);
+  
+  // Update preprocessing dropdown if visible
+  loadPreprocessingVideos();
 }
 
 async function loadInferenceSummary(projectId) {
@@ -1092,14 +1105,19 @@ function setupButtons() {
   }
 
   const uploadVideoBtn = document.getElementById('upload-video-btn');
+  const preprocessUploadBtn = document.getElementById('preprocess-upload-video-btn');
   const videoFileInput = document.getElementById('video-file-input');
   
-  if (uploadVideoBtn && videoFileInput) {
-    uploadVideoBtn.addEventListener('click', () => {
-      videoFileInput.click();
-    });
+  // Setup file input (shared between tabs)
+  if (!videoFileInput) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*';
+    input.id = 'video-file-input';
+    input.className = 'hidden';
+    document.body.appendChild(input);
     
-    videoFileInput.addEventListener('change', async (event) => {
+    input.addEventListener('change', async (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
       
@@ -1121,11 +1139,26 @@ function setupButtons() {
         }
         
         await loadVideos(projectId);
-        videoFileInput.value = '';
+        input.value = '';
       } catch (error) {
         window.alert(`Video upload failed: ${error.message}`);
-        videoFileInput.value = '';
+        input.value = '';
       }
+    });
+  }
+  
+  // Setup upload buttons to trigger file input
+  if (uploadVideoBtn) {
+    uploadVideoBtn.addEventListener('click', () => {
+      const input = document.getElementById('video-file-input');
+      input?.click();
+    });
+  }
+  
+  if (preprocessUploadBtn) {
+    preprocessUploadBtn.addEventListener('click', () => {
+      const input = document.getElementById('video-file-input');
+      input?.click();
     });
   }
 }
@@ -1152,13 +1185,211 @@ function setupSocketListeners() {
 
 async function initDashboard() {
   try {
+    setupTabs();
     setupComparisonControls();
     await loadProjects();
     setupButtons();
     setupSocketListeners();
+    setupPreprocessingTab();
   } catch (error) {
     console.error('Failed to initialise dashboard', error);
   }
+}
+
+// ========================================
+// TAB MANAGEMENT
+// ========================================
+
+function setupTabs() {
+  const tabVideos = document.getElementById('tab-videos');
+  const tabPreprocessing = document.getElementById('tab-preprocessing');
+  const panelVideos = document.getElementById('panel-videos');
+  const panelPreprocessing = document.getElementById('panel-preprocessing');
+
+  if (!tabVideos || !tabPreprocessing) return;
+
+  function switchTab(activeTab, activePanel, inactiveTab, inactivePanel) {
+    activeTab.classList.remove('border-transparent', 'text-slate-500');
+    activeTab.classList.add('border-slate-900', 'text-slate-900', 'font-semibold');
+    activeTab.setAttribute('aria-selected', 'true');
+    
+    inactiveTab.classList.remove('border-slate-900', 'text-slate-900', 'font-semibold');
+    inactiveTab.classList.add('border-transparent', 'text-slate-500');
+    inactiveTab.setAttribute('aria-selected', 'false');
+    
+    activePanel.classList.remove('hidden');
+    inactivePanel.classList.add('hidden');
+  }
+
+  tabVideos.addEventListener('click', () => {
+    switchTab(tabVideos, panelVideos, tabPreprocessing, panelPreprocessing);
+  });
+
+  tabPreprocessing.addEventListener('click', () => {
+    switchTab(tabPreprocessing, panelPreprocessing, tabVideos, panelVideos);
+    loadPreprocessingVideos();
+  });
+}
+
+// ========================================
+// PREPROCESSING TAB
+// ========================================
+
+function setupPreprocessingTab() {
+  const videoSelect = document.getElementById('preprocess-video-select');
+  const video = document.getElementById('preprocess-video');
+  const startInput = document.getElementById('preprocess-start');
+  const durationInput = document.getElementById('preprocess-duration-input');
+  const clipLengthInput = document.getElementById('preprocess-clip-length');
+  const markStartBtn = document.getElementById('mark-start-btn');
+  const markEndBtn = document.getElementById('mark-end-btn');
+  const form = document.getElementById('preprocess-form');
+
+  if (!videoSelect || !video) return;
+
+  // Video selection handler
+  videoSelect.addEventListener('change', async (e) => {
+    const videoId = e.target.value;
+    if (!videoId || !state.activeProject) return;
+
+    try {
+      const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/status`);
+      if (!response.ok) throw new Error('Failed to load video');
+      
+      const videoData = await response.json();
+      
+      // Update video source
+      if (videoData.storage_path) {
+        const filename = videoData.storage_path.split('/').pop();
+        const videoUrl = `/media/${state.activeProject.id}/${videoId}/${filename}`;
+        video.querySelector('source').src = videoUrl;
+        video.load();
+      }
+
+      // Update metadata
+      document.getElementById('preprocess-duration').textContent = 
+        videoData.duration_seconds ? formatSecondsToClock(videoData.duration_seconds) : '--';
+      document.getElementById('preprocess-resolution').textContent = videoData.resolution || '--';
+      document.getElementById('preprocess-status').textContent = videoData.status || '--';
+
+      // Set max duration
+      if (videoData.duration_seconds) {
+        durationInput.max = videoData.duration_seconds;
+        startInput.max = videoData.duration_seconds;
+      }
+    } catch (error) {
+      console.error('Failed to load video for preprocessing:', error);
+      alert('Failed to load video: ' + error.message);
+    }
+  });
+
+  // Update current time display
+  video?.addEventListener('timeupdate', () => {
+    document.getElementById('preprocess-current-time').textContent = 
+      formatSecondsToClock(video.currentTime);
+  });
+
+  // Mark start button
+  markStartBtn?.addEventListener('click', () => {
+    if (video) {
+      startInput.value = video.currentTime.toFixed(1);
+      updatePreview();
+    }
+  });
+
+  // Mark end button
+  markEndBtn?.addEventListener('click', () => {
+    if (video) {
+      const start = parseFloat(startInput.value) || 0;
+      const end = video.currentTime;
+      const duration = Math.max(0, end - start);
+      durationInput.value = duration.toFixed(1);
+      updatePreview();
+    }
+  });
+
+  // Update preview on input change
+  [startInput, durationInput, clipLengthInput].forEach(input => {
+    input?.addEventListener('input', updatePreview);
+  });
+
+  function updatePreview() {
+    const start = parseFloat(startInput.value) || 0;
+    const duration = parseFloat(durationInput.value) || 0;
+    const clipLength = parseFloat(clipLengthInput.value) || 20;
+    const end = start + duration;
+    const clipCount = Math.ceil(duration / clipLength);
+
+    document.getElementById('preview-clip-count').textContent = clipCount;
+    document.getElementById('preview-start').textContent = start.toFixed(1);
+    document.getElementById('preview-end').textContent = end.toFixed(1);
+  }
+
+  // Form submission
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const videoId = videoSelect.value;
+    if (!videoId || !state.activeProject) {
+      alert('Please select a video');
+      return;
+    }
+
+    const start = parseFloat(startInput.value) || 0;
+    const duration = parseFloat(durationInput.value) || 0;
+    const clipLength = parseFloat(clipLengthInput.value) || 20;
+
+    if (duration <= 0) {
+      alert('Duration must be greater than 0');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/preprocess`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_seconds: start,
+          duration_seconds: duration,
+          clip_length: clipLength
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Preprocessing failed');
+      }
+
+      const result = await response.json();
+      alert(`Video preprocessed successfully! Generated ${result.clip_count} clip(s)`);
+      
+      // Refresh video list
+      if (state.activeProject) {
+        await loadVideos(state.activeProject.id);
+      }
+    } catch (error) {
+      console.error('Preprocessing error:', error);
+      alert('Failed to preprocess video: ' + error.message);
+    }
+  });
+
+  updatePreview();
+}
+
+async function loadPreprocessingVideos() {
+  const videoSelect = document.getElementById('preprocess-video-select');
+  if (!videoSelect || !state.activeProject) return;
+
+  // Clear existing options except the first one
+  videoSelect.innerHTML = '<option value="">-- Select a video --</option>';
+
+  // Populate with videos from state
+  state.videos.forEach((video, videoId) => {
+    const option = document.createElement('option');
+    option.value = videoId;
+    option.textContent = video.original_path || `Video ${videoId}`;
+    videoSelect.appendChild(option);
+  });
 }
 
 initDashboard();

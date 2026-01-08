@@ -35,6 +35,8 @@ class PreprocessRequestSchema(Schema):
     start_seconds = fields.Float(load_default=None, allow_none=True, validate=validate.Range(min=0))
     duration_seconds = fields.Float(load_default=None, allow_none=True, validate=validate.Range(min=1))
     clip_length = fields.Int(load_default=20, validate=validate.Range(min=1, max=900))
+    # New field for multiple clip segments
+    clips = fields.List(fields.Dict(keys=fields.Str(), values=fields.Float()), load_default=None, allow_none=True)
 
 
 video_create_schema = VideoCreateSchema()
@@ -140,12 +142,17 @@ def preprocess_video(project_id: int, video_id: int):
     )
     try:
         metadata = video_service.probe_video_metadata(video)
-        clips = video_service.generate_clips(
-            video,
-            clip_length=options.get("clip_length") or 20,
-            start_seconds=options.get("start_seconds"),
-            duration_seconds=options.get("duration_seconds"),
-        )
+        if options.get("clips"):
+            # Handle multiple clip segments
+            clips = video_service.generate_multiple_clips(video, options["clips"])
+        else:
+            # Handle single window (backward compatibility)
+            clips = video_service.generate_clips(
+                video,
+                clip_length=options.get("clip_length") or 20,
+                start_seconds=options.get("start_seconds"),
+                duration_seconds=options.get("duration_seconds"),
+            )
         socketio.emit(
             "preprocess_status",
             {"video_id": video_id, "project_id": project_id, "status": "completed"},

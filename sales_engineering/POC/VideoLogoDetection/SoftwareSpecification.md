@@ -1,4 +1,4 @@
-# VideoLogoDetection Software Specification – Snapshot v1.0.0
+# VideoLogoDetection Software Specification – Snapshot v1.1.0
 
 ## 1. Project Overview
 
@@ -15,7 +15,7 @@ The goal is to guide a small implementation team to deliver a focused, single-us
 The Minimum Viable Product (MVP) is a functional forensic tool capable of:
 
 - **Video Segmentation**  
-	Pre-processing long-form videos (up to 2 hours) into digestible 20-second clips.
+	Pre-processing long-form videos (up to 2 hours) into multiple digestible clips. Users can define up to 5 custom clip segments from any part of the video, each with precise start and end times.
 
 - **Visual Inference**  
 	Executing frame-by-frame AI analysis using one or more Clarifai models simultaneously.
@@ -82,8 +82,11 @@ The Minimum Viable Product (MVP) is a functional forensic tool capable of:
 - **Multi-Model Inference Orchestration**  
 	Allow the user to select multiple Clarifai models and run them concurrently over the same set of frames.
 
-- **Automated Forensic Clipping**  
-	Generate 20-second video segments around relevant events using FFmpeg `-c copy` to avoid re-encoding when possible.
+- **Flexible Clip Segmentation**  
+	- Support defining up to 5 custom clip segments from any part of the video
+	- Each clip segment has precise start and end time markers set by the user
+	- Generate individual video clips for each defined segment using FFmpeg `-c copy` to avoid re-encoding when possible
+	- Legacy support for automated 20-second forensic clipping around relevant events
 
 ### 2.3 Contextual Re-Inference (Forensic Depth)
 
@@ -240,7 +243,8 @@ Back-end code SHOULD follow a consistent, modular layout:
 
 - **Phase 1 (MVP Core)**  
 	- Modular foundation, basic data model.  
-	- FFmpeg clipping, Clarifai single-model inference.  
+	- FFmpeg clipping with support for multiple custom clip segments (up to 5 per video).  
+	- Clarifai single-model inference.  
 	- Basic dashboard and Word export.
 
 - **Phase 2 (Multi-Model & Benchmarking)**  
@@ -329,3 +333,13 @@ Each major functional area in this specification should have a corresponding sec
 - **Test Plan (future)** – for mapping requirements to concrete test cases.
 
 Implementation work SHOULD always reference the requirement IDs and sections in this document to ensure traceability from spec → implementation → validation.
+
+---
+
+## 10. Changelog
+
+### v1.1.0 (January 2026)
+- **Enhanced Video Segmentation**: Added support for defining up to 5 custom clip segments from any part of the video with precise start/end time markers
+- **Flexible Clip Creation**: Users can now create multiple clips per video instead of being limited to automated 20-second segments
+- **Improved UI**: Updated preprocessing interface to support multiple clip management with individual selection, editing, and removal capabilities
+- **Backward Compatibility**: Maintained support for legacy automated clipping functionality

@@ -1,20 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="grid gap-6 md:grid-cols-3">
-  <div class="rounded-2xl bg-white p-6 shadow-sm">
-    <p class="text-sm uppercase tracking-wide text-slate-400">Active Project</p>
-    <h2 class="mt-2 text-2xl font-semibold" id="active-project">Loading…</h2>
-    <p class="mt-3 text-sm text-slate-500" id="project-description"></p>
-    <button class="mt-4 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" id="new-project-btn">New Project</button>
-  </div>
-  <div class="rounded-2xl bg-white p-6 shadow-sm md:col-span-2">
-    <p class="text-sm uppercase tracking-wide text-slate-400">Video Queue</p>
-    <ul class="mt-4 space-y-3" id="video-list"></ul>
-    <div class="mt-4 flex gap-3">
-      <input type="file" accept="video/*" id="video-file-input" class="hidden" />
-      <button class="rounded-full border border-slate-900 px-4 py-2 text-sm font-medium" id="upload-video-btn">Upload Video</button>
-    </div>
-  </div>
+
+<!-- Tab Navigation -->
+<div class="mb-6 border-b border-slate-200">
+  <nav class="flex gap-8" role="tablist">
+    <button class="border-b-2 border-slate-900 pb-3 text-sm font-semibold text-slate-900" id="tab-videos" role="tab" aria-selected="true" aria-controls="panel-videos">
+      Videos & Inference
+    </button>
+    <button class="border-b-2 border-transparent pb-3 text-sm font-medium text-slate-500 hover:text-slate-700" id="tab-preprocessing" role="tab" aria-selected="false" aria-controls="panel-preprocessing">
+      Video Preprocessing
+    </button>
+  </nav>
+</div>
+
+<!-- Tab Panel: Videos & Inference -->
+<div id="panel-videos" role="tabpanel" aria-labelledby="tab-videos">
+<section class="rounded-2xl bg-white p-6 shadow-sm">
+  <p class="text-sm uppercase tracking-wide text-slate-400">Active Project</p>
+  <h2 class="mt-2 text-2xl font-semibold" id="active-project">Loading…</h2>
+  <p class="mt-3 text-sm text-slate-500" id="project-description"></p>
+  <button class="mt-4 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white" id="new-project-btn">New Project</button>
 </section>
 
 <section class="mt-8 rounded-2xl bg-white p-6 shadow-sm">
@@ -73,6 +78,99 @@
         <span id="frame-label">Frame —</span>
         <div class="flex items-center gap-2">
           <button class="rounded-full border border-slate-300 px-3 py-1" data-toggle="model" data-model="A" data-label="Model A">Model A</button>
+</div>
+
+<!-- Tab Panel: Video Preprocessing -->
+<div id="panel-preprocessing" role="tabpanel" aria-labelledby="tab-preprocessing" class="hidden">
+  <!-- Video Queue Section -->
+  <section class="rounded-2xl bg-white p-6 shadow-sm mb-6">
+    <p class="text-sm uppercase tracking-wide text-slate-400">Video Queue</p>
+    <ul class="mt-4 space-y-3" id="preprocess-video-list"></ul>
+    <div class="mt-4 flex gap-3">
+      <button class="rounded-full border border-slate-900 px-4 py-2 text-sm font-medium" id="preprocess-upload-video-btn">Upload Video</button>
+    </div>
+  </section>
+
+  <!-- Preprocessing Section -->
+  <section class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+    <!-- Video Player -->
+    <div class="rounded-2xl bg-white p-6 shadow-sm">
+      <p class="text-sm uppercase tracking-wide text-slate-400">Video Preview</p>
+      <div class="mt-4">
+        <video id="preprocess-video" class="w-full rounded-lg bg-black" controls>
+          <source id="preprocess-video-source" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <button class="rounded-full border border-blue-500 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50" id="mark-start-btn">Mark Start</button>
+        <button class="rounded-full border border-blue-500 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50" id="mark-end-btn">Mark End</button>
+      </div>
+      <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <p class="text-slate-500">Duration:</p>
+          <p class="font-medium" id="preprocess-duration">--</p>
+        </div>
+        <div>
+          <p class="text-slate-500">Resolution:</p>
+          <p class="font-medium" id="preprocess-resolution">--</p>
+        </div>
+        <div>
+          <p class="text-slate-500">Current Time:</p>
+          <p class="font-medium" id="preprocess-current-time">00:00:00</p>
+        </div>
+        <div>
+          <p class="text-slate-500">Status:</p>
+          <p class="font-medium" id="preprocess-status">--</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preprocessing Form -->
+    <div class="rounded-2xl bg-white p-6 shadow-sm">
+      <p class="text-sm uppercase tracking-wide text-slate-400">Preprocessing Settings</p>
+      
+      <form id="preprocess-form" class="mt-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Select Video</label>
+          <select id="preprocess-video-select" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <option value="">-- Select a video --</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Start Time (seconds)</label>
+          <input type="number" id="preprocess-start" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="0" min="0" step="0.1" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Duration (seconds)</label>
+          <input type="number" id="preprocess-duration-input" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="10" min="1" step="0.1" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Clip Length (seconds)</label>
+          <input type="number" id="preprocess-clip-length" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="20" min="1" />
+        </div>
+
+        <div class="rounded-lg bg-slate-50 p-4">
+          <p class="text-xs font-medium text-slate-600">Preview</p>
+          <p class="mt-2 text-sm text-slate-700">
+            <span class="font-medium" id="preview-clip-count">0</span> clip(s) will be generated
+          </p>
+          <p class="text-xs text-slate-500 mt-1">
+            From <span id="preview-start">0.0</span>s to <span id="preview-end">0.0</span>s
+          </p>
+        </div>
+
+        <button type="submit" class="w-full rounded-full bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800">
+          Process Video
+        </button>
+      </form>
+    </div>
+  </section>
+</div>
+
           <button class="rounded-full border border-slate-900 bg-slate-900 px-3 py-1 font-medium text-white" data-toggle="model" data-model="B" data-label="Model B">Model B</button>
         </div>
       </div>

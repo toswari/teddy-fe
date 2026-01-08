@@ -170,12 +170,18 @@ def generate_clips(
     clips: list[Path] = []
     clip_records = []
 
+    # Extract and sanitize original filename for clip naming
+    original_filename = video.video_metadata.get("original_filename") or video.original_path or f"video_{video.id}"
+    import re
+    base_name = re.sub(r'\.[^.]+$', '', original_filename)  # Remove extension
+    base_name = re.sub(r'[^a-zA-Z0-9_-]', '_', base_name)  # Sanitize special characters
+
     for start_time in range(start_offset, end_offset, clip_length):
         clip_end = min(start_time + clip_length, end_offset)
         clip_duration = clip_end - start_time
         if clip_duration <= 0:
             continue
-        clip_path = clips_root / f"clip_{start_time:04d}_{clip_end:04d}.mp4"
+        clip_path = clips_root / f"{base_name}-clip{len(clips)+1}.mp4"
         try:
             ffmpeg.input(source_path, ss=start_time, t=clip_duration).output(
                 str(clip_path), c="copy", avoid_negative_ts="make_zero"
@@ -208,10 +214,82 @@ def generate_clips(
         "last_preprocess_window": window_meta,
     }
     db.session.commit()
+    return clips
+
+
+def generate_multiple_clips(video: Video, clip_segments: list[dict[str, float]]) -> list[Path]:
+    """Generate multiple clips from specified time segments."""
+
+    import ffmpeg
+    import re
+
+    if len(clip_segments) > 5:
+        raise VideoProcessingError("Maximum 5 clip segments allowed")
+
+    total_seconds = int(video.duration_seconds or 0)
+    if total_seconds <= 0:
+        raise VideoProcessingError("Video duration unknown, cannot generate clips")
+
+    # Extract and sanitize original filename for clip naming
+    original_filename = video.video_metadata.get("original_filename") or video.original_path or f"video_{video.id}"
+    # Remove file extension and sanitize for filesystem
+    base_name = re.sub(r'\.[^.]+$', '', original_filename)  # Remove extension
+    base_name = re.sub(r'[^a-zA-Z0-9_-]', '_', base_name)  # Sanitize special characters
+
+    media_root = Path(current_app.config.get("PROJECT_MEDIA_ROOT", "media"))
+    clips_root = media_root / f"project_{video.project_id}" / f"video_{video.id}" / "clips"
+    clips_root.mkdir(parents=True, exist_ok=True)
+
+    source_path = video.storage_path or video.original_path
+    clips: list[Path] = []
+    clip_records = []
+
+    for i, segment in enumerate(clip_segments):
+        start_time = segment.get("start", 0)
+        end_time = segment.get("end", 0)
+        
+        if start_time >= end_time:
+            raise VideoProcessingError(f"Invalid segment {i+1}: start time must be before end time")
+        if start_time < 0 or end_time > total_seconds:
+            raise VideoProcessingError(f"Segment {i+1} times are outside video duration")
+        
+        clip_duration = end_time - start_time
+        clip_path = clips_root / f"{base_name}-clip{i+1}.mp4"
+        
+        try:
+            ffmpeg.input(source_path, ss=start_time, t=clip_duration).output(
+                str(clip_path), c="copy", avoid_negative_ts="make_zero"
+            ).run(quiet=True)
+        except ffmpeg.Error as exc:
+            logger.error("Failed to generate clip %s: %s", clip_path, exc)
+            raise VideoProcessingError(f"Clip generation failed for segment {i+1}: {exc}") from exc
+
+        clips.append(clip_path)
+        clip_records.append(
+            {
+                "path": str(clip_path),
+                "start": start_time,
+                "end": end_time,
+                "segment": i+1,
+            }
+        )
+
+    window_meta = {
+        "clip_count": len(clips),
+        "segments": clip_records,
+    }
+
+    video.status = "processed"
+    video.video_metadata = {
+        **(video.video_metadata or {}),
+        "clips": clip_records,
+        "last_preprocess_window": window_meta,
+    }
+    db.session.commit()
     logger.info(
-        "Video processed into %s clip(s) (id=%s, window=%s)",
+        "Video processed into %s clip(s) from %s segment(s) (id=%s)",
         len(clips),
+        len(clip_segments),
         video.id,
-        window_meta,
     )
     return clips

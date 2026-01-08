@@ -80,7 +80,11 @@ def register_ui_routes(app: Flask) -> None:
 
     @app.route("/")
     def dashboard():
-        return render_template("dashboard.html")
+        return render_template("dashboard-inference.html")
+
+    @app.route("/preprocessing")
+    def preprocessing():
+        return render_template("dashboard-preprocessing.html")
 
     @app.route("/preprocess")
     def preprocess():
