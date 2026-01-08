@@ -35,6 +35,7 @@ const elements = {
   comparisonRun: document.getElementById('comparison-run'),
   comparisonModelA: document.getElementById('comparison-model-a'),
   comparisonModelB: document.getElementById('comparison-model-b'),
+  runComparisonBtn: document.getElementById('run-comparison-btn'),
   frameSlider: document.getElementById('frame-slider'),
   frameLabel: document.getElementById('frame-label'),
   framePlaceholder: document.getElementById('frame-placeholder'),
@@ -502,6 +503,9 @@ async function loadVideos(projectId) {
   
   // Update preprocessing dropdown if visible
   loadPreprocessingVideos();
+
+  // Populate comparison dropdowns
+  populateComparisonDropdowns();
 }
 
 async function loadInferenceSummary(projectId) {
@@ -1787,6 +1791,175 @@ async function loadPreprocessingVideos() {
     option.textContent = video.original_path || `Video ${videoId}`;
     videoSelect.appendChild(option);
   });
+}
+
+async function triggerInference(videoId) {
+  const video = state.videos.get(videoId);
+  if (!video) {
+    alert('Video not found');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_ids: ['general-image-recognition'], // Default model
+        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Inference failed');
+    }
+
+    const result = await response.json();
+    alert(`Inference started! Run ID: ${result.id}`);
+    
+    // Refresh videos to show the new run
+    await loadVideos(state.activeProject.id);
+  } catch (error) {
+    console.error('Inference error:', error);
+    alert('Failed to start inference: ' + error.message);
+  }
+}
+
+async function triggerInference(videoId) {
+  const video = state.videos.get(videoId);
+  if (!video) {
+    alert('Video not found');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_ids: ['general-image-recognition'], // Default model
+        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Inference failed');
+    }
+
+    const result = await response.json();
+    alert(`Inference started! Run ID: ${result.id}`);
+    
+    // Refresh videos to show the new run
+    await loadVideos(state.activeProject.id);
+  } catch (error) {
+    console.error('Inference error:', error);
+    alert('Failed to start inference: ' + error.message);
+  }
+}
+  const videoId = elements.comparisonVideo.value;
+  const modelA = elements.comparisonModelA.value;
+  const modelB = elements.comparisonModelB.value;
+
+  if (!videoId) {
+    alert('Please select a video');
+    return;
+  }
+
+  const models = [];
+  if (modelA) models.push(modelA);
+  if (modelB) models.push(modelB);
+  if (models.length === 0) {
+    alert('Please select at least one model');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_ids: models,
+        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Inference failed');
+    }
+
+    const result = await response.json();
+    alert(`Inference started with models ${models.join(', ')}! Run ID: ${result.id}`);
+    
+    // Refresh videos to show the new run
+    await loadVideos(state.activeProject.id);
+  } catch (error) {
+    console.error('Inference error:', error);
+    alert('Failed to start inference: ' + error.message);
+  }
+}
+
+async function loadMetrics() {
+  try {
+    const response = await fetch('/api/metrics');
+    if (!response.ok) throw new Error('Failed to load metrics');
+    const metrics = await response.json();
+    state.metrics = metrics;
+    renderInferenceCards(metrics);
+    renderEfficiencyMatrix(metrics);
+    updateCostPill(metrics);
+  } catch (error) {
+    console.error('Error loading metrics:', error);
+  }
+}
+
+function populateComparisonDropdowns() {
+  // Populate video dropdown
+  if (elements.comparisonVideo) {
+    elements.comparisonVideo.innerHTML = '<option value="">Select video</option>';
+    state.videos.forEach(video => {
+      const option = document.createElement('option');
+      option.value = video.id;
+      option.textContent = videoLabel(video);
+      elements.comparisonVideo.appendChild(option);
+    });
+  }
+
+  // Populate model dropdowns
+  if (elements.comparisonModelA && elements.comparisonModelB) {
+    const models = state.metrics?.models ? Object.keys(state.metrics.models) : [];
+    const modelOptions = '<option value="">Select model</option>' + models.map(model => `<option value="${model}">${model}</option>`).join('');
+    elements.comparisonModelA.innerHTML = modelOptions;
+    elements.comparisonModelB.innerHTML = modelOptions;
+  }
+}
+
+function initDashboard() {
+  if (isDashboardPage()) {
+    loadDashboard();
+  }
+
+  // Set up event listeners
+  if (elements.runComparisonBtn) {
+    elements.runComparisonBtn.addEventListener('click', runComparisonInference);
+  }
+}
+
+async function loadDashboard() {
+  try {
+    const response = await fetch('/api/projects/1');
+    if (!response.ok) throw new Error('Failed to load project');
+    const project = await response.json();
+    state.activeProject = project;
+    renderActiveProject(project);
+    
+    await loadVideos(project.id);
+    await loadInferenceSummary(project.id);
+  } catch (error) {
+    console.error('Error loading dashboard:', error);
+  }
 }
 
 initDashboard();
