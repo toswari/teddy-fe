@@ -44,6 +44,54 @@ function isDashboardPage() {
   return Boolean(elements.videoList && elements.inferenceCards);
 }
 
+function formatSecondsToClock(value) {
+  if (!Number.isFinite(value)) {
+    return '0:00';
+  }
+  const total = Math.max(0, Math.floor(value));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function describePreprocessWindow(video) {
+  if (!video) {
+    return 'Window: full video';
+  }
+  const metadata = video.video_metadata || {};
+  const windowMeta = metadata.last_preprocess_window;
+  const totalDuration = Number.isFinite(video.duration_seconds) ? video.duration_seconds : undefined;
+  const clipCount = Number.isFinite(windowMeta?.clip_count) ? windowMeta.clip_count : undefined;
+  const clipLength = Number.isFinite(windowMeta?.clip_length) ? windowMeta.clip_length : undefined;
+  const clipSummaryParts = [];
+  if (clipCount !== undefined) {
+    clipSummaryParts.push(`${clipCount} clips`);
+  }
+  if (clipLength !== undefined) {
+    clipSummaryParts.push(`@ ${clipLength}s`);
+  }
+  const clipSummary = clipSummaryParts.length ? ` (${clipSummaryParts.join(' ')})` : '';
+
+  if (!windowMeta) {
+    return `Window: full video${clipSummary}`;
+  }
+
+  const start = Number.isFinite(windowMeta.start) ? windowMeta.start : 0;
+  const duration = Number.isFinite(windowMeta.duration) ? windowMeta.duration : 0;
+  const end = Number.isFinite(windowMeta.end) ? windowMeta.end : start + duration;
+  const coversFull = start === 0 && totalDuration && Math.abs(totalDuration - duration) <= 1;
+
+  if (coversFull) {
+    return `Window: full video${clipSummary}`;
+  }
+
+  return `Window: ${formatSecondsToClock(start)} → ${formatSecondsToClock(end)}${clipSummary}`;
+}
+
 async function fetchJSON(url, options = {}) {
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -116,6 +164,12 @@ function createVideoCard(video) {
   meta.className = 'mt-2 text-sm text-slate-500';
   meta.textContent = video.storage_path || video.original_path || 'No path recorded';
   li.appendChild(meta);
+
+  const windowInfo = document.createElement('p');
+  windowInfo.className = 'mt-1 text-xs text-slate-500';
+  windowInfo.dataset.role = 'window-info';
+  windowInfo.textContent = describePreprocessWindow(video);
+  li.appendChild(windowInfo);
 
   const actions = document.createElement('div');
   actions.className = 'mt-4 flex flex-wrap gap-3 text-sm';
@@ -323,8 +377,44 @@ async function loadProjects() {
 async function triggerPreprocess(videoId) {
   const projectId = state.activeProject?.id;
   if (!projectId) return;
+  const promptMessage = 'Enter preprocess window as start,duration[,clip] in seconds (e.g., "120,1800" or "60,600,30"). Leave blank for full video.';
+  const input = window.prompt(promptMessage, '');
+  if (input === null) {
+    return;
+  }
+  const payload = {};
+  if (input.trim() !== '') {
+    const parts = input.split(',').map((part) => part.trim());
+    if (parts[0]) {
+      const startValue = Number(parts[0]);
+      if (!Number.isFinite(startValue) || startValue < 0) {
+        window.alert('Start time must be a non-negative number.');
+        return;
+      }
+      payload.start_seconds = startValue;
+    }
+    if (parts.length >= 2 && parts[1]) {
+      const durationValue = Number(parts[1]);
+      if (!Number.isFinite(durationValue) || durationValue <= 0) {
+        window.alert('Duration must be a positive number.');
+        return;
+      }
+      payload.duration_seconds = durationValue;
+    }
+    if (parts.length >= 3 && parts[2]) {
+      const clipLengthValue = Number(parts[2]);
+      if (!Number.isFinite(clipLengthValue) || clipLengthValue <= 0) {
+        window.alert('Clip length must be a positive number.');
+        return;
+      }
+      payload.clip_length = Math.round(clipLengthValue);
+    }
+  }
   try {
-    await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/preprocess`, { method: 'POST' });
+    await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/preprocess`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
     await refreshVideo(videoId);
   } catch (error) {
     window.alert(`Preprocess failed: ${error.message}`);
@@ -367,7 +457,14 @@ async function refreshVideo(videoId) {
   if (!projectId) return;
   const status = await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/status`);
   const existing = state.videos.get(videoId) || {};
-  const updated = { ...existing, status: status.status, inference_runs: status.inference_runs };
+  const updated = {
+    ...existing,
+    status: status.status,
+    metadata: status.video_metadata ?? existing.video_metadata,
+    duration_seconds: status.duration_seconds ?? existing.duration_seconds,
+    resolution: status.resolution ?? existing.resolution,
+    inference_runs: status.inference_runs,
+  };
   state.videos.set(videoId, updated);
 
   const card = document.querySelector(`[data-video-id="${videoId}"]`);
@@ -377,6 +474,10 @@ async function refreshVideo(videoId) {
       pill.textContent = status.status;
     }
     populateInferenceRuns(card, status.inference_runs || []);
+    const windowInfo = card.querySelector('[data-role="window-info"]');
+    if (windowInfo) {
+      windowInfo.textContent = describePreprocessWindow(updated);
+    }
   }
   updateSelectedVideoHighlight();
   updateComparisonVideoOptions(false);

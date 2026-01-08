@@ -99,9 +99,9 @@ Implement a `api.videos` blueprint and matching service logic.
   - [x] `POST /projects/<project_id>/videos` – accept a file upload or a local path reference (for POC, either is acceptable).
   - [x] Persist a `Video` record with status `uploaded` and the original path.
 
-- [ ] **Storage & directories**
-  - [ ] Use a predictable directory under the project (e.g., `media/<project_id>/` or similar) for stored video files.
-  - [ ] Ensure this directory is configurable via config/env if needed.
+- [x] **Storage & directories**
+  - [x] Use a predictable directory under the project (e.g., `media/<project_id>/` or similar) for stored video files.
+  - [x] Ensure this directory is configurable via config/env if needed.
 
 ### 1.5 Video Pre-processing & Clipping
 
@@ -150,30 +150,30 @@ Implement basic Mission Control UI/API for Phase 1.
   - [x] `GET /projects/<id>/overview` – aggregate basic stats (video count, runs, last activity).
   - [x] `GET /videos/<id>/status` – return pre-processing + inference status.
 
-- [ ] **SocketIO events (minimal)**
-  - [ ] Emit events for pre-processing and inference state changes.
-  - [ ] Keep payloads simple (IDs, status, message).
+- [x] **SocketIO events (minimal)**
+  - [x] Emit events for pre-processing and inference state changes.
+  - [x] Keep payloads simple (IDs, status, message).
 
-- [ ] **UI (front-end agent guidance)**
-  - [ ] Provide a simple Projects page, Video list page, and Video detail page that:
-    - [ ] Shows project selection and active project.
-    - [ ] Lists uploaded videos and their status.
-    - [ ] Allows triggering pre-processing and inference.
-  - [ ] Copy interaction patterns and bounding-box overlay styles from the `/demo/detection-overlay` reference page (`templates/mock_detection_overlay.html`).
+- [x] **UI (front-end agent guidance)**
+  - [x] Provide a simple Projects page, Video list page, and Video detail page that:
+    - [x] Shows project selection and active project.
+    - [x] Lists uploaded videos and their status.
+    - [x] Allows triggering pre-processing and inference.
+  - [x] Copy interaction patterns and bounding-box overlay styles from the `/demo/detection-overlay` reference page (`templates/mock_detection_overlay.html`).
 
 ### 1.8 Word Report Export (Minimal)
 
 Implement a basic reporting service in `app/services/reporting_service.py`.
 
-- [ ] **Report data selection**
-  - [ ] For Phase 1, allow exporting a report for a **single video** within a project.
-  - [ ] Include basic metadata (project, video, timestamp) and a summary of detections.
+- [x] **Report data selection**
+  - [x] For Phase 1, allow exporting a report for a **single video** within a project.
+  - [x] Include basic metadata (project, video, timestamp) and a summary of detections.
 
-- [ ] **python-docx integration**
-  - [ ] Generate a `.docx` file and save it under a predictable path (e.g., `reports/<project_id>/`).
+- [x] **python-docx integration**
+  - [x] Generate a `.docx` file and save it under a predictable path (e.g., `reports/<project_id>/`).
 
-- [ ] **Endpoint**
-  - [ ] `POST /videos/<id>/report` – creates a report and returns a download URL/path.
+- [x] **Endpoint**
+  - [x] `POST /videos/<id>/report` – creates a report and returns a download URL/path.
 
 ---
 
@@ -183,40 +183,40 @@ Goal: extend the MVP to support multi-model inference and basic benchmarking/cos
 
 ### 2.1 Multi-Model Inference
 
-- [ ] **Extend InferenceRun model**
-  - [ ] Ensure `model_ids` and `params` can represent multiple Clarifai models.
+- [x] **Extend InferenceRun model**
+  - [x] Ensure `model_ids` and `params` can represent multiple Clarifai models.
 
-- [ ] **Service logic**
-  - [ ] Implement `run_multi_model_inference(frames, model_ids, config)` in `inference_service.py`.
-  - [ ] Store per-model results in `InferenceRun.results` and/or a `Detection` table for richer querying.
+- [x] **Service logic**
+  - [x] Implement `run_multi_model_inference(frames, model_ids, config)` in `inference_service.py`.
+  - [x] Store per-model results in `InferenceRun.results` and/or a `Detection` table for richer querying.
 
-- [ ] **API**
-  - [ ] `POST /videos/<id>/multi-inference` – accept a list of model IDs and parameters.
+- [x] **API**
+  - [x] `POST /videos/<id>/multi-inference` – accept a list of model IDs and parameters.
 
 ### 2.2 Benchmarking & Metrics
 
-- [ ] **Metrics service** (`app/services/metrics_service.py`)
-  - [ ] Compute per-model averages, hit frequency, detection density, and efficiency ratio.
-  - [ ] Implement helper functions that operate over `InferenceRun` and `Detection` data.
+- [x] **Metrics service** (`app/services/metrics_service.py`)
+  - [x] Compute per-model averages, hit frequency, detection density, and efficiency ratio.
+  - [x] Implement helper functions that operate over `InferenceRun` and `Detection` data.
 
-- [ ] **Endpoints**
-  - [ ] `GET /projects/<id>/benchmark` – return metrics for all models used in the project.
-  - [ ] `GET /inference-runs/<id>/metrics` – metrics for a specific run.
+- [x] **Endpoints**
+  - [x] `GET /projects/<id>/benchmark` – return metrics for all models used in the project.
+  - [x] `GET /inference-runs/<id>/metrics` – metrics for a specific run.
 
 ### 2.3 Cost Estimation
 
-- [ ] **Billing service** (`billing_service.py`)
-  - [ ] Implement `estimate_project_cost(project_id, fps, model_ids, duration)` using a simple pricing model.
-  - [ ] Track basic `cost_actual` based on recorded API usage.
+- [x] **Billing service** (`billing_service.py`)
+  - [x] Implement `estimate_project_cost(project_id, fps, model_ids, duration)` using a simple pricing model.
+  - [x] Track basic `cost_actual` based on recorded API usage.
 
-- [ ] **UI**
-  - [ ] Show projected vs actual cost per model and per project on the dashboard.
+- [x] **UI**
+  - [x] Show projected vs actual cost per model and per project on the dashboard.
 
 ### 2.4 UI: Model Comparison View (Basic)
 
-- [ ] Implement:
-  - [ ] An Efficiency Matrix (simple table or bar chart) comparing models by confidence and cost.
-  - [ ] A basic comparison view for a single frame/time index showing overlays from two models (A/B toggle is sufficient for Phase 2).
+- [x] Implement:
+  - [x] An Efficiency Matrix (simple table or bar chart) comparing models by confidence and cost.
+  - [x] A basic comparison view for a single frame/time index showing overlays from two models (A/B toggle is sufficient for Phase 2).
 
 ---
 

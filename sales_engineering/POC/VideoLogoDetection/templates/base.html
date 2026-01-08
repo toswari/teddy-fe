@@ -16,6 +16,7 @@
   <main class="mx-auto max-w-6xl px-6 py-8">
     {% block content %}{% endblock %}
   </main>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-NGVx7EJzvY4xXHzkwmo7aX6ixkmKuuNHYsYvwdivgLPgAvFp8ZUBKbjsggq09NdY" crossorigin="anonymous"></script>
   <script src="{{ url_for('static', filename='js/dashboard.js') }}" type="module"></script>
 </body>
 </html>

@@ -19,3 +19,36 @@ body {
   padding: 1.25rem;
   background-color: white;
 }
+
+#overlay-layer .bbox {
+  position: absolute;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.5rem;
+  border: 2px solid var(--bbox-color, rgba(148, 163, 184, 0.9));
+  background-color: rgba(15, 23, 42, 0.35);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+button[data-toggle="model"].active {
+  background-color: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+button[data-toggle="model"][disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#detection-list li {
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+}

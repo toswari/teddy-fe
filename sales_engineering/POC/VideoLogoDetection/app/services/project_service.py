@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Iterable
+from typing import Iterable, Optional
+from copy import deepcopy
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.models import Project
@@ -28,7 +30,7 @@ def ensure_seed_project() -> Project:
     project = Project(
         name="Sample Project",
         description="Reference project seeded for developers.",
-        settings=DEFAULT_SETTINGS,
+        settings=deepcopy(DEFAULT_SETTINGS),
         budget_limit=25,
         last_opened_at=datetime.utcnow(),
     )
@@ -39,7 +41,15 @@ def ensure_seed_project() -> Project:
 
 
 def list_projects() -> Iterable[Project]:
-    projects = Project.query.order_by(Project.last_opened_at.desc()).all()
+    stmt = (
+        select(Project)
+        .options(
+            selectinload(Project.videos),
+            selectinload(Project.inference_runs),
+        )
+        .order_by(Project.last_opened_at.desc())
+    )
+    projects = db.session.execute(stmt).scalars().all()
     logger.debug("Retrieved %s projects", len(projects))
     return projects
 
@@ -48,11 +58,34 @@ def create_project(payload: dict) -> Project:
     project = Project(
         name=payload["name"],
         description=payload.get("description", ""),
-        settings=payload.get("settings", DEFAULT_SETTINGS),
+        settings=payload.get("settings", deepcopy(DEFAULT_SETTINGS)),
         budget_limit=payload.get("budget_limit", 0),
         currency=payload.get("currency", "USD"),
     )
     db.session.add(project)
     db.session.commit()
     logger.info("Project created (id=%s, name=%s)", project.id, project.name)
+    return project
+
+
+def get_project(project_id: int) -> Optional[Project]:
+    stmt = (
+        select(Project)
+        .options(
+            selectinload(Project.videos),
+            selectinload(Project.inference_runs),
+        )
+        .where(Project.id == project_id)
+    )
+    project = db.session.execute(stmt).scalar_one_or_none()
+    logger.debug("Fetched project id=%s (found=%s)", project_id, bool(project))
+    return project
+
+
+def update_project(project: Project, payload: dict) -> Project:
+    for key, value in payload.items():
+        setattr(project, key, value)
+    project.updated_at = datetime.utcnow()
+    db.session.commit()
+    logger.info("Project updated (id=%s)", project.id)
     return project

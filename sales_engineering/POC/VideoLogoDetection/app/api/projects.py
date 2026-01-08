@@ -1,14 +1,13 @@
 """Projects API blueprint."""
 from __future__ import annotations
 
-from datetime import datetime
-
 from flask import Blueprint, jsonify, request
 from marshmallow import Schema, ValidationError, fields
 
+from app.api.schemas import ProjectSchema
 from app.extensions import db
 from app.models import Project, Video, InferenceRun
-from app.services import project_service
+from app.services import project_service, metrics_service
 
 bp = Blueprint("projects", __name__, url_prefix="/api/projects")
 
@@ -53,7 +52,9 @@ def create_project():
 
 @bp.get("/<int:project_id>")
 def get_project(project_id: int):
-    project = Project.query.get_or_404(project_id)
+    project = project_service.get_project(project_id)
+    if project is None:
+        return {"error": "Project not found"}, 404
     project.touch()
     db.session.commit()
     return project_schema.dump(project)
@@ -61,15 +62,14 @@ def get_project(project_id: int):
 
 @bp.patch("/<int:project_id>")
 def update_project(project_id: int):
-    project = Project.query.get_or_404(project_id)
+    project = project_service.get_project(project_id)
+    if project is None:
+        return {"error": "Project not found"}, 404
     try:
         payload = project_update_schema.load(request.json, partial=True)
     except ValidationError as err:
         return {"errors": err.messages}, 400
-    for key, value in payload.items():
-        setattr(project, key, value)
-    project.updated_at = datetime.utcnow()
-    db.session.commit()
+    project = project_service.update_project(project, payload)
     return project_schema.dump(project)
 
 
@@ -80,10 +80,20 @@ def get_project_overview(project_id: int):
     inference_run_count = InferenceRun.query.filter_by(project_id=project_id).count()
     last_inference = InferenceRun.query.filter_by(project_id=project_id).order_by(InferenceRun.created_at.desc()).first()
     last_activity = last_inference.created_at if last_inference else project.last_opened_at
+    metrics = metrics_service.project_metrics(project_id)
+    total_cost = sum(entry.get("cost_projected", 0.0) for entry in metrics.values())
     return {
         "project_id": project.id,
         "name": project.name,
         "video_count": video_count,
         "inference_run_count": inference_run_count,
         "last_activity": last_activity.isoformat() if last_activity else None,
+        "projected_cost": round(total_cost, 4),
     }
+
+
+@bp.get("/<int:project_id>/benchmark")
+def get_project_benchmark(project_id: int):
+    Project.query.get_or_404(project_id)
+    metrics = metrics_service.project_metrics(project_id)
+    return {"project_id": project_id, "models": metrics}

@@ -29,13 +29,31 @@ curl -s -X POST http://localhost:5000/api/projects \
 ## Register Video
 
 ```bash
-http POST :5000/api/videos project_id==1 source_path="/data/videos/storefront.mp4"
+http POST :5000/api/projects/1/videos source_path="/data/videos/storefront.mp4"
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/projects/1/videos \
+  -H 'Content-Type: application/json' \
+  -d '{"source_path": "/data/videos/storefront.mp4"}' | jq
+```
+
+## Preprocess Video Window
+
+```bash
+http POST :5000/api/projects/1/videos/1/preprocess start_seconds:=120 duration_seconds:=1800 clip_length:=30
+```
+
+```bash
+curl -s -X POST http://localhost:5000/api/projects/1/videos/1/preprocess \
+  -H 'Content-Type: application/json' \
+  -d '{"start_seconds": 120, "duration_seconds": 1800, "clip_length": 30}' | jq
 ```
 
 ## Trigger Inference (single model)
 
 ```bash
-http POST :5000/api/videos/1/inference model_ids:='["logo-detector"]'
+http POST :5000/api/projects/1/videos/1/multi-inference model_ids:='["logo-detector"]'
 ```
 
 Combine these commands into a shell script to speed up local smoke tests before handing work to another agent.

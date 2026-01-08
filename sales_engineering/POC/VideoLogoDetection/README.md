@@ -37,6 +37,7 @@ For this POC, only PostgreSQL runs in a container; the Flask app runs on the hos
 	- DB_HOST=localhost
 	- DB_PORT=35432
 	- DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
+	- Runs `setup-database.sh` to ensure the Podman container is up and the latest schema (`create-schema.sql`) is applied.
 
 3. Start the application (command may vary based on implementation):
 	```bash
@@ -53,6 +54,14 @@ For detailed requirements and design, see:
 - Media storage layout: docs/storage-layout.md
 - Sample data loader: scripts/load_sample_data.py
 - Detection overlay mock: visit `/demo/detection-overlay` in the running app to see a reference UI for drawing bounding boxes and concept badges on top of a frame.
+
+## Core Workflows
+
+- **Project management**: `/api/projects` CRUD endpoints with automatic `last_opened_at` tracking and overview metrics via `/api/projects/<id>/overview`.
+- **Video ingestion**: Register local videos with `/api/projects/<id>/videos`, preprocess clips, and monitor status updates streamed via Socket.IO (`preprocess_status`).
+- **Inference**: Trigger single or multi-model Clarifai runs through `/api/projects/<id>/videos/<video_id>/multi-inference`. Sampling, detection persistence, and cost projections run in-process with live updates on `inference_status`.
+- **Metrics & costs**: Aggregate benchmarking data through `/api/metrics/projects/<id>` or per-run analytics via `/api/metrics/inference-runs/<id>`.
+- **Reporting**: Generate a minimal Word report with `/api/projects/<id>/videos/<video_id>/report`; files are written to `reports/project_<id>/`.
 
 ## Running Tests
 

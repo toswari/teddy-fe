@@ -43,9 +43,16 @@ echo "Activating environment..."
 eval "$(conda shell.bash hook)"
 conda activate ${ENV_NAME}
 
+# Install pkg-config (required for PyAV on macOS)
+echo "Installing pkg-config (required for building PyAV)..."
+if command -v brew &> /dev/null; then
+    brew install pkg-config
+else
+    echo "Warning: Homebrew not found. Please install pkg-config manually for PyAV."
+fi
+
 # Install pip packages from requirements.txt
 if [ -f "requirements.txt" ]; then
-go
     echo "Installing packages from requirements.txt..."
     pip install -r requirements.txt
 else
