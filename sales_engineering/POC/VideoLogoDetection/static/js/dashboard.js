@@ -7,6 +7,7 @@ const state = {
   clips: new Map(), // Map of clipId -> clip data
   metrics: null,
   palettes: new Map(),
+  clarifaiModels: [],
   comparison: {
     clipId: null,
     videoId: null,
@@ -17,6 +18,8 @@ const state = {
     frameIndex: 0,
     frames: [],
     models: [],
+    frameImages: new Map(),
+    detectionsByModel: new Map(),
   },
 };
 
@@ -39,6 +42,10 @@ const elements = {
   overlayLayer: document.getElementById('overlay-layer'),
   modelToggleButtons: document.querySelectorAll('button[data-toggle="model"]'),
 };
+
+if (elements.framePlaceholder) {
+  elements.framePlaceholder.dataset.placeholderSrc = elements.framePlaceholder.src;
+}
 
 const socket = window.io ? window.io() : null;
 
@@ -92,6 +99,82 @@ function describePreprocessWindow(video) {
   }
 
   return `Window: ${formatSecondsToClock(start)} → ${formatSecondsToClock(end)}${clipSummary}`;
+}
+
+function truncateText(value, limit) {
+  if (!value) {
+    return '';
+  }
+  const text = String(value);
+  if (text.length <= limit) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, limit - 1))}…`;
+}
+
+function summarizeClarifaiModel(model, index) {
+  const name = model.name || model.id || `Model ${index + 1}`;
+  const type = model.model_type ? ` · ${model.model_type}` : '';
+  const description = truncateText(model.description, 80);
+  const descriptionPart = description ? ` — ${description}` : '';
+  return `${index + 1}. ${name} (${model.id})${type}${descriptionPart}`;
+}
+
+async function loadClarifaiModels(forceRefresh = false) {
+  if (!forceRefresh && Array.isArray(state.clarifaiModels) && state.clarifaiModels.length) {
+    return state.clarifaiModels;
+  }
+
+  try {
+    const response = await fetchJSON('/api/clarifai/models?per_page=50');
+    const models = Array.isArray(response.models) ? response.models : [];
+    state.clarifaiModels = models;
+    return models;
+  } catch (error) {
+    console.warn('Unable to load Clarifai models', error);
+    state.clarifaiModels = [];
+    throw error;
+  }
+}
+
+function buildModelSelectionMessage(models) {
+  if (!models.length) {
+    return '';
+  }
+  return models.slice(0, 20).map((model, index) => summarizeClarifaiModel(model, index)).join('\n');
+}
+
+function parseModelSelectionInput(input, models) {
+  if (!input) {
+    return [];
+  }
+  const entries = input
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (!entries.length) {
+    return [];
+  }
+  const ids = [];
+  const seen = new Set();
+  entries.forEach((entry) => {
+    if (/^\d+$/.test(entry)) {
+      const index = Number(entry) - 1;
+      if (index >= 0 && index < models.length) {
+        const id = models[index].id;
+        if (id && !seen.has(id)) {
+          ids.push(id);
+          seen.add(id);
+        }
+      }
+      return;
+    }
+    if (!seen.has(entry)) {
+      ids.push(entry);
+      seen.add(entry);
+    }
+  });
+  return ids;
 }
 
 async function fetchJSON(url, options = {}) {
@@ -532,11 +615,44 @@ async function triggerInference(videoId) {
     return;
   }
 
-  const modelInput = window.prompt(
-    'Enter Clarifai model IDs (comma separated)',
-    'general-image-recognition'
-  );
-  const modelIds = modelInput ? modelInput.split(',').map((m) => m.trim()).filter(Boolean) : undefined;
+  let catalogModels = [];
+  try {
+    catalogModels = await loadClarifaiModels(false);
+  } catch (error) {
+    catalogModels = [];
+  }
+
+  let modelIds = [];
+  if (catalogModels.length) {
+    const optionsText = buildModelSelectionMessage(catalogModels);
+    const selectionPrompt = optionsText
+      ? `Select Clarifai models by number (comma separated) or enter IDs directly.\n${optionsText}`
+      : 'Enter Clarifai model IDs (comma separated)';
+    const catalogSelection = window.prompt(selectionPrompt, '1');
+    if (catalogSelection === null) {
+      return;
+    }
+    modelIds = parseModelSelectionInput(catalogSelection, catalogModels);
+  }
+
+  if (!modelIds.length) {
+    const manualInput = window.prompt(
+      'Enter Clarifai model IDs (comma separated)',
+      'general-image-recognition'
+    );
+    if (manualInput === null) {
+      return;
+    }
+    modelIds = manualInput
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  if (!modelIds.length) {
+    window.alert('You must select at least one Clarifai model.');
+    return;
+  }
 
   const paramsPrompt = window.prompt(
     'Optional inference settings (fps,min_confidence,max_concepts). Leave blank for defaults.',
@@ -573,7 +689,7 @@ async function triggerInference(videoId) {
 
   try {
     const payload = { clip_id: selectedClip.id };
-    if (modelIds?.length) {
+    if (modelIds.length) {
       payload.model_ids = modelIds;
     }
     if (Object.keys(params).length) {
@@ -848,6 +964,23 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
   const payload = await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/runs/${runId}/detections`);
   const frames = enrichFrames(payload);
 
+  state.comparison.frameImages = new Map();
+  frames.forEach((frame) => {
+    if (typeof frame.frame_index === 'number' && frame.frame_index >= 0 && frame.image_url) {
+      state.comparison.frameImages.set(frame.frame_index, frame.image_url);
+    }
+  });
+
+  state.comparison.detectionsByModel = new Map();
+  Object.entries(payload.detections_by_model || {}).forEach(([modelId, detections]) => {
+    state.comparison.detectionsByModel.set(modelId, detections);
+  });
+  (payload.models || []).forEach((modelId) => {
+    if (!state.comparison.detectionsByModel.has(modelId)) {
+      state.comparison.detectionsByModel.set(modelId, []);
+    }
+  });
+
   state.comparison.runId = Number(runId);
   state.comparison.frames = frames;
   state.comparison.models = payload.models || [];
@@ -864,7 +997,7 @@ function enrichFrames(payload) {
     framesByKey.set(key, { ...frame, models: {} });
   });
 
-  (payload.detections || []).forEach((detection) => {
+  const registerDetection = (detection, fallbackModelId = 'unknown') => {
     const key = detection.frame_index ?? -1;
     if (!framesByKey.has(key)) {
       framesByKey.set(key, {
@@ -874,12 +1007,38 @@ function enrichFrames(payload) {
       });
     }
     const entry = framesByKey.get(key);
-    const modelId = detection.model_id || 'unknown';
+    const modelId = detection.model_id || fallbackModelId;
     if (!entry.models[modelId]) {
       entry.models[modelId] = [];
     }
     entry.models[modelId].push(detection);
-  });
+  };
+
+  if (payload.detections_by_model) {
+    Object.entries(payload.detections_by_model).forEach(([modelId, detections]) => {
+      detections.forEach((detection) => registerDetection(detection, modelId));
+    });
+  } else {
+    (payload.detections || []).forEach((detection) => registerDetection(detection));
+  }
+
+  if ((payload.models || []).length) {
+    framesByKey.forEach((entry) => {
+      (payload.models || []).forEach((modelId) => {
+        if (!entry.models[modelId]) {
+          entry.models[modelId] = [];
+        }
+      });
+    });
+  }
+
+  if (!framesByKey.size) {
+    framesByKey.set(-1, {
+      frame_index: null,
+      timestamp_seconds: null,
+      models: Object.fromEntries((payload.models || []).map((modelId) => [modelId, []])),
+    });
+  }
 
   if ((payload.frames || []).length) {
     return payload.frames.map((frame) => {
@@ -966,7 +1125,12 @@ function updateModelToggleAvailability() {
     const slot = button.dataset.model;
     const modelId = slot === 'A' ? state.comparison.modelA : state.comparison.modelB;
     const baseLabel = button.dataset.label || button.textContent || slot;
-    const suffix = modelId ? ` · ${modelId}` : '';
+    let suffix = '';
+    if (modelId) {
+      const detections = state.comparison.detectionsByModel.get(modelId) || [];
+      const countText = detections.length ? ` (${detections.length})` : ' (0)';
+      suffix = ` · ${modelId}${countText}`;
+    }
     button.textContent = `${baseLabel}${suffix}`;
     if (!modelId) {
       button.disabled = true;
@@ -989,6 +1153,16 @@ function renderOverlay() {
   const clampedIndex = Math.max(0, Math.min(state.comparison.frameIndex ?? 0, frames.length - 1));
   const frame = frames[clampedIndex];
   state.comparison.frameIndex = clampedIndex;
+
+  if (elements.framePlaceholder) {
+    const frameUrl =
+      (typeof frame.frame_index === 'number' && state.comparison.frameImages.get(frame.frame_index)) || frame.image_url;
+    if (frameUrl) {
+      elements.framePlaceholder.src = frameUrl;
+    } else if (elements.framePlaceholder.dataset.placeholderSrc) {
+      elements.framePlaceholder.src = elements.framePlaceholder.dataset.placeholderSrc;
+    }
+  }
 
   const models = frame.models || {};
   const primaryModel = state.comparison.activeToggle === 'A' ? state.comparison.modelA : state.comparison.modelB;
@@ -1039,33 +1213,40 @@ function renderDetectionList(frame, models) {
     const list = document.createElement('ul');
     list.className = 'space-y-1 mt-1';
 
-    detections.forEach((det) => {
-      const item = document.createElement('li');
-      item.className = 'flex items-center justify-between gap-2 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600';
-      const confidence = det.confidence != null ? `${Math.round(det.confidence * 100)}%` : 'n/a';
-      const label = det.label || det.object_name || 'Detection';
+    if (!detections.length) {
+      const empty = document.createElement('li');
+      empty.className = 'rounded border border-dashed border-slate-200 px-2 py-2 text-xs italic text-slate-400';
+      empty.textContent = 'No detections for this frame';
+      list.appendChild(empty);
+    } else {
+      detections.forEach((det) => {
+        const item = document.createElement('li');
+        item.className = 'flex items-center justify-between gap-2 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600';
+        const confidence = det.confidence != null ? `${Math.round(det.confidence * 100)}%` : 'n/a';
+        const label = det.label || det.object_name || 'Detection';
 
-      const leftGroup = document.createElement('span');
-      leftGroup.className = 'flex items-center gap-2';
+        const leftGroup = document.createElement('span');
+        leftGroup.className = 'flex items-center gap-2';
 
-      const badge = document.createElement('span');
-      badge.className = 'inline-block h-2.5 w-2.5 rounded-full';
-      badge.style.backgroundColor = getModelColor(det.model_id || modelId);
-      leftGroup.appendChild(badge);
+        const badge = document.createElement('span');
+        badge.className = 'inline-block h-2.5 w-2.5 rounded-full';
+        badge.style.backgroundColor = getModelColor(det.model_id || modelId);
+        leftGroup.appendChild(badge);
 
-      const labelText = document.createElement('span');
-      labelText.className = 'font-medium';
-      labelText.textContent = label;
-      leftGroup.appendChild(labelText);
+        const labelText = document.createElement('span');
+        labelText.className = 'font-medium';
+        labelText.textContent = label;
+        leftGroup.appendChild(labelText);
 
-      const confidenceSpan = document.createElement('span');
-      confidenceSpan.className = 'font-medium text-slate-500';
-      confidenceSpan.textContent = confidence;
+        const confidenceSpan = document.createElement('span');
+        confidenceSpan.className = 'font-medium text-slate-500';
+        confidenceSpan.textContent = confidence;
 
-      item.appendChild(leftGroup);
-      item.appendChild(confidenceSpan);
-      list.appendChild(item);
-    });
+        item.appendChild(leftGroup);
+        item.appendChild(confidenceSpan);
+        list.appendChild(item);
+      });
+    }
 
     container.appendChild(list);
     elements.detectionList.appendChild(container);
@@ -1096,6 +1277,9 @@ function resetComparisonDisplay(message) {
     elements.modelToggleButtons.forEach((button) => {
       button.classList.remove('active');
     });
+  }
+  if (elements.framePlaceholder && elements.framePlaceholder.dataset.placeholderSrc) {
+    elements.framePlaceholder.src = elements.framePlaceholder.dataset.placeholderSrc;
   }
 }
 
@@ -1352,6 +1536,29 @@ function setupSocketListeners() {
       if (event.run_id && state.comparison.runId === event.run_id) {
         void handleRunSelection(event.run_id, { preserveModels: true });
       }
+    }
+  });
+  socket.on('inference_progress', (event) => {
+    try {
+      const statusEl = document.getElementById('inference-status');
+      if (statusEl && event && event.run_id) {
+        statusEl.textContent = `Run ${event.run_id}: ${event.status || 'in-progress'}`;
+      }
+      if (event && event.video_id) {
+        refreshVideo(event.video_id);
+      }
+    } catch (e) {
+      console.debug('Failed to handle inference_progress', e);
+    }
+  });
+  socket.on('inference_partial', (event) => {
+    try {
+      const partialEl = document.getElementById('inference-partial');
+      if (partialEl && event && event.run_id) {
+        partialEl.textContent = `Run ${event.run_id} - Model ${event.model_id} batch ${event.batch}: ${event.detections_in_batch} detections`;
+      }
+    } catch (e) {
+      console.debug('Failed to handle inference_partial', e);
     }
   });
 }

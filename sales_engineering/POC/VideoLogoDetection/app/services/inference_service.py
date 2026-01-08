@@ -14,6 +14,7 @@ from app.extensions import db, socketio
 from app.models import Detection, InferenceRun, Video
 from .inference_models import InferenceRequest, InferenceParams
 from . import billing_service
+from flask import current_app
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,12 @@ class FrameSample:
     payload: bytes
 
 
+def _batched_frames(frames: list[FrameSample], batch_size: int) -> Iterable[list[FrameSample]]:
+    size = max(1, int(batch_size or 1))
+    for start in range(0, len(frames), size):
+        yield frames[start : start + size]
+
+
 def _emit_status(event: str, payload: dict) -> None:
     """Emit Socket.IO status messages without breaking on failure."""
     try:
@@ -37,12 +44,34 @@ def _emit_status(event: str, payload: dict) -> None:
         logger.debug("SocketIO emit failed for event=%s", event, exc_info=True)
 
 
-def sample_frames(video: Video, fps: float, *, source_override: str | None = None) -> List[FrameSample]:
-    """Sample frames from a video or clip at the requested FPS, return JPEG payloads."""
+def get_frame_image_path(video: Video, run_id: int, frame_index: int) -> Path:
+    """Return the path for a stored frame image for a given run."""
+    media_root = Path(current_app.config.get("PROJECT_MEDIA_ROOT", "media"))
+    frame_path = (
+        media_root
+        / f"project_{video.project_id}"
+        / f"video_{video.id}"
+        / "runs"
+        / f"run_{run_id}"
+        / "frames"
+        / f"frame_{frame_index:04d}.jpg"
+    )
+    return frame_path
+
+
+def sample_frames(
+    video: Video,
+    fps: float,
+    *,
+    source_override: str | None = None,
+) -> List[FrameSample]:
+    """Sample frames at the requested FPS and return JPEG payloads."""
     if fps <= 0:
         raise InferenceServiceError("Sampling FPS must be positive")
 
-    source = Path(source_override or video.storage_path or video.original_path or "")
+    source = Path(
+        source_override or video.storage_path or video.original_path or ""
+    )
     if not source.is_file():
         raise InferenceServiceError(f"Video source not found for sampling: {source}")
 
@@ -77,8 +106,43 @@ def sample_frames(video: Video, fps: float, *, source_override: str | None = Non
     finally:
         container.close()
 
-    logger.debug("Sampled %s frame(s) from video id=%s", len(samples), video.id)
+    logger.debug(
+        "Sampled %s frame(s) from video id=%s",
+        len(samples),
+        video.id,
+    )
     return samples
+
+
+def _store_frame_images(
+    video: Video,
+    inference_run: InferenceRun,
+    frames: list[FrameSample],
+) -> list[dict]:
+    """Persist sampled frames as JPEGs and return lightweight metadata."""
+    frame_records: list[dict] = []
+    for frame in frames:
+        frame_path = get_frame_image_path(video, inference_run.id, frame.index)
+        frame_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with open(frame_path, "wb") as outfile:
+                outfile.write(frame.payload)
+        except OSError as exc:  # pragma: no cover - filesystem failures rare
+            logger.warning(
+                "Failed to persist frame %s for run %s: %s",
+                frame.index,
+                inference_run.id,
+                exc,
+            )
+            continue
+        frame_records.append(
+            {
+                "index": frame.index,
+                "timestamp_seconds": round(float(frame.timestamp_seconds or 0.0), 4),
+                "image_path": str(frame_path),
+            }
+        )
+    return frame_records
 
 
 def _format_clock(seconds: float | int | None) -> str:
@@ -100,7 +164,11 @@ def _parse_clip_identifier(clip_id: str, video_id: int) -> int:
         try:
             prefix_id = int(prefix)
             if prefix_id != video_id:
-                logger.debug("Clip identifier video mismatch: expected %s, got %s", video_id, prefix_id)
+                logger.debug(
+                    "Clip identifier video mismatch: expected %s, got %s",
+                    video_id,
+                    prefix_id,
+                )
         except ValueError:
             # Prefix is not numeric; treat entire string as segment
             suffix = candidate
@@ -115,7 +183,9 @@ def _resolve_clip_selection(video: Video, clip_id: str) -> dict:
     metadata = video.video_metadata or {}
     clip_entries = list(metadata.get("clips") or [])
     if not clip_entries:
-        raise InferenceServiceError("Video has no clip metadata; preprocess the video first")
+        raise InferenceServiceError(
+            "Video has no clip metadata; preprocess the video first"
+        )
 
     segment_number = _parse_clip_identifier(clip_id, video.id)
     matched_entry = None
@@ -128,12 +198,16 @@ def _resolve_clip_selection(video: Video, clip_id: str) -> dict:
             break
 
     if not matched_entry:
-        raise InferenceServiceError(f"Clip segment {segment_number} not found for video {video.id}")
+        raise InferenceServiceError(
+            f"Clip segment {segment_number} not found for video {video.id}"
+        )
 
     raw_path = matched_entry.get("path") or ""
     clip_path = Path(raw_path)
     if not clip_path.is_absolute():
-        base = Path(video.storage_path or video.original_path or "").resolve().parent
+        base = Path(
+            video.storage_path or video.original_path or ""
+        ).resolve().parent
         clip_path = (base / clip_path).resolve()
     if not clip_path.is_file():
         raise InferenceServiceError(f"Clip file not found: {clip_path}")
@@ -144,8 +218,13 @@ def _resolve_clip_selection(video: Video, clip_id: str) -> dict:
     if start is not None and end is not None:
         duration = max(0.0, float(end) - float(start))
 
-    original_name = metadata.get("original_filename") or Path(video.storage_path or video.original_path or "").name
-    label = f"{original_name} · Clip {matched_index} ({_format_clock(start)} → {_format_clock(end)})"
+    original_name = metadata.get("original_filename") or Path(
+        video.storage_path or video.original_path or ""
+    ).name
+    label = (
+        f"{original_name} · Clip {matched_index} "
+        f"({_format_clock(start)} -> {_format_clock(end)})"
+    )
 
     return {
         "id": f"{video.id}-{matched_index}",
@@ -215,6 +294,170 @@ class ClarifaiClient:
         model_id: str,
         params: InferenceParams,
     ) -> list[dict]:
+        # Prefer SDK helpers when available; fall back to unary or REST predict.
+        detections: list[dict] = []
+        inference_params = {
+            "max_concepts": params.max_concepts,
+            "min_value": params.min_confidence,
+        }
+
+        # Try SDK Image helper path first
+        try:
+            from clarifai.runners.utils.data_types import Image  # type: ignore
+
+            model = self._get_model(model_id)
+            for batch in _batched_frames(frames, params.batch_size):
+                inputs = [
+                    {
+                        "image": Image(bytes=frame.payload),
+                        "metadata": {
+                            "frame_index": frame.index,
+                            "timestamp_seconds": frame.timestamp_seconds,
+                        },
+                    }
+                    for frame in batch
+                ]
+                try:
+                    response = model.predict(  # type: ignore[attr-defined]
+                        inputs=inputs,
+                        inference_params=inference_params,
+                    )
+                except Exception as exc:  # pragma: no cover - network failure
+                    logger.error("Clarifai inference failed for model %s: %s", model_id, exc)
+                    raise InferenceServiceError(str(exc)) from exc
+
+                outputs = getattr(response, "outputs", []) or []
+                if not outputs:
+                    continue
+
+                for frame, output in zip(batch, outputs):
+                    data = getattr(output, "data", None)
+                    if data is None:
+                        continue
+                    regions = getattr(data, "regions", None)
+                    concepts = getattr(data, "concepts", None)
+
+                    if regions:
+                        detections.extend(
+                            self._parse_region_detections(regions, frame, model_id, params)
+                        )
+                    elif concepts:
+                        detections.extend(
+                            self._parse_concept_detections(concepts, frame, model_id, params)
+                        )
+            return detections
+        except Exception:
+            logger.debug("SDK Image helper not available; trying unary/REST fallback")
+
+        # Try unary-bytes helper via SDK
+        try:
+            return self._run_model_real_unary(frames, model_id, params)
+        except Exception:
+            logger.debug("Unary SDK path failed; falling back to REST predict API")
+
+        # REST predict fallback using requests
+        try:
+            import base64
+            import requests
+
+            pat = os.getenv("CLARIFAI_PAT")
+            if not pat:
+                raise InferenceServiceError("CLARIFAI_PAT not configured for REST fallback")
+
+            base = os.getenv("CLARIFAI_API_BASE", "https://api.clarifai.com").rstrip("/")
+            user = os.getenv("CLARIFAI_USER_ID")
+            app_id = os.getenv("CLARIFAI_APP_ID")
+            if user and app_id:
+                url = f"{base}/v2/users/{user}/apps/{app_id}/models/{model_id}/outputs"
+            else:
+                url = f"{base}/v2/models/{model_id}/outputs"
+
+            headers = {"Authorization": f"Key {pat}", "Content-Type": "application/json"}
+
+            import time
+            MAX_RETRIES = int(os.getenv("CLARIFAI_RETRIES", "3"))
+            for batch in _batched_frames(frames, params.batch_size):
+                inputs = []
+                for frame in batch:
+                    b64 = base64.b64encode(frame.payload).decode("ascii")
+                    inputs.append(
+                        {
+                            "data": {"image": {"base64": b64}},
+                            "metadata": {"frame_index": frame.index, "timestamp_seconds": frame.timestamp_seconds},
+                        }
+                    )
+
+                body = {"inputs": inputs, "output_config": {"max_concepts": params.max_concepts}}
+                attempt = 0
+                while True:
+                    attempt += 1
+                    start_time = time.time()
+                    try:
+                        resp = requests.post(url, json=body, headers=headers, timeout=30)
+                    except requests.RequestException as exc:  # pragma: no cover - network
+                        logger.error("Clarifai REST predict request failed: %s", exc)
+                        if attempt >= MAX_RETRIES:
+                            raise InferenceServiceError(str(exc)) from exc
+                        sleep_for = 2 ** attempt
+                        time.sleep(sleep_for)
+                        continue
+                    duration = time.time() - start_time
+                    from app.services.metrics_service import record_timer, increment_counter
+                    record_timer("clarifai_request_duration", duration)
+                    logger.info("Clarifai request completed in %.2fs, status %s", duration, resp.status_code)
+
+                    # Handle rate limits and server errors with backoff
+                    if resp.status_code == 429:
+                        increment_counter("clarifai_rate_limits")
+                        retry_after = resp.headers.get("Retry-After")
+                        if retry_after:
+                            try:
+                                wait = int(retry_after)
+                            except Exception:
+                                wait = 2 ** attempt
+                        else:
+                            wait = 2 ** attempt
+                        logger.warning("Clarifai rate limited, retrying after %s seconds", wait)
+                        if attempt >= MAX_RETRIES:
+                            logger.error("Clarifai REST predict error: %s %s", resp.status_code, resp.text)
+                            raise InferenceServiceError("Clarifai REST predict failed: rate limited")
+                        time.sleep(wait)
+                        continue
+                    if 500 <= resp.status_code < 600 and attempt < MAX_RETRIES:
+                        increment_counter("clarifai_server_errors")
+                        wait = 2 ** attempt
+                        logger.warning("Clarifai server error %s, retrying after %s seconds", resp.status_code, wait)
+                        time.sleep(wait)
+                        continue
+                    if resp.status_code >= 400:
+                        increment_counter("clarifai_failures")
+                        logger.error("Clarifai REST predict error: %s %s", resp.status_code, resp.text)
+                        raise InferenceServiceError("Clarifai REST predict failed")
+                    break
+
+                payload = resp.json() if resp.content else {}
+                outputs = payload.get("outputs") or []
+                for frame, output in zip(batch, outputs):
+                    data = output.get("data") or {}
+                    regions = data.get("regions")
+                    concepts = data.get("concepts")
+                    if regions:
+                        detections.extend(self._parse_region_detections(regions, frame, model_id, params))
+                    elif concepts:
+                        detections.extend(self._parse_concept_detections(concepts, frame, model_id, params))
+            return detections
+        except InferenceServiceError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Unexpected error in REST fallback for Clarifai model %s: %s", model_id, exc)
+            raise InferenceServiceError(str(exc)) from exc
+
+    def _run_model_real_unary(
+        self,
+        frames: list[FrameSample],
+        model_id: str,
+        params: InferenceParams,
+    ) -> list[dict]:
         model = self._get_model(model_id)
         detections: list[dict] = []
         for frame in frames:
@@ -248,17 +491,29 @@ class ClarifaiClient:
                 )
         return detections
 
-    def _parse_region_detections(self, regions, frame: FrameSample, model_id: str, params: InferenceParams):
+    def _parse_region_detections(
+        self,
+        regions,
+        frame: FrameSample,
+        model_id: str,
+        params: InferenceParams,
+    ):
         parsed: list[dict] = []
         for region in regions:
-            bbox_obj = getattr(getattr(region, "region_info", None), "bounding_box", None)
+            bbox_obj = getattr(
+                getattr(region, "region_info", None),
+                "bounding_box",
+                None,
+            )
             bbox = {
                 "top": getattr(bbox_obj, "top", 0.0),
                 "left": getattr(bbox_obj, "left", 0.0),
                 "bottom": getattr(bbox_obj, "bottom", 0.0),
                 "right": getattr(bbox_obj, "right", 0.0),
             }
-            region_concepts = getattr(getattr(region, "data", None), "concepts", []) or []
+            region_concepts = (
+                getattr(getattr(region, "data", None), "concepts", []) or []
+            )
             for concept in region_concepts:
                 confidence = float(getattr(concept, "value", 0.0))
                 if confidence < params.min_confidence:
@@ -275,7 +530,13 @@ class ClarifaiClient:
                 )
         return parsed
 
-    def _parse_concept_detections(self, concepts, frame: FrameSample, model_id: str, params: InferenceParams):
+    def _parse_concept_detections(
+        self,
+        concepts,
+        frame: FrameSample,
+        model_id: str,
+        params: InferenceParams,
+    ):
         parsed: list[dict] = []
         for concept in concepts:
             confidence = float(getattr(concept, "value", 0.0))
@@ -298,7 +559,9 @@ class ClarifaiClient:
         for frame in frames:
             if frame.index % 2 != 0:
                 continue
-            confidence = 0.55 + ((hash((model_id, frame.index)) % 40) / 100.0)
+            confidence = 0.55 + (
+                (hash((model_id, frame.index)) % 40) / 100.0
+            )
             detections.append(
                 {
                     "frame_index": frame.index,
@@ -319,7 +582,7 @@ class ClarifaiClient:
 
 def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
     """Execute Clarifai inference for the given video using request settings."""
-    params_dict = request.params.dict()
+    params_dict = request.params.model_dump()
     clip_info: dict | None = None
     source_override: str | None = None
     if request.clip_id:
@@ -343,17 +606,60 @@ def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
         request.model_ids,
         clip_info["id"] if clip_info else "full-video",
     )
-    running_payload = {"run_id": inference_run.id, "status": "running", "video_id": video.id}
+    running_payload = {
+        "id": inference_run.id,
+        "status": "running",
+        "message": f"Inference started for {len(request.model_ids)} model(s)",
+    }
     if clip_info:
-        running_payload["clip_id"] = clip_info["id"]
-    _emit_status("inference_status", running_payload)
+        running_payload["message"] += f" on clip {clip_info['id']}"
+    _emit_status("inference:update", running_payload)
 
     client = ClarifaiClient()
     try:
-        frames = sample_frames(video, request.params.fps, source_override=source_override)
-        detections = client.run_models(frames, request.model_ids, request.params)
-        _persist_detections(inference_run, detections)
-        _finalize_inference_run(inference_run, detections, frames, clip_info)
+        # Sample frames
+        _emit_status("inference:update", {"id": inference_run.id, "status": "sampling", "message": "Sampling frames"})
+        frames = sample_frames(
+            video,
+            request.params.fps,
+            source_override=source_override,
+        )
+        _emit_status("inference:update", {"id": inference_run.id, "status": "sampled", "message": f"Sampled {len(frames)} frames"})
+
+        # Persist frame images
+        _emit_status("inference:update", {"id": inference_run.id, "status": "storing_frames", "message": "Storing frame images"})
+        frame_records = _store_frame_images(video, inference_run, frames)
+        _emit_status("inference:update", {"id": inference_run.id, "status": "frames_stored", "message": f"Stored {len(frame_records)} frame images"})
+
+        # Run models and emit partial results per batch
+        detections: list[dict] = []
+        model_list = request.model_ids or []
+        total_batches = max(1, (len(frames) + request.params.batch_size - 1) // request.params.batch_size)
+        batch_counter = 0
+        for model_id in model_list:
+            for batch in _batched_frames(frames, request.params.batch_size):
+                batch_counter += 1
+                batch_detections = client.run_models(batch, [model_id], request.params)
+                detections.extend(batch_detections)
+                # Emit partial detection update
+                _emit_status(
+                    "inference:update",
+                    {
+                        "id": inference_run.id,
+                        "status": "processing",
+                        "message": f"Processed batch {batch_counter} for model {model_id}",
+                    },
+                )
+
+        # Persist and finalize
+        _persist_detections(inference_run, detections, frame_records)
+        _finalize_inference_run(
+            inference_run,
+            detections,
+            frames,
+            frame_records,
+            clip_info,
+        )
     except Exception as exc:
         db.session.rollback()
         inference_run.status = "failed"
@@ -363,16 +669,24 @@ def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
         inference_run.results = failure_payload
         db.session.commit()
         logger.error("Inference run %s failed: %s", inference_run.id, exc)
-        failed_status = {"run_id": inference_run.id, "status": "failed", "video_id": video.id}
+        failed_status = {
+            "id": inference_run.id,
+            "status": "failed",
+            "message": f"Inference failed: {str(exc)}",
+        }
         if clip_info:
-            failed_status["clip_id"] = clip_info["id"]
-        _emit_status("inference_status", failed_status)
+            failed_status["message"] += f" on clip {clip_info['id']}"
+        _emit_status("inference:update", failed_status)
         raise
 
-    completed_payload = {"run_id": inference_run.id, "status": "completed", "video_id": video.id}
+    completed_payload = {
+        "id": inference_run.id,
+        "status": "completed",
+        "message": f"Inference completed with {len(detections)} detections",
+    }
     if clip_info:
-        completed_payload["clip_id"] = clip_info["id"]
-    _emit_status("inference_status", completed_payload)
+        completed_payload["message"] += f" on clip {clip_info['id']}"
+    _emit_status("inference:update", completed_payload)
     logger.debug(
         "Inference completed (run_id=%s, detections=%s)",
         inference_run.id,
@@ -381,16 +695,67 @@ def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
     return inference_run
 
 
-def _persist_detections(inference_run: InferenceRun, detections: list[dict]) -> None:
+def _retry_with_backoff(func, max_retries: int = 3, base_delay: float = 1.0):
+    import time
+    import random
+
+    def wrapper(*args, **kwargs):
+        attempt = 0
+        while True:
+            try:
+                return func(*args, **kwargs)
+            except InferenceServiceError:
+                raise
+            except Exception as exc:
+                attempt += 1
+                if attempt > max_retries:
+                    raise
+                # Exponential backoff with jitter
+                delay = base_delay * (2 ** (attempt - 1))
+                jitter = random.uniform(0, delay * 0.1)  # 10% jitter
+                wait = delay + jitter
+                logger.warning("Retrying after exception: %s (attempt %s), waiting %s seconds", exc, attempt, wait)
+                time.sleep(wait)
+    return wrapper
+
+
+def run_single_model_inference(frames: list[FrameSample], model_id: str, params: InferenceParams) -> list[dict]:
+    """Run a single model against provided frame samples with simple retry/backoff."""
+    client = ClarifaiClient()
+
+    def _call():
+        return client.run_models(frames, [model_id], params)
+
+    return _retry_with_backoff(_call)()
+
+
+def run_multi_model_inference(frames: list[FrameSample], model_ids: list[str], params: InferenceParams) -> list[dict]:
+    """Run multiple models in sequence with retry/backoff per model."""
+    client = ClarifaiClient()
+    all_detections: list[dict] = []
+    for model_id in model_ids:
+        def _call(mid=model_id):
+            return client.run_models(frames, [mid], params)
+
+        detections = _retry_with_backoff(_call)()
+        all_detections.extend(detections)
+    return all_detections
+
+
+def _persist_detections(inference_run: InferenceRun, detections: list[dict], frame_records: list[dict] | None = None) -> None:
+    """Persist detections and optionally link to frame image paths from frame_records."""
+    frame_map = {f["index"]: f.get("image_path") for f in (frame_records or [])}
     for payload in detections:
+        frame_idx = payload.get("frame_index")
         detection = Detection(
             inference_run_id=inference_run.id,
-            frame_index=payload.get("frame_index"),
+            frame_index=frame_idx,
             timestamp_seconds=payload.get("timestamp_seconds"),
             model_id=payload.get("model_id"),
             label=payload.get("label"),
             confidence=payload.get("confidence"),
             bbox=payload.get("bbox") or {},
+            frame_image_path=frame_map.get(frame_idx),
         )
         db.session.add(detection)
     logger.debug(
@@ -404,12 +769,16 @@ def _finalize_inference_run(
     inference_run: InferenceRun,
     detections: list[dict],
     frames: list[FrameSample],
+    frame_records: list[dict],
     clip: dict | None = None,
 ) -> None:
     model_summary: dict[str, dict] = {}
     for payload in detections:
         model_id = payload["model_id"]
-        model_entry = model_summary.setdefault(model_id, {"detections": 0, "avg_confidence": 0.0})
+        model_entry = model_summary.setdefault(
+            model_id,
+            {"detections": 0, "avg_confidence": 0.0},
+        )
         model_entry["detections"] += 1
         model_entry["avg_confidence"] += payload.get("confidence", 0.0)
 
@@ -422,6 +791,7 @@ def _finalize_inference_run(
         "frames_sampled": len(frames),
         "detections": detections,
         "models": model_summary,
+        "frames": frame_records,
         "scope": "clip" if clip else "video",
     }
     if clip:

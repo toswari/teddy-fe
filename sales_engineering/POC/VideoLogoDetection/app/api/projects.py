@@ -75,7 +75,9 @@ def update_project(project_id: int):
 
 @bp.get("/<int:project_id>/overview")
 def get_project_overview(project_id: int):
-    project = Project.query.get_or_404(project_id)
+    project = db.session.get(Project, project_id)
+    if project is None:
+        return {"error": "Project not found"}, 404
     video_count = Video.query.filter_by(project_id=project_id).count()
     inference_run_count = InferenceRun.query.filter_by(project_id=project_id).count()
     last_inference = InferenceRun.query.filter_by(project_id=project_id).order_by(InferenceRun.created_at.desc()).first()
@@ -94,6 +96,8 @@ def get_project_overview(project_id: int):
 
 @bp.get("/<int:project_id>/benchmark")
 def get_project_benchmark(project_id: int):
-    Project.query.get_or_404(project_id)
+    project = db.session.get(Project, project_id)
+    if project is None:
+        return {"error": "Project not found"}, 404
     metrics = metrics_service.project_metrics(project_id)
     return {"project_id": project_id, "models": metrics}

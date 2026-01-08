@@ -197,6 +197,7 @@ def generate_clips(
                 "start": start_time,
                 "end": clip_end,
                 "segment": len(clips),
+                "duration": clip_duration,
             }
         )
 
@@ -206,6 +207,7 @@ def generate_clips(
         "end": end_offset,
         "clip_length": clip_length,
         "clip_count": len(clips),
+        "total_duration": window_duration,
     }
 
     video.status = "processed"
@@ -244,6 +246,7 @@ def generate_multiple_clips(video: Video, clip_segments: list[dict[str, float]])
     source_path = video.storage_path or video.original_path
     clips: list[Path] = []
     clip_records = []
+    total_duration = 0.0
 
     for i, segment in enumerate(clip_segments):
         start_time = segment.get("start", 0)
@@ -266,18 +269,21 @@ def generate_multiple_clips(video: Video, clip_segments: list[dict[str, float]])
             raise VideoProcessingError(f"Clip generation failed for segment {i+1}: {exc}") from exc
 
         clips.append(clip_path)
+        total_duration += clip_duration
         clip_records.append(
             {
                 "path": str(clip_path),
                 "start": start_time,
                 "end": end_time,
                 "segment": i+1,
+                "duration": clip_duration,
             }
         )
 
     window_meta = {
         "clip_count": len(clips),
         "segments": clip_records,
+        "total_duration": total_duration,
     }
 
     video.status = "processed"

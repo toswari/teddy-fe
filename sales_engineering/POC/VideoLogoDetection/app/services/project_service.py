@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, Optional
 from copy import deepcopy
 
@@ -32,7 +32,7 @@ def ensure_seed_project() -> Project:
         description="Reference project seeded for developers.",
         settings=deepcopy(DEFAULT_SETTINGS),
         budget_limit=25,
-        last_opened_at=datetime.utcnow(),
+        last_opened_at=datetime.now(timezone.utc),
     )
     db.session.add(project)
     db.session.commit()
@@ -85,7 +85,7 @@ def get_project(project_id: int) -> Optional[Project]:
 def update_project(project: Project, payload: dict) -> Project:
     for key, value in payload.items():
         setattr(project, key, value)
-    project.updated_at = datetime.utcnow()
+    project.updated_at = datetime.now(timezone.utc)
     db.session.commit()
     logger.info("Project updated (id=%s)", project.id)
     return project

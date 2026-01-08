@@ -198,6 +198,9 @@ Implement comprehensive Mission Control UI/API for Phase 1 with enhanced feature
   - [x] Clip labels showing video name, clip number, and time range
   - [x] Seamless integration with existing inference runs and metrics
   - [x] Clip-scoped inference trigger with model/parameter prompts and automatic run selection
+  - [x] Populate Model A and Model B dropdowns from completed multi-model runs
+  - [x] Render frame overlays for selected models using stored detection metadata
+  - [x] Add backend validation to ensure multi-model inference responses include per-model detection lists and frame assets
 
 ### 1.8 Word Report Export (Minimal)
 

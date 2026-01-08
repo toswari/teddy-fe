@@ -12,9 +12,16 @@ if [[ -f "$PID_FILE" ]]; then
   EXISTING_PID=$(cat "$PID_FILE")
   if kill -0 "$EXISTING_PID" 2>/dev/null; then
     echo "[INFO] Stopping existing Flask server (PID $EXISTING_PID)"
+    pkill -TERM -P "$EXISTING_PID" 2>/dev/null || true
     kill "$EXISTING_PID" 2>/dev/null || true
-    sleep 1
+    for _ in {1..5}; do
+      if ! kill -0 "$EXISTING_PID" 2>/dev/null; then
+        break
+      fi
+      sleep 0.5
+    done
     if kill -0 "$EXISTING_PID" 2>/dev/null; then
+      pkill -KILL -P "$EXISTING_PID" 2>/dev/null || true
       kill -9 "$EXISTING_PID" 2>/dev/null || true
     fi
   fi

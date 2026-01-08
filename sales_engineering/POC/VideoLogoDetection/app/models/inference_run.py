@@ -1,7 +1,7 @@
 """InferenceRun model definition."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -21,7 +21,7 @@ class InferenceRun(db.Model):
     cost_projected = db.Column(db.Numeric(10, 4), default=0)
     efficiency_ratio = db.Column(db.Numeric(10, 4), default=0)
     status = db.Column(db.String(32), default="pending")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     project = db.relationship("Project", back_populates="inference_runs")
     video = db.relationship("Video", back_populates="inference_runs")

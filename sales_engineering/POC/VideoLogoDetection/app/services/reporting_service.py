@@ -1,7 +1,7 @@
 """Word report generation helpers."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from docx import Document
@@ -21,7 +21,7 @@ def generate_video_report(project: Project, video: Video, inference_run: Inferen
 
     report_dir = Path("reports") / f"project_{project.id}"
     report_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     report_path = report_dir / f"video_{video.id}_report_{timestamp}.docx"
 
     doc = Document()

@@ -1,7 +1,7 @@
 """Detection model definition."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -19,7 +19,8 @@ class Detection(db.Model):
     label = db.Column(db.String(255))
     confidence = db.Column(db.Numeric(5, 4))
     bbox = db.Column(JSONB().with_variant(db.JSON, "sqlite"), nullable=False, default=dict)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    frame_image_path = db.Column(db.String(1024))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     inference_run = db.relationship("InferenceRun", back_populates="detections")
 

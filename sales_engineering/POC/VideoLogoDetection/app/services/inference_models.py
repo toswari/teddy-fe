@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 DEFAULT_MODEL_IDS = ["general-image-recognition"]
@@ -21,8 +21,9 @@ class InferenceRequest(BaseModel):
     params: InferenceParams = Field(default_factory=InferenceParams)
     note: Optional[str] = None
     clip_id: Optional[str] = None
+    model_config = {"protected_namespaces": ()}
 
-    @validator("model_ids", pre=True)
+    @field_validator("model_ids", mode="before")
     def ensure_model_ids(cls, value):
         if value is None or (isinstance(value, list) and not value):
             return list(DEFAULT_MODEL_IDS)
@@ -30,7 +31,7 @@ class InferenceRequest(BaseModel):
             return [value]
         return value
 
-    @validator("clip_id", pre=True)
+    @field_validator("clip_id", mode="before")
     def normalize_clip_id(cls, value):
         if value is None:
             return None

@@ -3,10 +3,27 @@ from __future__ import annotations
 
 from collections import defaultdict
 from typing import Dict, Optional
+import time
 
 from sqlalchemy.orm import selectinload
 
 from app.models import InferenceRun
+
+# Simple in-memory counters for observability
+counters = defaultdict(int)
+timers = defaultdict(list)
+
+def increment_counter(name: str, value: int = 1):
+    counters[name] += value
+
+def record_timer(name: str, duration: float):
+    timers[name].append(duration)
+
+def get_counters():
+    return dict(counters)
+
+def get_timers():
+    return {k: {"count": len(v), "avg": sum(v)/len(v) if v else 0} for k, v in timers.items()}
 
 
 def project_metrics(project_id: int) -> Dict[str, dict]:

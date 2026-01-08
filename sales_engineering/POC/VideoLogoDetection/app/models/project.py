@@ -1,7 +1,7 @@
 """Project model definition."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -17,9 +17,9 @@ class Project(db.Model):
     settings = db.Column(JSONB().with_variant(db.JSON, "sqlite"), nullable=False, default=dict)
     budget_limit = db.Column(db.Numeric(10, 2), default=0)
     currency = db.Column(db.String(8), default="USD")
-    last_opened_at = db.Column(db.DateTime, default=datetime.utcnow)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_opened_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     videos = db.relationship("Video", back_populates="project", cascade="all, delete-orphan")
     inference_runs = db.relationship(
@@ -27,4 +27,4 @@ class Project(db.Model):
     )
 
     def touch(self) -> None:
-        self.last_opened_at = datetime.utcnow()
+        self.last_opened_at = datetime.now(timezone.utc)

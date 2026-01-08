@@ -58,6 +58,41 @@ def register_cli(app: Flask) -> None:
         ensure_seed_project()
         app.logger.info("Seed project ensured")
 
+    @app.cli.command("cleanup")
+    def cleanup() -> None:
+        """Clean up orphaned files in media directory."""
+        from pathlib import Path
+        from app.models import Video, InferenceRun
+        media_root = Path(app.config.get("PROJECT_MEDIA_ROOT", "media"))
+        if not media_root.is_absolute():
+            media_root = Path(app.root_path).parent / media_root
+        
+        # Get all existing video and run paths from DB
+        existing_paths = set()
+        videos = Video.query.all()
+        for video in videos:
+            if video.storage_path:
+                existing_paths.add(Path(video.storage_path).resolve())
+            if video.video_metadata and "clips" in video.video_metadata:
+                for clip in video.video_metadata["clips"]:
+                    if "path" in clip:
+                        existing_paths.add(Path(clip["path"]).resolve())
+        
+        runs = InferenceRun.query.all()
+        for run in runs:
+            if run.results and "frames" in run.results:
+                for frame in run.results["frames"]:
+                    if "image_path" in frame:
+                        existing_paths.add(Path(frame["image_path"]).resolve())
+        
+        # Walk media directory and remove files not in existing_paths
+        removed = 0
+        for path in media_root.rglob("*"):
+            if path.is_file() and path.resolve() not in existing_paths:
+                path.unlink()
+                removed += 1
+        app.logger.info("Cleanup completed, removed %s orphaned files", removed)
+
 
 def configure_shell_context(app: Flask) -> None:
     from . import models

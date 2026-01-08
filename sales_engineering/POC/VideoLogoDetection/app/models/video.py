@@ -1,7 +1,7 @@
 """Video model definition."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -20,7 +20,7 @@ class Video(db.Model):
     resolution = db.Column(db.String(32))
     status = db.Column(db.String(32), default="uploaded")
     video_metadata = db.Column("metadata", JSONB().with_variant(db.JSON, "sqlite"), default=dict, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     project = db.relationship("Project", back_populates="videos")
     inference_runs = db.relationship("InferenceRun", back_populates="video")
