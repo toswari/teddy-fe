@@ -192,8 +192,6 @@ function selectVideo(videoId) {
       // Reset times when video loads
       state.startTime = null;
       state.endTime = null;
-      document.getElementById("preprocess-start").value = "";
-      document.getElementById("preprocess-end").value = "";
       updatePreview();
     }, { once: true });
     
@@ -238,7 +236,7 @@ async function handleFileUpload(event) {
   if (!file) return;
   
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("video", file);
   
   try {
     const response = await fetch(`/api/projects/${state.projectId}/videos`, {
