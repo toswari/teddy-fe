@@ -205,10 +205,8 @@ def _resolve_clip_selection(video: Video, clip_id: str) -> dict:
     raw_path = matched_entry.get("path") or ""
     clip_path = Path(raw_path)
     if not clip_path.is_absolute():
-        base = Path(
-            video.storage_path or video.original_path or ""
-        ).resolve().parent
-        clip_path = (base / clip_path).resolve()
+        app_root = Path(current_app.root_path).parent
+        clip_path = (app_root / clip_path).resolve()
     if not clip_path.is_file():
         raise InferenceServiceError(f"Clip file not found: {clip_path}")
 
@@ -365,12 +363,7 @@ class ClarifaiClient:
                 raise InferenceServiceError("CLARIFAI_PAT not configured for REST fallback")
 
             base = os.getenv("CLARIFAI_API_BASE", "https://api.clarifai.com").rstrip("/")
-            user = os.getenv("CLARIFAI_USER_ID")
-            app_id = os.getenv("CLARIFAI_APP_ID")
-            if user and app_id:
-                url = f"{base}/v2/users/{user}/apps/{app_id}/models/{model_id}/outputs"
-            else:
-                url = f"{base}/v2/models/{model_id}/outputs"
+            url = f"{base}/v2/users/clarifai/apps/main/models/{model_id}/outputs"
 
             headers = {"Authorization": f"Key {pat}", "Content-Type": "application/json"}
 
@@ -383,11 +376,10 @@ class ClarifaiClient:
                     inputs.append(
                         {
                             "data": {"image": {"base64": b64}},
-                            "metadata": {"frame_index": frame.index, "timestamp_seconds": frame.timestamp_seconds},
                         }
                     )
 
-                body = {"inputs": inputs, "output_config": {"max_concepts": params.max_concepts}}
+                body = {"inputs": inputs}
                 attempt = 0
                 while True:
                     attempt += 1

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import time
 
 from sqlalchemy.orm import selectinload
@@ -114,3 +114,27 @@ def run_metrics(run_id: int) -> Optional[dict]:
         "cost_projected": float(run.cost_projected or 0.0),
         "efficiency_ratio": float(run.efficiency_ratio or 0.0),
     }
+
+
+def summarize_run_models(run: InferenceRun) -> Tuple[list[str], dict[str, int]]:
+    """Return ordered model identifiers plus detection counts for an inference run."""
+    ordered_models: list[str] = []
+    detection_counts: dict[str, int] = {}
+
+    for model_id in run.model_ids or []:
+        if model_id and model_id not in ordered_models:
+            ordered_models.append(model_id)
+
+    for detection in run.detections:
+        key = detection.model_id or "unknown"
+        detection_counts[key] = detection_counts.get(key, 0) + 1
+        if key not in ordered_models:
+            ordered_models.append(key)
+
+    if not ordered_models:
+        ordered_models = list(detection_counts.keys()) or ["unknown"]
+
+    for model_id in ordered_models:
+        detection_counts.setdefault(model_id, 0)
+
+    return ordered_models, detection_counts

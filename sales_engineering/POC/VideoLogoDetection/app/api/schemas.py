@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from marshmallow import Schema, fields
 
+from app.services.metrics_service import summarize_run_models
+
 
 class IsoDateTime(fields.DateTime):
     def __init__(self, *args, **kwargs):
@@ -54,6 +56,16 @@ class InferenceRunSchema(Schema):
     efficiency_ratio = fields.Float()
     status = fields.Str()
     created_at = IsoDateTime()
+    available_models = fields.Method("get_available_models")
+    model_detection_counts = fields.Method("get_model_detection_counts")
+
+    def get_available_models(self, obj):
+        models, _ = summarize_run_models(obj)
+        return models
+
+    def get_model_detection_counts(self, obj):
+        _, counts = summarize_run_models(obj)
+        return counts
 
 
 class DetectionSchema(Schema):

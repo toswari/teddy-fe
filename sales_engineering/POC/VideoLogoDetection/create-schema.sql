@@ -57,10 +57,13 @@ CREATE TABLE IF NOT EXISTS detections (
     label              VARCHAR(255),
     confidence         NUMERIC(5,4),
     bbox               JSONB NOT NULL DEFAULT '{}'::jsonb,
+    frame_image_path   VARCHAR(1024),
     created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_detections_inference_run
         FOREIGN KEY (inference_run_id) REFERENCES inference_runs(id) ON DELETE CASCADE
 );
+
+ALTER TABLE detections ADD COLUMN IF NOT EXISTS frame_image_path VARCHAR(1024);
 
 CREATE INDEX IF NOT EXISTS idx_detections_inference_run_id ON detections(inference_run_id);
 CREATE INDEX IF NOT EXISTS idx_detections_model_id ON detections(model_id);

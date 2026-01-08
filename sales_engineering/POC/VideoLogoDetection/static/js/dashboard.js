@@ -963,6 +963,7 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
 
   const payload = await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/runs/${runId}/detections`);
   const frames = enrichFrames(payload);
+  const availableModels = (payload.available_models?.length ? payload.available_models : payload.models) || [];
 
   state.comparison.frameImages = new Map();
   frames.forEach((frame) => {
@@ -975,7 +976,14 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
   Object.entries(payload.detections_by_model || {}).forEach(([modelId, detections]) => {
     state.comparison.detectionsByModel.set(modelId, detections);
   });
-  (payload.models || []).forEach((modelId) => {
+  availableModels.forEach((modelId) => {
+    if (!state.comparison.detectionsByModel.has(modelId)) {
+      state.comparison.detectionsByModel.set(modelId, []);
+    }
+  });
+
+  const detectionCounts = payload.model_detection_counts || {};
+  Object.keys(detectionCounts).forEach((modelId) => {
     if (!state.comparison.detectionsByModel.has(modelId)) {
       state.comparison.detectionsByModel.set(modelId, []);
     }
@@ -983,10 +991,17 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
 
   state.comparison.runId = Number(runId);
   state.comparison.frames = frames;
-  state.comparison.models = payload.models || [];
+  state.comparison.models = availableModels;
 
-  updateModelSelections(payload.models || [], { preserveModels });
+  updateModelSelections(availableModels, { preserveModels });
   renderOverlay();
+}
+
+async function refreshRunPayload({ preserveModels = true } = {}) {
+  if (!state.comparison.runId) {
+    return;
+  }
+  await handleRunSelection(state.comparison.runId, { preserveModels });
 }
 
 function enrichFrames(payload) {
@@ -1415,6 +1430,7 @@ function setupComparisonControls() {
     elements.comparisonModelA.addEventListener('change', (event) => {
       const modelId = event.target.value || null;
       setComparisonModel('A', modelId);
+      void refreshRunPayload({ preserveModels: true });
     });
   }
 
@@ -1422,6 +1438,7 @@ function setupComparisonControls() {
     elements.comparisonModelB.addEventListener('change', (event) => {
       const modelId = event.target.value || null;
       setComparisonModel('B', modelId);
+      void refreshRunPayload({ preserveModels: true });
     });
   }
 

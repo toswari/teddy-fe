@@ -62,10 +62,13 @@ def test_run_detections_preserve_model_order(client, app):
 
     # Model order should match the saved request order
     assert payload["models"] == ["model/a", "model/b"], payload["models"]
+    assert payload["available_models"] == ["model/a", "model/b"], payload["available_models"]
 
     # Grouped detections should be present for all models, even if some are empty
     assert payload["detections_by_model"]["model/a"], "Expected detections for model/a"
     assert payload["detections_by_model"]["model/b"] == []
+    assert payload["model_detection_counts"]["model/a"] == 1
+    assert payload["model_detection_counts"]["model/b"] == 0
 
     # Frame metadata should include generated image URLs for playback
     assert payload["frames"], "Expected at least one frame entry"

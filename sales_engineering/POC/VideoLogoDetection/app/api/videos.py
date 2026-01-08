@@ -1,7 +1,7 @@
 """Videos API blueprint."""
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, request, send_file, url_for
+from flask import Blueprint, jsonify, request, send_file, url_for, current_app
 from marshmallow import Schema, ValidationError, fields, validate
 from sqlalchemy.orm import selectinload
 
@@ -9,6 +9,7 @@ from app.api.schemas import DetectionSchema, InferenceRunSchema, VideoSchema
 from app.extensions import db, socketio
 from app.models import InferenceRun, Project, Video
 from app.services import reporting_service
+from app.services.metrics_service import summarize_run_models
 from app.services.inference_models import InferenceRequest
 
 bp = Blueprint("videos", __name__, url_prefix="/api/projects/<int:project_id>/videos")
@@ -117,7 +118,6 @@ def run_inference(project_id: int, video_id: int):
     except ValidationError as err:
         return {"errors": err.messages}, 400
     inference_request = InferenceRequest(**data)
-    from app.services import inference_service
 
     # Create the inference run record first
     inference_run = InferenceRun(
@@ -224,28 +224,7 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
     if inference_run is None:
         return {"error": "Inference run not found for video"}, 404
 
-    requested_model_ids = [
-        model_id
-        for model_id in (inference_run.model_ids or [])
-        if model_id
-    ]
-    detected_model_ids: list[str] = []
-    for detection in inference_run.detections:
-        candidate = detection.model_id or "unknown"
-        if candidate not in detected_model_ids:
-            detected_model_ids.append(candidate)
-
-    ordered_model_ids: list[str] = []
-    for model_id in requested_model_ids:
-        if model_id not in ordered_model_ids:
-            ordered_model_ids.append(model_id)
-
-    for model_id in detected_model_ids:
-        if model_id not in ordered_model_ids:
-            ordered_model_ids.append(model_id)
-
-    if not ordered_model_ids:
-        ordered_model_ids = detected_model_ids or ["unknown"]
+    ordered_model_ids, detection_counts = summarize_run_models(inference_run)
 
     detections_by_model: dict[str, list] = {model_id: [] for model_id in ordered_model_ids}
 
@@ -302,10 +281,12 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
         ),
     )
 
-    return {
+    payload = {
         "run_id": inference_run.id,
         "video_id": inference_run.video_id,
         "models": ordered_model_ids,
+        "available_models": ordered_model_ids,
+        "model_detection_counts": detection_counts,
         "frames": ordered_frames,
         "detections": detections_schema.dump(inference_run.detections),
         "detections_by_model": {
@@ -314,6 +295,13 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
         },
         "clip": (inference_run.results or {}).get("clip"),
     }
+    current_app.logger.debug(
+        "Prepared run payload (run_id=%s, models=%s, frames=%s)",
+        inference_run.id,
+        ordered_model_ids,
+        len(ordered_frames),
+    )
+    return payload
 
 
 @bp.get("/<int:video_id>/runs/<int:run_id>/frames/<int:frame_index>")
