@@ -1,12 +1,26 @@
 # Implementation Task Plan – VideoLogoDetection
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 
 This document is written for a **coding agent** implementing the VideoLogoDetection POC. It breaks the work into phases aligned with SoftwareSpecification.md and Technical Implementation Plan.md.
 
 - Treat **Phase 1 + Phase 2** as the MVP scope. These require detailed implementation.
 - Phases 3–4 are expressed as higher-level checklists for later iteration.
 - Use Git commits or your own checklist to mark `- [x]` items as completed.
+
+**Recent Updates (v1.1.0):**
+- Enhanced video preprocessing with multiple clip segments (up to 5 user-defined segments)
+- Updated clip naming to include original filename for better traceability
+- Redesigned inference dashboard to select clips instead of full videos
+- Added dedicated preprocessing UI with dynamic clip management
+- Improved user experience with better navigation and visual feedback
+
+**Completed in v1.1.0:**
+- ✅ Multiple clip segment creation (up to 5 segments per video)
+- ✅ Original filename preservation in clip naming
+- ✅ Clip-based inference selection instead of full video selection
+- ✅ Enhanced preprocessing dashboard with dynamic UI
+- ✅ Improved video playback and clip timing controls
 
 ---
 
@@ -111,16 +125,23 @@ Implement `app/services/video_service.py` with functions that can be called eith
   - [x] Implement `probe_video_metadata(path)` using ffmpeg-python or PyAV to get duration, resolution, etc.
   - [x] Update the `Video` record with `duration_seconds` and `resolution`.
 
-- [x] **Clipping into 20s segments**
-  - [x] Implement `generate_clips(source_path, clip_length=20)` using FFmpeg `-c copy`.
-  - [x] Store clips under a structured path (e.g., `media/<project_id>/<video_id>/clips/`).
-  - [x] Optionally, track basic metadata about each clip (e.g., file name, start time) in JSONB on `Video` or a separate table.
+- [x] **Multiple clip segments (Enhanced v1.1.0)**
+  - [x] Implement `generate_multiple_clips(source_path, clip_segments)` supporting up to 5 user-defined time segments
+  - [x] Each segment defined by start/end times instead of fixed clip_length
+  - [x] Store clips under a structured path (e.g., `media/<project_id>/<video_id>/clips/`)
+  - [x] Track detailed metadata about each clip (file path, start time, end time, segment number) in JSONB on `Video`
+
+- [x] **Clip naming with original filename**
+  - [x] Generate clip names using format: `{original_filename}-clip{N}.mp4`
+  - [x] Sanitize special characters for valid filenames
+  - [x] Ensure traceability back to source video
 
 - [x] **Triggering pre-processing**
   - [x] Provide an endpoint `POST /videos/<id>/preprocess` that:
-    - [x] Runs pre-processing (probe + clipping) synchronously for the MVP.
-    - [x] Optionally, if you later add a simple in-process background executor (no Redis), adapt this endpoint to enqueue work there instead of blocking.
-    - [x] Updates `Video.status` accordingly (`processed` when complete).
+    - [x] Accepts array of clip segments with start/end times
+    - [x] Runs pre-processing (probe + clipping) synchronously for the MVP
+    - [x] Updates `Video.status` accordingly (`processed` when complete)
+    - [x] Stores clip metadata in video record for UI access
 
 ### 1.6 Sampling & Single-Model Inference
 
@@ -142,9 +163,9 @@ Implement `app/services/inference_service.py` for Clarifai integration.
   - [x] `POST /videos/<id>/inference` – starts an inference run for a given model.
   - [x] Create an `InferenceRun` record with status transitions (`pending` → `running` → `completed/failed`).
 
-### 1.7 Minimal Dashboard & Progress
+### 1.7 Enhanced Dashboard & Progress (v1.1.0)
 
-Implement basic Mission Control UI/API for Phase 1.
+Implement comprehensive Mission Control UI/API for Phase 1 with enhanced features.
 
 - [x] **API endpoints**
   - [x] `GET /projects/<id>/overview` – aggregate basic stats (video count, runs, last activity).
@@ -160,6 +181,17 @@ Implement basic Mission Control UI/API for Phase 1.
     - [x] Lists uploaded videos and their status.
     - [x] Allows triggering pre-processing and inference.
   - [x] Copy interaction patterns and bounding-box overlay styles from the `/demo/detection-overlay` reference page (`templates/mock_detection_overlay.html`).
+
+- [x] **Preprocessing Dashboard (v1.1.0)**
+  - [x] Dedicated `/preprocessing` page with video selection and clip management
+  - [x] Dynamic UI for defining up to 5 clip segments with start/end times
+  - [x] Real-time preview of clip count and duration calculations
+  - [x] Video playback with seek functionality for precise clip timing
+
+- [x] **Enhanced Inference Dashboard (v1.1.0)**
+  - [x] Modified comparison selector to show clips instead of full videos
+  - [x] Clip labels showing video name, clip number, and time range
+  - [x] Seamless integration with existing inference runs and metrics
 
 ### 1.8 Word Report Export (Minimal)
 
@@ -212,11 +244,12 @@ Goal: extend the MVP to support multi-model inference and basic benchmarking/cos
 - [x] **UI**
   - [x] Show projected vs actual cost per model and per project on the dashboard.
 
-### 2.4 UI: Model Comparison View (Basic)
+### 2.4 UI: Model Comparison View (Enhanced v1.1.0)
 
 - [x] Implement:
   - [x] An Efficiency Matrix (simple table or bar chart) comparing models by confidence and cost.
   - [x] A basic comparison view for a single frame/time index showing overlays from two models (A/B toggle is sufficient for Phase 2).
+  - [x] **Enhanced for clips**: Model comparison now works with selected clips instead of full videos, providing more targeted analysis.
 
 ---
 
