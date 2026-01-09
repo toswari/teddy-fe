@@ -11,6 +11,11 @@ const HARDCODED_MODELS = [
   { id: 'face-detection', name: 'Face Detection' },
 ];
 
+const ZOOM_DEFAULT = 1;
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 5;
+const ZOOM_STEP = 0.25;
+
 const state = {
   activeProject: null,
   videos: new Map(),
@@ -30,6 +35,11 @@ const state = {
     models: [],
     frameImages: new Map(),
     detectionsByModel: new Map(),
+    zoom: {
+      scale: ZOOM_DEFAULT,
+      x: 0,
+      y: 0,
+    },
   },
 };
 
@@ -51,6 +61,11 @@ const elements = {
   framePlaceholder: document.getElementById('frame-placeholder'),
   detectionList: document.getElementById('detection-list'),
   overlayLayer: document.getElementById('overlay-layer'),
+  overlayCanvas: document.getElementById('overlay-canvas'),
+  zoomContainer: document.getElementById('zoom-container'),
+  zoomInBtn: document.getElementById('zoom-in-btn'),
+  zoomOutBtn: document.getElementById('zoom-out-btn'),
+  zoomResetBtn: document.getElementById('zoom-reset-btn'),
   modelToggleButtons: document.querySelectorAll('button[data-toggle="model"]'),
 };
 
@@ -59,6 +74,9 @@ if (elements.framePlaceholder) {
 }
 
 const socket = window.io ? window.io() : null;
+
+let zoomControlsInitialized = false;
+let panzoomInstance = null;
 
 function isDashboardPage() {
   return Boolean(elements.videoList && elements.inferenceCards);
@@ -784,7 +802,7 @@ async function handleClipSelection(clipId, { preserveRun = false, preserveModels
 
   const selectedRunId = await loadComparisonRuns(clip.videoId, clip.id, { preserveSelection: preserveRun });
   if (selectedRunId) {
-    await handleRunSelection(selectedRunId, { preserveModels });
+    await handleRunSelection(selectedRunId, { preserveModels, preserveZoom: preserveModels });
   } else {
     populateModelSelects([]);
     resetComparisonDisplay('No inference runs yet for this clip');
@@ -864,7 +882,7 @@ function populateRunSelect(runs, { preserveSelection = false } = {}) {
   return selectedRunId;
 }
 
-async function handleRunSelection(runId, { preserveModels = false } = {}) {
+async function handleRunSelection(runId, { preserveModels = false, preserveZoom = false } = {}) {
   if (!runId) {
     state.comparison.runId = null;
     populateModelSelects([]);
@@ -878,6 +896,10 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
   const clip = state.clips.get(state.comparison.clipId);
   const videoId = clip?.videoId;
   if (!projectId || !videoId) return;
+
+  if (!preserveZoom) {
+    resetZoom();
+  }
 
   const payload = await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/runs/${runId}/detections`);
   const frames = enrichFrames(payload);
@@ -935,7 +957,7 @@ async function refreshRunPayload({ preserveModels = true } = {}) {
   if (!state.comparison.runId) {
     return;
   }
-  await handleRunSelection(state.comparison.runId, { preserveModels });
+  await handleRunSelection(state.comparison.runId, { preserveModels, preserveZoom: true });
 }
 
 function enrichFrames(payload) {
@@ -1277,6 +1299,7 @@ function renderDetectionList(frame, models) {
 }
 
 function resetComparisonDisplay(message) {
+  resetZoom();
   if (elements.overlayLayer) {
     clearContainer(elements.overlayLayer);
   }
@@ -1325,6 +1348,115 @@ function setComparisonModel(slot, value) {
   }
   updateModelToggleAvailability();
   renderOverlay();
+}
+
+function initializeZoomControls() {
+  if (zoomControlsInitialized) {
+    return;
+  }
+  if (!elements.overlayCanvas || !elements.zoomContainer) {
+    return;
+  }
+  if (typeof window.Panzoom !== 'function') {
+    console.warn('Panzoom library not available; zoom controls disabled');
+    return;
+  }
+
+  panzoomInstance = window.Panzoom(elements.zoomContainer, {
+    maxScale: ZOOM_MAX,
+    minScale: ZOOM_MIN,
+    step: ZOOM_STEP,
+    animate: false,
+    cursor: 'default',
+    contain: 'outside',
+  });
+
+  elements.zoomContainer.addEventListener('panzoomchange', (event) => {
+    const detail = event.detail || {};
+    state.comparison.zoom.scale = detail.scale ?? state.comparison.zoom.scale;
+    state.comparison.zoom.x = detail.x ?? state.comparison.zoom.x;
+    state.comparison.zoom.y = detail.y ?? state.comparison.zoom.y;
+    if (elements.overlayCanvas) {
+      elements.overlayCanvas.classList.toggle('is-zoomed', state.comparison.zoom.scale > ZOOM_MIN + 0.01);
+    }
+    updateZoomButtonsState();
+  });
+
+  const overlay = elements.overlayCanvas;
+  overlay.addEventListener(
+    'wheel',
+    (event) => {
+      if (!panzoomInstance) return;
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      event.preventDefault();
+      panzoomInstance.zoomWithWheel(event);
+    },
+    { passive: false }
+  );
+
+  if (elements.zoomInBtn) {
+    elements.zoomInBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (!panzoomInstance || elements.zoomInBtn.classList.contains('is-disabled')) {
+        return;
+      }
+      panzoomInstance.zoomIn({ animate: false });
+    });
+  }
+  if (elements.zoomOutBtn) {
+    elements.zoomOutBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (!panzoomInstance || elements.zoomOutBtn.classList.contains('is-disabled')) {
+        return;
+      }
+      panzoomInstance.zoomOut({ animate: false });
+    });
+  }
+  if (elements.zoomResetBtn) {
+    elements.zoomResetBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (!panzoomInstance || elements.zoomResetBtn.classList.contains('is-disabled')) {
+        return;
+      }
+      resetZoom();
+    });
+  }
+
+  zoomControlsInitialized = true;
+  resetZoom();
+}
+
+function setZoomButtonState(button, disabled) {
+  if (!button) {
+    return;
+  }
+  button.disabled = false;
+  button.classList.toggle('is-disabled', Boolean(disabled));
+  button.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+}
+
+function updateZoomButtonsState() {
+  const { scale, x, y } = state.comparison.zoom;
+  setZoomButtonState(elements.zoomInBtn, scale >= ZOOM_MAX - 0.001);
+  setZoomButtonState(elements.zoomOutBtn, scale <= ZOOM_MIN + 0.001);
+  const nearDefault = Math.abs(scale - ZOOM_DEFAULT) < 0.001 && Math.abs(x) < 0.5 && Math.abs(y) < 0.5;
+  setZoomButtonState(elements.zoomResetBtn, nearDefault);
+}
+
+function resetZoom() {
+  const zoom = state.comparison.zoom;
+  zoom.scale = ZOOM_DEFAULT;
+  zoom.x = 0;
+  zoom.y = 0;
+  if (panzoomInstance) {
+    panzoomInstance.reset({ animate: false });
+  }
+  if (elements.overlayCanvas) {
+    elements.overlayCanvas.classList.remove('is-zoomed');
+  }
+  updateZoomButtonsState();
 }
 
 function drawOverlay(frame, detections) {
@@ -1484,6 +1616,8 @@ function setupComparisonControls() {
     elements.frameSlider.addEventListener('input', handleFrameChange);
     elements.frameSlider.disabled = true;
   }
+
+  initializeZoomControls();
 }
 
 function setupButtons() {

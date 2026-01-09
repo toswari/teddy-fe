@@ -307,6 +307,15 @@ def delete_video(video: Video) -> None:
     media_root = Path(current_app.config.get("PROJECT_MEDIA_ROOT", "media"))
     if not media_root.is_absolute():
         media_root = Path(current_app.root_path).parent / media_root
+
+    runs_root = media_root / f"project_{video.project_id}" / f"video_{video.id}" / "runs"
+    existing_runs = list(video.inference_runs or [])
+    for run in existing_runs:
+        run_dir = runs_root / f"run_{run.id}"
+        if run_dir.exists():
+            shutil.rmtree(run_dir, ignore_errors=True)
+        db.session.delete(run)
+        logger.info("Deleted inference run %s for video %s", run.id, video.id)
     
     # Delete video directory
     video_dir = media_root / f"project_{video.project_id}" / f"video_{video.id}"

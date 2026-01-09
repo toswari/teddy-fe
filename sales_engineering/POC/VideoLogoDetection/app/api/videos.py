@@ -107,14 +107,11 @@ def upload_video(project_id: int):
 
 @bp.delete("/<int:video_id>")
 def delete_video_endpoint(project_id: int, video_id: int):
+    video = db.session.get(Video, video_id)
     if video is None:
         return {"error": "Video not found"}, 404
     if video.project_id != project_id:
         return {"error": "Video not in project"}, 404
-    
-    # Check if video has inference runs
-    if video.inference_runs:
-        return {"error": "Cannot delete video with inference runs"}, 400
     
     # Local import
     from app.services import video_service
@@ -375,33 +372,3 @@ def generate_video_report(project_id: int, video_id: int):
 
     report_path = reporting_service.generate_video_report(project, video, inference_run)
     return {"report_path": str(report_path)}, 201
-
-
-@bp.delete("/<int:video_id>")
-def delete_video(project_id: int, video_id: int):
-    video = db.session.get(Video, video_id)
-    if video is None or video.project_id != project_id:
-        return {"error": "Video not in project"}, 404
-    
-    try:
-        # Delete physical files
-        if video.storage_path:
-            import shutil
-            from pathlib import Path
-            storage_path = Path(video.storage_path)
-            if storage_path.exists():
-                # Delete the video file
-                storage_path.unlink()
-                # Try to delete the parent directory (video folder) if empty
-                video_dir = storage_path.parent
-                if video_dir.exists() and not any(video_dir.iterdir()):
-                    video_dir.rmdir()
-        
-        # Delete database record (cascades to clips, detections, runs)
-        db.session.delete(video)
-        db.session.commit()
-        
-        return {"message": "Video deleted successfully"}, 200
-    except Exception as exc:
-        db.session.rollback()
-        return {"error": f"Failed to delete video: {str(exc)}"}, 500

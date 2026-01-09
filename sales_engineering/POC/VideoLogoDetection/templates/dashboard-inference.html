@@ -138,9 +138,20 @@
           <button class="rounded-full border border-slate-900 bg-slate-900 px-3 py-1 font-medium text-white" data-toggle="model" data-model="B" data-label="Model B">Model B</button>
         </div>
       </div>
+      <div class="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
+        <span class="font-medium text-slate-700">Zoom tips:</span>
+        Click + / −, pinch or ctrl/⌘ + scroll to zoom; drag the frame to pan; use ⟳ to reset.
+      </div>
       <div class="relative overflow-hidden rounded-xl bg-black" id="overlay-canvas">
-        <img id="frame-placeholder" alt="Frame preview" class="block w-full" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360' viewBox='0 0 640 360'%3E%3Crect fill='%230f172a' width='640' height='360'/%3E%3Ctext x='50%25' y='50%25' fill='%23ffffff' font-family='Inter, Arial, sans-serif' font-size='32' text-anchor='middle' dominant-baseline='middle'%3EFrame Preview%3C/text%3E%3C/svg%3E" />
-        <div class="absolute inset-0" id="overlay-layer"></div>
+        <div class="absolute right-3 top-3 flex flex-col gap-2" id="zoom-controls" aria-label="Frame zoom controls">
+          <button type="button" class="zoom-control" id="zoom-in-btn" aria-label="Zoom in">+</button>
+          <button type="button" class="zoom-control" id="zoom-out-btn" aria-label="Zoom out">−</button>
+          <button type="button" class="zoom-control" id="zoom-reset-btn" aria-label="Reset zoom">⟳</button>
+        </div>
+        <div class="relative mx-auto" id="zoom-container">
+          <img id="frame-placeholder" alt="Frame preview" class="block w-full select-none" draggable="false" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='360' viewBox='0 0 640 360'%3E%3Crect fill='%230f172a' width='640' height='360'/%3E%3Ctext x='50%25' y='50%25' fill='%23ffffff' font-family='Inter, Arial, sans-serif' font-size='32' text-anchor='middle' dominant-baseline='middle'%3EFrame Preview%3C/text%3E%3C/svg%3E" />
+          <div class="pointer-events-none absolute inset-0" id="overlay-layer"></div>
+        </div>
       </div>
       <input class="mt-4 w-full" type="range" id="frame-slider" min="0" max="0" value="0" />
     </div>
