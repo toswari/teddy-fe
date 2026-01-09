@@ -1,10 +1,9 @@
-"""RQ worker for background tasks."""
-from app import create_app
-from app.extensions import task_queue
+"""Legacy worker placeholder.
 
-app = create_app()
+Background tasks now run via the in-process queue defined in app.background_queue,
+so no external worker process is required. This script remains as documentation for
+previous setups and intentionally does nothing.
+"""
 
 if __name__ == "__main__":
-    with app.app_context():
-        worker = task_queue.Worker([task_queue])
-        worker.work()
+    print("Background tasks execute in-process; no worker process is necessary.")

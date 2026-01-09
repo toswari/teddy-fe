@@ -142,13 +142,18 @@ def run_inference(project_id: int, video_id: int):
         return {"errors": err.messages}, 400
     inference_request = InferenceRequest(**data)
 
+    # Store inference params and include clip_id if provided
+    params_dict = inference_request.params.model_dump()
+    if inference_request.clip_id:
+        params_dict["clip_id"] = inference_request.clip_id
+
     # Create the inference run record first
     inference_run = InferenceRun(
         project_id=project_id,
         video_id=video_id,
         model_ids=inference_request.model_ids,
-        params=inference_request.params.model_dump(),
-        status="queued",
+        params=params_dict,
+        status="pending",
     )
     db.session.add(inference_run)
     db.session.commit()
@@ -160,8 +165,9 @@ def run_inference(project_id: int, video_id: int):
     job = task_queue.enqueue(run_inference_task, inference_run.id)
 
     return {
+        "id": inference_run.id,
         "run_id": inference_run.id,
-        "status": "queued",
+        "status": "pending",
         "job_id": job.id,
     }, 202
 
@@ -310,6 +316,7 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
         "models": ordered_model_ids,
         "available_models": ordered_model_ids,
         "model_detection_counts": detection_counts,
+        "params": inference_run.params or {},
         "frames": ordered_frames,
         "detections": detections_schema.dump(inference_run.detections),
         "detections_by_model": {

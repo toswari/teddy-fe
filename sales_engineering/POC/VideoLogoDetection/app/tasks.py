@@ -1,46 +1,46 @@
-"""Background tasks for RQ."""
-from app import create_app
+"""Background tasks for the in-process queue."""
+from __future__ import annotations
+
 from app.extensions import db
-from app.services import video_service, inference_service
-from app.models import Video, InferenceRun
+from app.models import InferenceRun, Video
+from app.services import inference_service, video_service
+from app.services.inference_models import InferenceRequest
 
-app = create_app()
 
-def preprocess_video_task(video_id, options):
-    with app.app_context():
-        video = db.session.get(Video, video_id)
-        if not video:
-            return
-        try:
-            metadata = video_service.probe_video_metadata(video)
-            if options.get("clips"):
-                clips = video_service.generate_multiple_clips(video, options["clips"])
-            else:
-                clips = video_service.generate_clips(video, **options)
-            video.status = "processed"
-            db.session.commit()
-        except Exception as e:
-            video.status = "failed"
-            db.session.commit()
-            raise
+def preprocess_video_task(video_id: int, options: dict | None):
+    video = db.session.get(Video, video_id)
+    if not video:
+        return
+    try:
+        payload = dict(options or {})
+        clips_payload = payload.pop("clips", None)
+        video_service.probe_video_metadata(video)
+        if clips_payload:
+            video_service.generate_multiple_clips(video, clips_payload)
+        else:
+            video_service.generate_clips(video, **payload)
+        video.status = "processed"
+        db.session.commit()
+    except Exception:
+        video.status = "failed"
+        db.session.commit()
+        raise
 
-def run_inference_task(run_id):
-    with app.app_context():
-        run = db.session.get(InferenceRun, run_id)
-        if not run:
-            return
-        try:
-            # Reconstruct request from run data
-            from app.services.inference_models import InferenceRequest
-            params = run.params or {}
-            request = InferenceRequest(
-                model_ids=run.model_ids,
-                params=params.get("params", {}),
-                clip_id=params.get("clip_id")
-            )
-            inference_service.run_inference(run.video, request)
-        except Exception as e:
-            run.status = "failed"
-            run.results = {"error": str(e)}
-            db.session.commit()
-            raise
+
+def run_inference_task(run_id: int):
+    inference_run = db.session.get(InferenceRun, run_id)
+    if not inference_run:
+        return
+    try:
+        params = inference_run.params or {}
+        request = InferenceRequest(
+            model_ids=inference_run.model_ids,
+            params=params,
+            clip_id=params.get("clip_id"),
+        )
+        inference_service.run_inference(inference_run.video, request)
+    except Exception as exc:
+        inference_run.status = "failed"
+        inference_run.results = {"error": str(exc)}
+        db.session.commit()
+        raise

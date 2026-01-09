@@ -107,13 +107,13 @@ def list_models(
     if not pat:
         raise ClarifaiCatalogError("CLARIFAI_PAT is not configured; cannot list Clarifai models")
 
-    user_id = user_id or os.getenv("CLARIFAI_USER_ID")
-    app_id = app_id or os.getenv("CLARIFAI_APP_ID")
-
+    # Only use user/app path if explicitly requested, not from env vars
+    # This allows listing public models by default
     base_url = _resolve_base_url()
     if user_id and app_id:
         url = f"{base_url}/v2/users/{user_id}/apps/{app_id}/models"
     else:
+        # Use public models endpoint
         url = f"{base_url}/v2/models"
 
     params: Dict[str, Any] = {

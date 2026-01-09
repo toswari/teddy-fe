@@ -36,7 +36,7 @@ Progress strategy:
 Next action: Standardize SocketIO event names to `preprocess:update` and `inference:update` with minimal payloads for UI hooks. I'll update the emit calls in `app/api/videos.py` and `app/services/inference_service.py`.
 
 - [completed] Make preprocessing and inference asynchronous
-  - Added RQ for background processing. Modified endpoints to enqueue tasks and return 202 Accepted. Created `app/tasks.py` for task functions and `scripts/worker.py` for running the worker.
+  - Added a lightweight in-process background queue. Modified endpoints to enqueue tasks and return 202 Accepted without requiring external services.
   - Persist job state to `InferenceRun` and `Video` objects so UI can poll or receive SocketIO updates.
 
 - [completed] Add robust retry & rate-limit handling for Clarifai calls
@@ -57,11 +57,11 @@ Next action: Standardize SocketIO event names to `preprocess:update` and `infere
 
 **Recommendation**
 
-- **Task Queue:** Use Redis + RQ for background processing during the POC. RQ is lightweight, simple to integrate with Flask, and fits the project's current scope. Move to Celery only if complex routing, workflows, or advanced scheduling is required.
+- **Task Queue:** Keep using the in-process background queue for the POC. Consider moving to a brokered system only if you outgrow the lightweight executor or need advanced scheduling/routing.
 - **Storage:** Continue using the existing Postgres-backed model records for metadata and `media/` on disk for artifacts. If you later need global low-latency distributed reads for AI context or user isolation at scale, evaluate a document database or vector store; at that point consider Azure Cosmos DB for globally-distributed scenarios.
 - **Clarifai Integration:** Centralize API calls in `app/services/clarifai_catalog.py` and add a thin wrapper in `inference_service.py` to normalize responses into the application's `InferenceRun` format.
 - **Testing:** Add integration tests that mock Clarifai responses for CI and a small local end-to-end runner script (`scripts/mini_run_preprocess.py`) to manually validate credentials and flows.
 
-All mid-term tasks completed. The application now supports asynchronous processing with RQ, robust retries, storage cleanup, and observability.
+All mid-term tasks completed. The application now supports asynchronous processing with the in-process queue, robust retries, storage cleanup, and observability.
 
 If you want I can proceed now and implement the POST `/videos/<id>/preprocess` route, add the minimal synchronous service helpers, and include an integration test. Say "Proceed" and I'll implement it and mark the related todos.

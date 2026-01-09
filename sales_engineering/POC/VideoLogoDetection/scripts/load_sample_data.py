@@ -7,6 +7,7 @@ from app import create_app
 from app.extensions import db
 from app.models import Project, Video
 from app.services import project_service, video_service, inference_service
+from app.services.inference_models import InferenceRequest
 
 app = create_app()
 
@@ -35,7 +36,8 @@ def main() -> None:
                 print(f"  Video ready: video_id={video.id}")
 
                 if random.random() > 0.5:
-                    run = inference_service.run_inference(video, ["general-image-recognition"])
+                    request = InferenceRequest(model_ids=["general-image-recognition"])
+                    run = inference_service.run_inference(video, request)
                     print(f"    Inference run: {run.id}")
 
 

@@ -25,7 +25,7 @@ class BaseConfig:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS: bool = False
     AUTO_CREATE_SCHEMA: bool = os.getenv("AUTO_CREATE_SCHEMA", "true").lower() == "true"
-    PROJECT_MEDIA_ROOT: str = os.getenv("PROJECT_MEDIA_ROOT", "media")
+    PROJECT_MEDIA_ROOT: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")
 
 

@@ -73,6 +73,25 @@ pytest
 
 The fixtures boot the app in test mode with an in-memory SQLite DB so agents can quickly validate services and APIs before wiring additional features.
 
+### Quick Local Inference Smoke Test
+
+Need to confirm the Clarifai pipeline (frame sampling → detections → dashboard data) without touching the UI? Use the helper script that exercises the entire stack with the stubbed Clarifai client:
+
+```bash
+python scripts/run_local_inference.py \
+	--video media/project_1/video_1/video_1_sample.mp4 \
+	--models general-image-recognition
+```
+
+The script will:
+
+- Create or reuse a demo project in your database
+- Register/clone the supplied video, probe metadata, and create clips
+- Run `InferenceRequest` end-to-end (in stub mode if `CLARIFAI_PAT` is absent)
+- Print the run id plus per-model detection counts so you can immediately open `/api/projects/<project_id>/videos/<video_id>/runs/<run_id>/detections` or the dashboard comparison card
+
+Override sampling parameters (`--fps`, `--min-confidence`, etc.) or point to a different MP4 with `--video`. Provide `CLARIFAI_PAT` (and related IDs) to hit the real API; otherwise, the deterministic stub data keeps the UI populated.
+
 ## Reference UI Mock
 
 - Start the Flask server (`./start.sh`) and open `http://localhost:5000/demo/detection-overlay` to preview the static detection overlay example.

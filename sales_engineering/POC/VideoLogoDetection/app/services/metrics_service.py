@@ -42,11 +42,13 @@ def project_metrics(project_id: int) -> Dict[str, dict]:
             "runs": set(),
             "cost_actual": 0.0,
             "cost_projected": 0.0,
+            "processing_time": 0.0,
         }
     )
 
     for run in runs:
         frames_sampled = int((run.results or {}).get("frames_sampled", 0))
+        processing_time_seconds = float((run.results or {}).get("processing_time_seconds") or 0.0)
         models_in_run = {det.model_id or "unknown" for det in run.detections}
         if not models_in_run:
             models_in_run = set((run.model_ids or ["unknown"]))
@@ -58,6 +60,7 @@ def project_metrics(project_id: int) -> Dict[str, dict]:
             entry["runs"].add(run.id)
             entry["cost_actual"] += float(run.cost_actual or 0.0) / split_count
             entry["cost_projected"] += float(run.cost_projected or 0.0) / split_count
+            entry["processing_time"] += processing_time_seconds / split_count
 
         for detection in run.detections:
             model_id = detection.model_id or "unknown"
@@ -77,6 +80,8 @@ def project_metrics(project_id: int) -> Dict[str, dict]:
             "hit_frequency": round(detections / runs_count, 2),
             "cost_actual": round(data["cost_actual"], 4),
             "cost_projected": round(data["cost_projected"], 4),
+            "frames_processed": data["frames"],
+            "avg_processing_seconds": round(data["processing_time"] / runs_count, 2),
         }
     return metrics
 
@@ -109,6 +114,7 @@ def run_metrics(run_id: int) -> Optional[dict]:
         "video_id": run.video_id,
         "status": run.status,
         "frames_sampled": (run.results or {}).get("frames_sampled", 0),
+        "processing_time_seconds": float((run.results or {}).get("processing_time_seconds") or 0.0),
         "models": models,
         "cost_actual": float(run.cost_actual or 0.0),
         "cost_projected": float(run.cost_projected or 0.0),

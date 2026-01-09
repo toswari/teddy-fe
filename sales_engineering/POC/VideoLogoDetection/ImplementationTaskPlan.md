@@ -29,12 +29,12 @@ This document is written for a **coding agent** implementing the VideoLogoDetect
 - All tasks assume you are working in `sales_engineering/POC/VideoLogoDetection`.
 - Always ensure `setup-env.sh` and `podman-compose.yaml` remain the **single source of truth** for DB connection details.
 - The app must remain **single-user**, **local**, and **project-centric** (multiple projects, no auth).
-- Long-running work (video probing, clipping, inference) should initially run **in-process**; if you introduce backgrounding, do it without Redis (e.g., simple Python threads or a lightweight in-memory queue), keeping infrastructure minimal.
+- Long-running work (video probing, clipping, inference) should initially run **in-process**; if you introduce backgrounding, keep it lightweight (e.g., simple Python threads or a lightweight in-memory queue) to maintain minimal infrastructure.
 - Clarifai credentials and model defaults belong in `.env` (see `.env.example`); all reference scripts and services read from there, so keep it authoritative.
 
 ### Architecture Directives (Non-Negotiable for MVP)
 
-- Do **not** introduce Redis, Celery, or any external task broker in the MVP; all long-running work is executed in-process, with only optional lightweight in-memory/background helpers if absolutely needed.
+- Do **not** introduce Celery or any external task broker in the MVP; all long-running work is executed in-process, with only optional lightweight in-memory/background helpers if absolutely needed.
 - Containerization uses a Dockerfile for the Flask app and **Podman only for PostgreSQL**, running on a non-standard host port as defined in the spec and kept in sync between `podman-compose.yaml` and `setup-env.sh`.
 - The Flask factory must not initialize Celery; any `tasks/` modules are optional helpers, not tied to an external worker infrastructure.
 - If you later introduce background execution, it must remain brokerless (threads or similar) and stay within the single-user, local POC constraints.
@@ -59,7 +59,7 @@ Goal: deliver a working single-user POC that can:
   - [x] Ensure `create_app()` initializes:
     - [x] SQLAlchemy
     - [x] Flask-SocketIO
-    - [x] Any shared utilities needed for optional background execution (but **do not** add Redis or external brokers in MVP).
+    - [x] Any shared utilities needed for optional background execution while keeping the MVP brokerless and lightweight.
 
 - [x] **Wire environment & DB connectivity**
   - [x] Confirm the app uses `DATABASE_URL` from the environment (as set by `setup-env.sh`).
@@ -216,6 +216,32 @@ Implement a basic reporting service in `app/services/reporting_service.py`.
 - [x] **Endpoint**
   - [x] `POST /videos/<id>/report` – creates a report and returns a download URL/path.
 
+### 1.9 Inference Dashboard Diagnostics & Fixes (New)
+
+The Model Comparison card currently renders empty Model A/Model B dropdowns and an inert frame preview. Address the issue end-to-end so that recent inference runs automatically hydrate the selector and frame overlay view.
+
+- [ ] **Reproduce & capture telemetry**
+  - [ ] Run both single-model and multi-model inference flows locally with logging enabled to verify that `InferenceRun.results` contains `detections`, `frames`, and `clip` metadata.
+  - [ ] Add temporary debug logging (or use existing `tmp/logs/flask.log`) illustrating the payload returned by `GET /api/projects/<id>/videos/<video_id>/runs/<run_id>/detections` for use in UI validation.
+
+- [ ] **Backend response shaping**
+  - [ ] Ensure `InferenceRunSchema` (and related responses) return a canonical `available_models` list plus per-model detection counts so the UI can derive dropdown options without guessing.
+  - [ ] Confirm the detections endpoint exposes frame image URLs and timestamps for the selected clip; add tests covering multi-model runs with at least two models.
+  - [ ] Add a thin helper in `app/services/metrics_service.py` or a new serializer to convert detection data into the format the dashboard expects (`{ modelId, frames: [...] }`).
+
+- [ ] **UI wiring (Model A/B dropdowns)**
+  - [ ] Update `static/js/dashboard.js` (and `dashboard-inference.html`) to fetch the latest inference run metadata when a clip is selected, populate the Model A/B dropdowns from `available_models`, and default selection to the first two entries.
+  - [ ] Display a friendly empty state when no inference runs exist yet, and disable the comparison controls until data is available.
+  - [ ] Hook the dropdown change events to re-fetch the selected frame overlays from `/runs/<run_id>/detections` without requiring a full page refresh.
+
+- [ ] **Frame overlay rendering**
+  - [ ] Verify the canvas/overlay component can ingest per-model bounding boxes simultaneously; when only one model is selected, hide the second overlay legend.
+  - [ ] Implement color-coding consistent with the legend (e.g., Model A blue, Model B orange) and ensure timestamps stay synchronized as the scrubber moves between frames.
+
+- [ ] **QA & regression tests**
+  - [ ] Add a front-end smoke test script (or manual checklist) covering: run inference → refresh dashboard → select clip/run → confirm Model A/B options populate and switching models updates overlays.
+  - [ ] Extend API tests to assert that inference runs created in tests expose the new response fields consumed by the UI.
+
 ---
 
 ## Phase 2 – Multi-Model & Benchmarking (MVP Extended)
@@ -233,6 +259,24 @@ Goal: extend the MVP to support multi-model inference and basic benchmarking/cos
 
 - [x] **API**
   - [x] `POST /videos/<id>/multi-inference` – accept a list of model IDs and parameters.
+
+### 2.1a Clarifai Model Config Externalization
+
+- [ ] **Externalize model defaults**
+  - [ ] Create `config/models.yaml` (or `config/models.json`) containing named Clarifai model presets with IDs and optional per-model params (e.g., `min_confidence`, `max_concepts`).
+  - [ ] Add `MODEL_CONFIG_PATH` env var (default `config/models.yaml`) and load at app startup.
+  - [ ] Implement a small loader utility (e.g., `app/services/inference_models.py` or `app/config_models.py`) that:
+    - [ ] Validates schema (required fields: `name`, `id`; optional: `params`).
+    - [ ] Exposes helpers to list models and fetch by name/key.
+  - [ ] Wire API/UI to read from config for dropdowns/defaults (do not hardcode IDs in JS or Python).
+
+- [ ] **API surface (optional but recommended)**
+  - [ ] `GET /api/clarifai/models/config` – returns configured models for the UI.
+
+- [ ] **Testing**
+  - [ ] Unit test the loader (valid file, missing file, bad schema).
+  - [ ] Integration test that the inference endpoints accept a model key/name resolved via config.
+  - [ ] Update `.env.example` documenting `MODEL_CONFIG_PATH`.
 
 ### 2.2 Benchmarking & Metrics
 

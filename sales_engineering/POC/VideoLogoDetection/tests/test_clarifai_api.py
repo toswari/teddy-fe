@@ -56,3 +56,25 @@ def test_clarifai_models_success(client, monkeypatch):
     assert payload["models"][0]["id"] == "logo-detector"
     assert payload["models"][0]["name"] == "Logo Detector"
     assert payload["models"][0]["model_type"] == "visual-detector"
+
+
+def test_clarifai_models_config_endpoint(client, monkeypatch):
+    expected_models = [
+        {
+            "key": "general",
+            "name": "General Classification",
+            "model_id": "general-image-recognition",
+            "description": "Generic vision model",
+        }
+    ]
+    monkeypatch.setattr(
+        "app.api.clarifai.serialize_configured_models",
+        lambda: expected_models,
+    )
+
+    response = client.get("/api/clarifai/models/config")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["count"] == 1
+    assert payload["models"] == expected_models

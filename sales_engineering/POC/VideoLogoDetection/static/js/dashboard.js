@@ -1,6 +1,16 @@
 const projectsEndpoint = '/api/projects';
 const metricsEndpoint = '/api/metrics';
 
+// Hardcoded Clarifai models for dropdowns
+const HARDCODED_MODELS = [
+  { id: 'logo-detection-v2', name: 'Logo Detection (V2)' },
+  { id: 'logo-detection', name: 'Logo Detection (V1)' },
+  { id: 'general-image-recognition', name: 'General Image Recognition' },
+  { id: 'food-item-recognition', name: 'Food Recognition' },
+  { id: 'apparel-detection', name: 'Apparel Detection' },
+  { id: 'face-detection', name: 'Face Detection' },
+];
+
 const state = {
   activeProject: null,
   videos: new Map(),
@@ -127,9 +137,33 @@ async function loadClarifaiModels(forceRefresh = false) {
   }
 
   try {
+    // First try to load from local config file (faster and more reliable)
+    try {
+      const response = await fetchJSON('/api/clarifai/models/config');
+      const models = Array.isArray(response.models) ? response.models : [];
+      if (models.length > 0) {
+        // Convert config format to match expected format
+        state.clarifaiModels = models.map(m => ({
+          id: m.model_id || m.id,
+          name: m.name || m.model_id || m.id,
+          model_type: m.model_type || 'visual-classifier',
+          description: m.description || null,
+          user_id: m.user_id || null,
+          app_id: m.app_id || null,
+          version_id: m.model_version_id || m.version_id || null,
+        }));
+        console.log('Loaded', state.clarifaiModels.length, 'models from config');
+        return state.clarifaiModels;
+      }
+    } catch (configError) {
+      console.debug('Config models not available, trying Clarifai API', configError);
+    }
+
+    // Fallback to Clarifai API
     const response = await fetchJSON('/api/clarifai/models?per_page=50');
     const models = Array.isArray(response.models) ? response.models : [];
     state.clarifaiModels = models;
+    console.log('Loaded', state.clarifaiModels.length, 'models from Clarifai API');
     return models;
   } catch (error) {
     console.warn('Unable to load Clarifai models', error);
@@ -431,7 +465,7 @@ function renderEfficiencyMatrix(metrics) {
   if (!entries.length) {
     const row = document.createElement('tr');
     const cell = document.createElement('td');
-    cell.colSpan = 7;
+    cell.colSpan = 9;
     cell.className = 'py-4 text-sm text-slate-400';
     cell.textContent = 'No benchmark data yet.';
     row.appendChild(cell);
@@ -447,12 +481,16 @@ function renderEfficiencyMatrix(metrics) {
     .forEach(([modelId, data]) => {
       const row = document.createElement('tr');
       row.className = 'text-sm';
+      const framesProcessed = Number(data.frames_processed || 0);
+      const avgProcessingSeconds = Number(data.avg_processing_seconds || 0);
       row.innerHTML = `
         <td class="py-3 pr-3 font-semibold text-slate-700">${modelId}</td>
         <td class="py-3">${data.detections}</td>
         <td class="py-3">${Number(data.avg_confidence || 0).toFixed(3)}</td>
         <td class="py-3">${Number(data.hit_frequency || 0).toFixed(2)}</td>
         <td class="py-3">${Number(data.detection_density || 0).toFixed(4)}</td>
+        <td class="py-3">${framesProcessed}</td>
+        <td class="py-3">${formatSecondsToClock(avgProcessingSeconds)}</td>
         <td class="py-3">$${Number(data.cost_actual || 0).toFixed(2)}</td>
         <td class="py-3">$${Number(data.cost_projected || 0).toFixed(2)}</td>
       `;
@@ -486,7 +524,7 @@ async function loadVideos(projectId) {
   // Extract clips from videos
   extractClipsFromVideos();
   
-  // Update preprocessing tab video list
+  // Update preprocessing tab video list (only exists on certain pages)
   const preprocessVideoList = document.getElementById('preprocess-video-list');
   if (preprocessVideoList) {
     console.log('Populating preprocessing video list with', videos.length, 'videos');
@@ -494,8 +532,6 @@ async function loadVideos(projectId) {
     videos.forEach((video) => {
       preprocessVideoList.appendChild(createVideoCard(video));
     });
-  } else {
-    console.warn('preprocess-video-list element not found');
   }
   
   updateSelectedVideoHighlight();
@@ -505,7 +541,7 @@ async function loadVideos(projectId) {
   loadPreprocessingVideos();
 
   // Populate comparison dropdowns
-  populateComparisonDropdowns();
+  await populateComparisonDropdowns();
 }
 
 async function loadInferenceSummary(projectId) {
@@ -581,135 +617,6 @@ async function triggerPreprocess(videoId) {
     await refreshVideo(videoId);
   } catch (error) {
     window.alert(`Preprocess failed: ${error.message}`);
-  }
-}
-
-async function triggerInference(videoId) {
-  const projectId = state.activeProject?.id;
-  if (!projectId) return;
-
-  const clipsForVideo = getClipsForVideo(videoId);
-  if (!clipsForVideo.length) {
-    window.alert('Preprocess this video to create clips before running inference.');
-    return;
-  }
-
-  const currentClip = state.comparison.clipId ? state.clips.get(state.comparison.clipId) : null;
-  let defaultClip = currentClip && currentClip.videoId === videoId ? currentClip : clipsForVideo[0];
-
-  const clipOptions = clipsForVideo
-    .map((clip) => `${clip.segment}: ${clip.label || clipLabel(clip)}`)
-    .join('\n');
-
-  const clipPrompt = window.prompt(
-    `Select clip segment number to analyze:\n${clipOptions}`,
-    String(defaultClip.segment)
-  );
-  if (clipPrompt === null) {
-    return;
-  }
-  const segmentChoice = Number(clipPrompt.trim());
-  if (!Number.isFinite(segmentChoice) || !Number.isInteger(segmentChoice)) {
-    window.alert('Clip segment must be a whole number.');
-    return;
-  }
-  const selectedClip = clipsForVideo.find((clip) => Number(clip.segment) === segmentChoice);
-  if (!selectedClip) {
-    window.alert('Clip segment not found.');
-    return;
-  }
-
-  let catalogModels = [];
-  try {
-    catalogModels = await loadClarifaiModels(false);
-  } catch (error) {
-    catalogModels = [];
-  }
-
-  let modelIds = [];
-  if (catalogModels.length) {
-    const optionsText = buildModelSelectionMessage(catalogModels);
-    const selectionPrompt = optionsText
-      ? `Select Clarifai models by number (comma separated) or enter IDs directly.\n${optionsText}`
-      : 'Enter Clarifai model IDs (comma separated)';
-    const catalogSelection = window.prompt(selectionPrompt, '1');
-    if (catalogSelection === null) {
-      return;
-    }
-    modelIds = parseModelSelectionInput(catalogSelection, catalogModels);
-  }
-
-  if (!modelIds.length) {
-    const manualInput = window.prompt(
-      'Enter Clarifai model IDs (comma separated)',
-      'general-image-recognition'
-    );
-    if (manualInput === null) {
-      return;
-    }
-    modelIds = manualInput
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-  }
-
-  if (!modelIds.length) {
-    window.alert('You must select at least one Clarifai model.');
-    return;
-  }
-
-  const paramsPrompt = window.prompt(
-    'Optional inference settings (fps,min_confidence,max_concepts). Leave blank for defaults.',
-    ''
-  );
-  const params = {};
-  if (paramsPrompt) {
-    const parts = paramsPrompt.split(',').map((part) => part.trim());
-    if (parts[0]) {
-      const fpsValue = Number(parts[0]);
-      if (!Number.isFinite(fpsValue) || fpsValue <= 0) {
-        window.alert('FPS must be a positive number.');
-        return;
-      }
-      params.fps = fpsValue;
-    }
-    if (parts[1]) {
-      const minValue = Number(parts[1]);
-      if (!Number.isFinite(minValue) || minValue < 0 || minValue > 1) {
-        window.alert('Min confidence must be between 0 and 1.');
-        return;
-      }
-      params.min_confidence = minValue;
-    }
-    if (parts[2]) {
-      const maxValue = Number(parts[2]);
-      if (!Number.isFinite(maxValue) || maxValue <= 0) {
-        window.alert('Max concepts must be a positive number.');
-        return;
-      }
-      params.max_concepts = Math.round(maxValue);
-    }
-  }
-
-  try {
-    const payload = { clip_id: selectedClip.id };
-    if (modelIds.length) {
-      payload.model_ids = modelIds;
-    }
-    if (Object.keys(params).length) {
-      payload.params = params;
-    }
-    await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/multi-inference`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    await refreshVideo(videoId);
-    await loadInferenceSummary(projectId);
-    state.comparison.clipId = selectedClip.id;
-    state.comparison.videoId = selectedClip.videoId;
-    await handleClipSelection(selectedClip.id, { preserveRun: false, preserveModels: false });
-  } catch (error) {
-    window.alert(`Inference failed: ${error.message}`);
   }
 }
 
@@ -924,15 +831,19 @@ function populateRunSelect(runs, { preserveSelection = false } = {}) {
   placeholder.textContent = placeholderText;
   elements.comparisonRun.appendChild(placeholder);
 
+  // Sort runs by ID descending (newest first)
+  const sortedRuns = [...runs].sort((a, b) => b.id - a.id);
+
   let selectedRunId = null;
-  if (preserveSelection && runs.some((run) => run.id === state.comparison.runId)) {
+  if (preserveSelection && sortedRuns.some((run) => run.id === state.comparison.runId)) {
     selectedRunId = state.comparison.runId;
   } else {
-    const completed = runs.find((run) => run.status === 'completed');
-    selectedRunId = completed ? completed.id : runs[0]?.id ?? null;
+    // Select the first completed run (which is now the newest due to sorting)
+    const completed = sortedRuns.find((run) => run.status === 'completed');
+    selectedRunId = completed ? completed.id : sortedRuns[0]?.id ?? null;
   }
 
-  runs.forEach((run) => {
+  sortedRuns.forEach((run) => {
     const option = document.createElement('option');
     option.value = String(run.id);
     const createdAt = run.created_at ? new Date(run.created_at).toLocaleString() : '';
@@ -958,6 +869,9 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
     state.comparison.runId = null;
     populateModelSelects([]);
     resetComparisonDisplay('Select an inference run');
+    // Hide run parameters display
+    const paramsDisplay = document.getElementById('run-params-display');
+    if (paramsDisplay) paramsDisplay.style.display = 'none';
     return;
   }
   const projectId = state.activeProject?.id;
@@ -968,6 +882,22 @@ async function handleRunSelection(runId, { preserveModels = false } = {}) {
   const payload = await fetchJSON(`/api/projects/${projectId}/videos/${videoId}/runs/${runId}/detections`);
   const frames = enrichFrames(payload);
   const availableModels = (payload.available_models?.length ? payload.available_models : payload.models) || [];
+  
+  // Display run parameters if available
+  const params = payload.params || {};
+  const paramsDisplay = document.getElementById('run-params-display');
+  if (paramsDisplay && Object.keys(params).length > 0) {
+    paramsDisplay.style.display = 'block';
+    const displayFps = document.getElementById('display-fps');
+    const displayMinConf = document.getElementById('display-min-confidence');
+    const displayMaxConcepts = document.getElementById('display-max-concepts');
+    const displayBatchSize = document.getElementById('display-batch-size');
+    
+    if (displayFps) displayFps.textContent = params.fps != null ? params.fps.toFixed(1) : '—';
+    if (displayMinConf) displayMinConf.textContent = params.min_confidence != null ? params.min_confidence.toFixed(2) : '—';
+    if (displayMaxConcepts) displayMaxConcepts.textContent = params.max_concepts != null ? params.max_concepts.toString() : '—';
+    if (displayBatchSize) displayBatchSize.textContent = params.batch_size != null ? params.batch_size.toString() : '—';
+  }
 
   state.comparison.frameImages = new Map();
   frames.forEach((frame) => {
@@ -1090,11 +1020,22 @@ function updateModelSelections(models, { preserveModels = false } = {}) {
     models.forEach((modelId) => getModelColor(modelId));
   }
 
-  if (!preserveModels || !models.includes(state.comparison.modelA)) {
-    state.comparison.modelA = models[0] || null;
+  const fallbackModel = (index = 0) => {
+    const fromRun = models[index];
+    if (fromRun) return fromRun;
+    return HARDCODED_MODELS[index]?.id || HARDCODED_MODELS[0]?.id || null;
+  };
+
+  if (!state.comparison.modelA) {
+    state.comparison.modelA = fallbackModel(0);
+  } else if (!preserveModels && !models.includes(state.comparison.modelA)) {
+    state.comparison.modelA = fallbackModel(0);
   }
-  if (!preserveModels || !models.includes(state.comparison.modelB)) {
-    state.comparison.modelB = models[1] || state.comparison.modelA || null;
+
+  if (!state.comparison.modelB) {
+    state.comparison.modelB = fallbackModel(1);
+  } else if (!preserveModels && !models.includes(state.comparison.modelB)) {
+    state.comparison.modelB = fallbackModel(1) || state.comparison.modelA;
   }
 
   if (state.comparison.activeToggle === 'A' && !state.comparison.modelA) {
@@ -1108,34 +1049,97 @@ function updateModelSelections(models, { preserveModels = false } = {}) {
 }
 
 function populateModelSelects(models) {
-  setSelectOptions(elements.comparisonModelA, models, state.comparison.modelA);
-  setSelectOptions(elements.comparisonModelB, models, state.comparison.modelB);
+  console.debug('[populateModelSelects] Called with models:', models);
+  console.debug('[populateModelSelects] Using hardcoded models:', HARDCODED_MODELS);
+  
+  // Always use hardcoded models for dropdown options
+  setSelectOptions(elements.comparisonModelA, HARDCODED_MODELS, state.comparison.modelA, {
+    labelFn: (item) => item.name || item.id,
+  });
+  setSelectOptions(elements.comparisonModelB, HARDCODED_MODELS, state.comparison.modelB, {
+    labelFn: (item) => item.name || item.id,
+  });
   updateModelToggleAvailability();
 }
 
-function setSelectOptions(selectEl, values, selected) {
-  if (!selectEl) return;
+function setSelectOptions(selectEl, values, selected, options = {}) {
+  if (!selectEl) {
+    console.debug('[setSelectOptions] No select element provided');
+    return;
+  }
+  
+  const selectId = selectEl.id || 'unknown';
+  console.debug(`[setSelectOptions][${selectId}] Called with:`, {
+    valuesCount: values?.length,
+    valuesType: Array.isArray(values) ? 'array' : typeof values,
+    selected,
+    options
+  });
+  
   const placeholderText = selectEl.dataset.placeholder || 'Select';
   clearContainer(selectEl);
   const placeholder = document.createElement('option');
   placeholder.value = '';
   placeholder.textContent = placeholderText;
   selectEl.appendChild(placeholder);
+  console.debug(`[setSelectOptions][${selectId}] Added placeholder: "${placeholderText}"`);
 
-  values.forEach((value) => {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = value;
-    selectEl.appendChild(option);
+  const normalize = (item) => {
+    if (item == null) return null;
+    if (typeof item === 'object') {
+      return String(item.id ?? item.value ?? '');
+    }
+    return String(item);
+  };
+
+  const labelFn = options.labelFn || ((item) => {
+    if (item == null) return '';
+    if (typeof item === 'object') {
+      return item.name || item.label || normalize(item) || '';
+    }
+    return String(item);
   });
 
-  if (selected && values.includes(selected)) {
-    selectEl.value = selected;
-  } else {
-    selectEl.value = '';
-  }
+  const normalizedValues = values
+    .map((value) => {
+      const normalizedValue = normalize(value);
+      const label = labelFn(value);
+      console.debug(`[setSelectOptions][${selectId}] Normalizing:`, {
+        input: value,
+        normalizedValue,
+        label
+      });
+      if (!normalizedValue) {
+        return null;
+      }
+      return {
+        value: normalizedValue,
+        label: label || normalizedValue,
+      };
+    })
+    .filter(Boolean);
 
-  selectEl.disabled = !values.length;
+  console.debug(`[setSelectOptions][${selectId}] Normalized ${normalizedValues.length} values:`, normalizedValues);
+
+  normalizedValues.forEach(({ value, label }, index) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    selectEl.appendChild(option);
+    console.debug(`[setSelectOptions][${selectId}] Added option ${index + 1}:`, { value, label });
+  });
+
+  const hasSelection = selected && normalizedValues.some((entry) => entry.value === selected);
+  selectEl.value = hasSelection ? selected : '';
+  selectEl.disabled = normalizedValues.length === 0;
+  
+  console.debug(`[setSelectOptions][${selectId}] Final state:`, {
+    totalOptions: selectEl.options.length,
+    selectedValue: selectEl.value,
+    disabled: selectEl.disabled,
+    hasSelection,
+    allOptions: Array.from(selectEl.options).map(opt => ({ value: opt.value, text: opt.textContent }))
+  });
 }
 
 function updateModelToggleAvailability() {
@@ -1324,8 +1328,23 @@ function setComparisonModel(slot, value) {
 }
 
 function drawOverlay(frame, detections) {
-  if (!elements.overlayLayer) return;
+  if (!elements.overlayLayer) {
+    console.warn('[drawOverlay] overlayLayer element not found');
+    return;
+  }
   clearContainer(elements.overlayLayer);
+  
+  console.log('[drawOverlay] Drawing detections:', {
+    frameIndex: frame?.frame_index,
+    detectionsCount: detections.length,
+    detections: detections.map(d => ({
+      label: d.label,
+      confidence: d.confidence,
+      bbox: d.bbox,
+      hasBbox: d.bbox && ['top', 'left', 'bottom', 'right'].every(k => Number.isFinite(Number(d.bbox[k])))
+    }))
+  });
+  
   if (!detections.length) {
     const fallback = document.createElement('div');
     fallback.className = 'absolute inset-0 flex items-center justify-center text-xs text-slate-400';
@@ -1539,6 +1558,13 @@ function setupButtons() {
       input?.click();
     });
   }
+  
+  // Setup Run Inference button
+  if (elements.runComparisonBtn) {
+    elements.runComparisonBtn.addEventListener('click', async () => {
+      await runComparisonInference();
+    });
+  }
 }
 
 function setupSocketListeners() {
@@ -1588,6 +1614,12 @@ async function initDashboard() {
   try {
     setupTabs();
     setupComparisonControls();
+    // Load Clarifai models before populating dropdowns
+    try {
+      await loadClarifaiModels();
+    } catch (err) {
+      console.warn('Clarifai models unavailable, using fallback', err);
+    }
     await loadProjects();
     setupButtons();
     setupSocketListeners();
@@ -1826,81 +1858,6 @@ async function triggerInference(videoId) {
   }
 }
 
-async function triggerInference(videoId) {
-  const video = state.videos.get(videoId);
-  if (!video) {
-    alert('Video not found');
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model_ids: ['general-image-recognition'], // Default model
-        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Inference failed');
-    }
-
-    const result = await response.json();
-    alert(`Inference started! Run ID: ${result.id}`);
-    
-    // Refresh videos to show the new run
-    await loadVideos(state.activeProject.id);
-  } catch (error) {
-    console.error('Inference error:', error);
-    alert('Failed to start inference: ' + error.message);
-  }
-}
-  const videoId = elements.comparisonVideo.value;
-  const modelA = elements.comparisonModelA.value;
-  const modelB = elements.comparisonModelB.value;
-
-  if (!videoId) {
-    alert('Please select a video');
-    return;
-  }
-
-  const models = [];
-  if (modelA) models.push(modelA);
-  if (modelB) models.push(modelB);
-  if (models.length === 0) {
-    alert('Please select at least one model');
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model_ids: models,
-        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Inference failed');
-    }
-
-    const result = await response.json();
-    alert(`Inference started with models ${models.join(', ')}! Run ID: ${result.id}`);
-    
-    // Refresh videos to show the new run
-    await loadVideos(state.activeProject.id);
-  } catch (error) {
-    console.error('Inference error:', error);
-    alert('Failed to start inference: ' + error.message);
-  }
-}
-
 async function loadMetrics() {
   try {
     const response = await fetch('/api/metrics');
@@ -1915,7 +1872,7 @@ async function loadMetrics() {
   }
 }
 
-function populateComparisonDropdowns() {
+async function populateComparisonDropdowns() {
   // Populate video/clip dropdown
   if (elements.comparisonVideo) {
     elements.comparisonVideo.innerHTML = '<option value="">Select clip</option>';
@@ -1934,12 +1891,47 @@ function populateComparisonDropdowns() {
     // This would be populated when a clip is selected
   }
 
-  // Populate model dropdowns
+  // Populate model dropdowns with hardcoded models
   if (elements.comparisonModelA && elements.comparisonModelB) {
-    const models = state.metrics?.models ? Object.keys(state.metrics.models) : [];
-    const modelOptions = '<option value="">Select model</option>' + models.map(model => `<option value="${model}">${model}</option>`).join('');
-    elements.comparisonModelA.innerHTML = modelOptions;
-    elements.comparisonModelB.innerHTML = modelOptions;
+    console.log('[populateComparisonDropdowns] Using hardcoded models:', HARDCODED_MODELS);
+
+    if (!state.comparison.modelA && HARDCODED_MODELS.length) {
+      state.comparison.modelA = HARDCODED_MODELS[0].id;
+    }
+    if (!state.comparison.modelB && HARDCODED_MODELS.length > 1) {
+      state.comparison.modelB = HARDCODED_MODELS[1].id;
+    }
+
+    console.log('[populateComparisonDropdowns] Setting model selections:', { 
+      modelA: state.comparison.modelA, 
+      modelB: state.comparison.modelB 
+    });
+
+    setSelectOptions(elements.comparisonModelA, HARDCODED_MODELS, state.comparison.modelA, {
+      labelFn: (item) => item.name,
+    });
+    
+    setSelectOptions(elements.comparisonModelB, HARDCODED_MODELS, state.comparison.modelB, {
+      labelFn: (item) => item.name,
+    });
+
+    console.log('[populateComparisonDropdowns] Model dropdowns populated:', {
+      modelA: {
+        disabled: elements.comparisonModelA.disabled,
+        value: elements.comparisonModelA.value,
+        optionCount: elements.comparisonModelA.options.length
+      },
+      modelB: {
+        disabled: elements.comparisonModelB.disabled,
+        value: elements.comparisonModelB.value,
+        optionCount: elements.comparisonModelB.options.length
+      }
+    });
+  } else {
+    console.error('Model dropdown elements not found:', {
+      modelA: elements.comparisonModelA,
+      modelB: elements.comparisonModelB,
+    });
   }
 }
 
@@ -1968,6 +1960,32 @@ async function runComparisonInference() {
     return;
   }
 
+  // Get inference parameters from UI inputs
+  const fps = parseFloat(document.getElementById('param-fps')?.value || '1.0');
+  const minConfidence = parseFloat(document.getElementById('param-min-confidence')?.value || '0.2');
+  const maxConcepts = parseInt(document.getElementById('param-max-concepts')?.value || '5');
+  const batchSize = parseInt(document.getElementById('param-batch-size')?.value || '8');
+
+  const params = {
+    fps,
+    min_confidence: minConfidence,
+    max_concepts: maxConcepts,
+    batch_size: batchSize
+  };
+
+  console.log('[runComparisonInference] Starting inference:', {
+    projectId: state.activeProject.id,
+    videoId,
+    clipId,
+    models,
+    params,
+    payload: {
+      model_ids: models,
+      clip_id: clipId,
+      params
+    }
+  });
+
   try {
     const response = await fetch(`/api/projects/${state.activeProject.id}/videos/${videoId}/inference`, {
       method: 'POST',
@@ -1975,49 +1993,45 @@ async function runComparisonInference() {
       body: JSON.stringify({
         model_ids: models,
         clip_id: clipId,
-        params: { fps: 1.0, min_confidence: 0.2, max_concepts: 5 }
+        params
       })
     });
 
+    console.log('[runComparisonInference] Response status:', response.status);
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Inference failed');
+      // Read response as text first, then try to parse as JSON
+      const responseText = await response.text();
+      console.error('[runComparisonInference] Server error response:', responseText);
+      
+      let errorMessage = 'Inference failed';
+      try {
+        // Try to parse as JSON
+        const error = JSON.parse(responseText);
+        errorMessage = error.error || error.message || JSON.stringify(error);
+      } catch (jsonError) {
+        // Not JSON, extract from HTML or use raw text
+        const match = responseText.match(/<title>(.*?)<\/title>/i);
+        if (match) {
+          errorMessage = match[1];
+        } else if (responseText.includes('<!doctype') || responseText.includes('<html')) {
+          errorMessage = `Server error (${response.status}). Check console for details.`;
+        } else {
+          errorMessage = responseText.substring(0, 200) || `Server error (${response.status})`;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
+    console.log('[runComparisonInference] Inference started:', result);
     alert(`Inference started on clip ${clipId} with models ${models.join(', ')}! Run ID: ${result.id}`);
     
     // Refresh videos to show the new run
     await loadVideos(state.activeProject.id);
   } catch (error) {
-    console.error('Inference error:', error);
+    console.error('[runComparisonInference] Error:', error);
     alert('Failed to start inference: ' + error.message);
-  }
-}
-
-function initDashboard() {
-  if (isDashboardPage()) {
-    loadDashboard();
-  }
-
-  // Set up event listeners
-  if (elements.runComparisonBtn) {
-    elements.runComparisonBtn.addEventListener('click', runComparisonInference);
-  }
-}
-
-async function loadDashboard() {
-  try {
-    const response = await fetch('/api/projects/1');
-    if (!response.ok) throw new Error('Failed to load project');
-    const project = await response.json();
-    state.activeProject = project;
-    renderActiveProject(project);
-    
-    await loadVideos(project.id);
-    await loadInferenceSummary(project.id);
-  } catch (error) {
-    console.error('Error loading dashboard:', error);
   }
 }
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 from flask import Blueprint, request
 
 from app.services.clarifai_catalog import ClarifaiCatalogError, list_models as list_catalog_models
+from app.services.model_config import ModelConfigError, serialize_configured_models
 
 bp = Blueprint("clarifai", __name__, url_prefix="/api/clarifai")
 
@@ -30,3 +31,13 @@ def list_models():
         "count": len(models),
         "models": [model.__dict__ for model in models],
     }
+
+
+@bp.get("/models/config")
+def list_config_models():
+    """Return locally configured Clarifai model presets."""
+    try:
+        models = serialize_configured_models()
+    except ModelConfigError as exc:
+        return {"error": str(exc)}, 500
+    return {"count": len(models), "models": models}

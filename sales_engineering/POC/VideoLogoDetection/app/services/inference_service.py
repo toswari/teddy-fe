@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
@@ -380,6 +381,32 @@ class ClarifaiClient:
                     )
 
                 body = {"inputs": inputs}
+                
+                # Log request details
+                logger.info("=" * 80)
+                logger.info("CLARIFAI API REQUEST:")
+                logger.info("URL: %s", url)
+                logger.info("Method: POST")
+                logger.info("Model ID: %s", model_id)
+                logger.info("Inference Parameters:")
+                logger.info("  - FPS: %s", params.fps)
+                logger.info("  - Min Confidence: %s", params.min_confidence)
+                logger.info("  - Max Concepts: %s", params.max_concepts)
+                logger.info("  - Batch Size: %s", params.batch_size)
+                logger.info("Headers: %s", {k: (v if k != 'Authorization' else 'Key ***') for k, v in headers.items()})
+                logger.info("Number of inputs in this batch: %d", len(inputs))
+                logger.info("Frame indices in this batch: %s", [f.index for f in batch])
+                logger.info("Frame timestamps: %s", [f"{f.timestamp_seconds:.2f}s" for f in batch])
+                logger.info("Request body structure: %s", {"inputs": f"[{len(inputs)} items]"})
+                if inputs:
+                    logger.info("Sample input keys: %s", list(inputs[0].keys()))
+                    logger.info("Sample input data keys: %s", list(inputs[0].get('data', {}).keys()))
+                    # Log the actual base64 size for first input
+                    first_b64 = inputs[0].get('data', {}).get('image', {}).get('base64', '')
+                    logger.info("First image base64 size: %d bytes", len(first_b64))
+                logger.info("Full request body (JSON): %s", body if len(str(body)) < 500 else f"{{inputs: [{len(inputs)} items with base64 images]}}")
+                logger.info("=" * 80)
+                
                 attempt = 0
                 while True:
                     attempt += 1
@@ -397,6 +424,52 @@ class ClarifaiClient:
                     from app.services.metrics_service import record_timer, increment_counter
                     record_timer("clarifai_request_duration", duration)
                     logger.info("Clarifai request completed in %.2fs, status %s", duration, resp.status_code)
+                    
+                    # Log response details
+                    logger.info("=" * 80)
+                    logger.info("CLARIFAI API RESPONSE:")
+                    logger.info("Status Code: %s", resp.status_code)
+                    logger.info("Response Headers: %s", dict(resp.headers))
+                    if resp.content:
+                        try:
+                            response_json = resp.json()
+                            logger.info("Response body keys: %s", list(response_json.keys()))
+                            
+                            # Log status info
+                            status = response_json.get('status', {})
+                            logger.info("API Status: %s", status)
+                            
+                            # Log outputs
+                            outputs = response_json.get('outputs', [])
+                            logger.info("Number of outputs: %d", len(outputs))
+                            
+                            if outputs:
+                                first_output = outputs[0]
+                                logger.info("First output keys: %s", list(first_output.keys()))
+                                logger.info("First output ID: %s", first_output.get('id'))
+                                logger.info("First output status: %s", first_output.get('status'))
+                                
+                                data = first_output.get('data', {})
+                                logger.info("First output data keys: %s", list(data.keys()))
+                                
+                                if 'regions' in data:
+                                    regions = data['regions']
+                                    logger.info("Number of regions detected: %d", len(regions))
+                                    if regions:
+                                        logger.info("First region sample: %s", regions[0])
+                                        
+                                if 'concepts' in data:
+                                    concepts = data['concepts']
+                                    logger.info("Number of concepts detected: %d", len(concepts))
+                                    if concepts:
+                                        top_concepts = concepts[:5]
+                                        logger.info("Top concepts: %s", [(c.get('name'), c.get('value')) for c in top_concepts])
+                        except Exception as parse_err:
+                            logger.warning("Could not parse response JSON: %s", parse_err)
+                            logger.info("Raw response text (first 1000 chars): %s", resp.text[:1000])
+                    else:
+                        logger.info("Empty response body")
+                    logger.info("=" * 80)
 
                     # Handle rate limits and server errors with backoff
                     if resp.status_code == 429:
@@ -491,35 +564,66 @@ class ClarifaiClient:
         params: InferenceParams,
     ):
         parsed: list[dict] = []
-        for region in regions:
-            bbox_obj = getattr(
-                getattr(region, "region_info", None),
-                "bounding_box",
-                None,
-            )
-            bbox = {
-                "top": getattr(bbox_obj, "top", 0.0),
-                "left": getattr(bbox_obj, "left", 0.0),
-                "bottom": getattr(bbox_obj, "bottom", 0.0),
-                "right": getattr(bbox_obj, "right", 0.0),
-            }
-            region_concepts = (
-                getattr(getattr(region, "data", None), "concepts", []) or []
-            )
+        logger.info("[_parse_region_detections] Processing %d regions for frame %d, model %s", len(regions), frame.index, model_id)
+        
+        for idx, region in enumerate(regions):
+            # Handle both dict and object formats
+            if isinstance(region, dict):
+                bbox_data = region.get('region_info', {}).get('bounding_box', {})
+                bbox = {
+                    "top": bbox_data.get('top_row', 0.0),
+                    "left": bbox_data.get('left_col', 0.0),
+                    "bottom": bbox_data.get('bottom_row', 0.0),
+                    "right": bbox_data.get('right_col', 0.0),
+                }
+                region_concepts = region.get('data', {}).get('concepts', []) or []
+            else:
+                bbox_obj = getattr(
+                    getattr(region, "region_info", None),
+                    "bounding_box",
+                    None,
+                )
+                bbox = {
+                    "top": getattr(bbox_obj, "top", 0.0),
+                    "left": getattr(bbox_obj, "left", 0.0),
+                    "bottom": getattr(bbox_obj, "bottom", 0.0),
+                    "right": getattr(bbox_obj, "right", 0.0),
+                }
+                region_concepts = (
+                    getattr(getattr(region, "data", None), "concepts", []) or []
+                )
+                
+            if idx == 0:
+                logger.info("[_parse_region_detections] First region structure: bbox=%s, concepts_count=%d", bbox, len(region_concepts))
+                
             for concept in region_concepts:
-                confidence = float(getattr(concept, "value", 0.0))
+                if isinstance(concept, dict):
+                    confidence = float(concept.get('value', 0.0))
+                    label = concept.get('name', '')
+                else:
+                    confidence = float(getattr(concept, "value", 0.0))
+                    label = getattr(concept, "name", "")
+                    
                 if confidence < params.min_confidence:
+                    if idx == 0:
+                        logger.info("[_parse_region_detections] Filtered out: %s (%.3f < %.3f)", label, confidence, params.min_confidence)
                     continue
+                    
+                if idx == 0:
+                    logger.info("[_parse_region_detections] Keeping detection: %s (%.3f)", label, confidence)
+                    
                 parsed.append(
                     {
                         "frame_index": frame.index,
                         "timestamp_seconds": frame.timestamp_seconds,
                         "model_id": model_id,
-                        "label": getattr(concept, "name", ""),
+                        "label": label,
                         "confidence": confidence,
                         "bbox": bbox,
                     }
                 )
+        
+        logger.info("[_parse_region_detections] Parsed %d detections from %d regions for frame %d", len(parsed), len(regions), frame.index)
         return parsed
 
     def _parse_concept_detections(
@@ -608,6 +712,7 @@ def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
     _emit_status("inference:update", running_payload)
 
     client = ClarifaiClient()
+    run_started_at = time.time()
     try:
         # Sample frames
         _emit_status("inference:update", {"id": inference_run.id, "status": "sampling", "message": "Sampling frames"})
@@ -651,6 +756,7 @@ def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
             frames,
             frame_records,
             clip_info,
+            processing_time_seconds=time.time() - run_started_at,
         )
     except Exception as exc:
         db.session.rollback()
@@ -763,6 +869,8 @@ def _finalize_inference_run(
     frames: list[FrameSample],
     frame_records: list[dict],
     clip: dict | None = None,
+    *,
+    processing_time_seconds: float | None = None,
 ) -> None:
     model_summary: dict[str, dict] = {}
     for payload in detections:
@@ -788,6 +896,8 @@ def _finalize_inference_run(
     }
     if clip:
         inference_run.results["clip"] = clip
+    if processing_time_seconds is not None:
+        inference_run.results["processing_time_seconds"] = round(processing_time_seconds, 2)
     inference_run.status = "completed"
     billing_service.apply_run_cost(inference_run, len(frames))
     db.session.commit()

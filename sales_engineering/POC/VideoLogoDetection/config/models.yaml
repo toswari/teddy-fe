@@ -1,0 +1,24 @@
+# Default Clarifai model presets referenced by the API and UI.
+models:
+  - key: general
+    name: General Image Recognition
+    id: general-image-recognition
+    version_id: null
+    params:
+      min_confidence: 0.2
+      max_concepts: 5
+  - key: logo
+    name: Logo Detection (V2)
+    id: logo-detection-v2
+    version_id: 09f3acb13bde404592c81254c5d87ae1
+    params:
+      min_confidence: 0.3
+      max_concepts: 10
+  - key: logo_v1
+    name: Logo Detection (V1)
+    id: logo-detection
+    version_id: null
+    params:
+      min_confidence: 0.3
+      max_concepts: 10
+  

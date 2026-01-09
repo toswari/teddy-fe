@@ -46,6 +46,16 @@ def register_extensions(app: Flask) -> None:
     """Bind extensions declared in app.extensions."""
     db.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*")
+    
+    # Disable caching in debug mode to prevent stale templates/assets
+    @app.after_request
+    def add_no_cache_headers(response):
+        if app.debug:
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
+    
     app.logger.debug("Extensions registered: SQLAlchemy + SocketIO")
 
 

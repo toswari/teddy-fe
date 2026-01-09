@@ -1,13 +1,10 @@
 """Flask extension singletons."""
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO
-from redis import Redis
-from rq import Queue
+
+from app.background_queue import BackgroundTaskQueue
 
 
 db = SQLAlchemy()
 socketio = SocketIO(async_mode="threading")
-
-# RQ setup
-redis_conn = Redis()
-task_queue = Queue(connection=redis_conn)
+task_queue = BackgroundTaskQueue()

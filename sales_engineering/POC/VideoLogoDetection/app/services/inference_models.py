@@ -5,8 +5,13 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.services import model_config
 
-DEFAULT_MODEL_IDS = ["general-image-recognition"]
+try:
+    _configured_defaults = model_config.get_configured_models()
+    DEFAULT_MODEL_IDS = [_configured_defaults[0].key] if _configured_defaults else ["general-image-recognition"]
+except model_config.ModelConfigError:
+    DEFAULT_MODEL_IDS = ["general-image-recognition"]
 
 
 class InferenceParams(BaseModel):
@@ -30,6 +35,13 @@ class InferenceRequest(BaseModel):
         if isinstance(value, str):
             return [value]
         return value
+
+    @field_validator("model_ids", mode="after")
+    def resolve_model_ids(cls, values):
+        resolved: list[str] = []
+        for item in values:
+            resolved.append(model_config.resolve_model_identifier(item))
+        return resolved
 
     @field_validator("clip_id", mode="before")
     def normalize_clip_id(cls, value):

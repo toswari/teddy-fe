@@ -413,7 +413,7 @@ The items in this section are **not** part of the current single-user MVP implem
 
 ### Potential Improvements
 1. **FastAPI**: Consider migration for better async support and automatic API documentation
-2. **Redis**: Add caching and session storage
+2. **In-memory cache layer**: Add caching and session storage
 3. **Celery**: Background task processing for video analysis
 4. **PostgreSQL/MongoDB**: Persistent data storage
 5. **Nginx**: Reverse proxy and static file serving

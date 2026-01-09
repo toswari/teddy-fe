@@ -343,3 +343,44 @@ Content-Length: 95582034
 ---
 
 **Resolution:** Added absolute path resolution logic using `app.root_path` when media_root is relative.
+
+---
+
+# Agent Lesson Learned: Model Dropdowns Need Config-Driven Options
+
+**Date:** January 8, 2026  
+**Component:** Frontend Dashboard (Model Comparison)  
+**Severity:** Medium (Feature Incomplete)
+
+---
+
+## Problem Summary
+
+The Model A / Model B dropdowns on the comparison pane remained empty and stayed disabled even though the Clarifai config file (`config/models.yaml`) listed multiple presets. The console log confirmed: "Loaded 2 models from config" and "Model dropdowns populated", but the `<select>` elements still showed their placeholder and `disabled` attribute.
+
+## Root Cause
+
+We were constructing `<select>` options as plain strings (model ids) and relying on `setSelectOptions()` to accept them. However, the actual configuration entries were objects with `model_id`, `name`, and `params`. When we assigned these objects directly to the selects, the `value` attributes were `[object Object]`, and the `<select>` remained disabled because the helper detected "no values". Furthermore, `setSelectOptions()` disabled the selects whenever the normalized item list appeared empty.
+
+## Working Solution
+
+1. Normalize the config models when loading:
+   - Map `model_id` → `id`, keep `name`, and include metadata fields for consistent rendering.
+   - Decorations now record `model_type`, description, and version metadata so they behave like API models.
+2. Improve `setSelectOptions()` to accept arrays of objects (with explicit `id`/`name`) and to compute option labels/values safely.
+3. Update `populateComparisonDropdowns()` to pass normalized objects into `setSelectOptions()` and to seed the selects with the first two models so they become enabled immediately.
+4. Log population progress for easier debugging.
+
+## Lessons Learned
+
+1. UI helpers must accept the same shape of data returned by the backend (configs vs strings).
+2. Always normalize the data before using helper utilities that expect primitive values.
+3. Logging the normalized payload and element references helps diagnose silent failures (e.g., disabled selects).
+4. Drilling the source of `disabled` attributes requires verifying both the data and the enabling logic.
+
+## Prevention Strategy
+
+1. Keep a single source of truth for models (e.g., `config/models.yaml`) and document its format so downstream code doesn’t treat it as plain strings.
+2. Use helper functions (like `normalizeModelEntry`) when reading config files so the rest of the UI always receives the expected structure.
+3. Add frontend tests or manual checks to ensure dropdowns render options once data is loaded.
+4. Avoid embedding `disabled` logic solely inside generic helpers—make sure callers override it when they know valid options exist.
