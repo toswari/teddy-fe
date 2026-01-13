@@ -1,0 +1,87 @@
+# Clarifai Model Configuration
+# This file configures which models to use for different tasks
+
+api:
+  base_url: "https://api.clarifai.com/v2/ext/openai/v1"
+  timeout: 120
+  max_retries: 3
+
+models:
+  # Primary LLM for text reasoning and generation
+  primary_llm:
+    name: "GPT-OSS-120B"
+    url: "https://clarifai.com/openai/chat-completion/models/gpt-oss-120b"
+    version: "1d3ee440e48c4e7a94af6acac7d7cdfc"
+    full_model_path: "https://clarifai.com/openai/chat-completion/models/gpt-oss-120b/versions/1d3ee440e48c4e7a94af6acac7d7cdfc"
+    temperature: 0.7
+    max_tokens: 4096
+    use_for:
+      - text_reasoning
+      - proposal_generation
+      - question_generation
+      - solution_architecture
+      - document_analysis
+
+  # Multimodal model for images, video, and audio
+  multimodal:
+    name: "MM-Poly-8B"
+    url: "https://clarifai.com/clarifai/main/models/mm-poly-8b"
+    version: "c9d0ddac75fa4ec8af25502c4384383a"
+    full_model_path: "https://clarifai.com/clarifai/main/models/mm-poly-8b/versions/c9d0ddac75fa4ec8af25502c4384383a"
+    temperature: 0.7
+    max_tokens: 2048
+    use_for:
+      - image_analysis
+      - video_analysis
+      - audio_analysis
+      - diagram_understanding
+      - mockup_review
+
+# Agent configuration
+agents:
+  proposal:
+    system_prompt_file: "prompts/proposal.md"
+    output_format: "markdown"
+    include_sections:
+      - executive_summary
+      - problem_statement
+      - proposed_solution
+      - technical_approach
+      - deliverables
+      - timeline
+      - pricing_considerations
+      - risks_and_mitigations
+      - success_metrics
+      - next_steps
+
+  discovery:
+    system_prompt_file: "prompts/discovery.md"
+    question_categories:
+      - business_requirements
+      - technical_requirements
+      - data_requirements
+      - integration_requirements
+      - timeline_and_budget
+      - success_criteria
+
+  solution:
+    system_prompt_file: "prompts/solution.md"
+    architecture_components:
+      - data_pipeline
+      - model_selection
+      - api_design
+      - infrastructure
+      - monitoring
+
+# Output configuration
+output:
+  format: "markdown"
+  include_metadata: true
+  timestamp_outputs: true
+  create_subfolders: true
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/prototyping.log"

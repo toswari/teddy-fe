@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Main web application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: clarifai-prototyping-web
+    ports:
+      - "8080:8080"
+    environment:
+      - CLARIFAI_API_KEY=${CLARIFAI_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - OUTPUT_DIR=/app/projects
+    volumes:
+      # Mount input documents
+      - ./inputs:/app/inputs:ro
+      # Mount output directory for generated proposals
+      - ./projects:/app/projects
+      # Mount config for customization
+      - ./config:/app/config
+      # Mount uploads directory
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # CLI-only service for interactive use
+  # cli:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     target: production
+  #   container_name: clarifai-prototyping-cli
+  #   environment:
+  #     - CLARIFAI_API_KEY=${CLARIFAI_API_KEY:-}
+  #     - LOG_LEVEL=${LOG_LEVEL:-INFO}
+  #     - OUTPUT_DIR=/app/projects
+  #   volumes:
+  #     - ./inputs:/app/inputs:ro
+  #     - ./projects:/app/projects
+  #     - ./config:/app/config
+  #   stdin_open: true
+  #   tty: true
+  #   entrypoint: ["python", "-m", "src.main"]
+  #   command: ["--interactive"]
+  #   profiles:
+  #     - cli
+
+  # Development service with live reload
+  # dev:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     target: production
+  #   container_name: clarifai-prototyping-dev
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - CLARIFAI_API_KEY=${CLARIFAI_API_KEY:-}
+  #     - LOG_LEVEL=DEBUG
+  #     - OUTPUT_DIR=/app/projects
+  #   volumes:
+  #     # Mount source code for live development
+  #     - ./src:/app/src
+  #     - ./config:/app/config
+  #     - ./inputs:/app/inputs
+  #     - ./projects:/app/projects
+  #     - ./uploads:/app/uploads
+  #   command: ["src.web.app:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+  #   profiles:
+  #     - dev
+
+volumes:
+  projects:
+    driver: local
+
+networks:
+  default:
+    name: clarifai-prototyping-network
