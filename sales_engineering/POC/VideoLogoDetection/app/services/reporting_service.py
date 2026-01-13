@@ -236,28 +236,58 @@ def _timestamp_ms(value) -> int:
     return int(round(max(0.0, numeric) * 1000))
 
 
-def _normalize_bbox_dict(bbox: dict | None) -> dict[str, float]:
+def _normalize_bbox_dict(
+    bbox: dict | None,
+    *,
+    width: int | float | None = None,
+    height: int | float | None = None,
+) -> dict[str, float]:
     if not isinstance(bbox, dict):
         return {"left": 0.0, "top": 0.0, "right": 0.0, "bottom": 0.0}
-    left = bbox.get("left")
-    top = bbox.get("top")
-    right = bbox.get("right")
-    bottom = bbox.get("bottom")
+
+    def _maybe_number(value):
+        numeric = _safe_float(value)
+        return numeric
+
+    left = _maybe_number(bbox.get("left"))
+    top = _maybe_number(bbox.get("top"))
+    right = _maybe_number(bbox.get("right"))
+    bottom = _maybe_number(bbox.get("bottom"))
     if None in (left, top, right, bottom):
-        x = bbox.get("x") or bbox.get("xmin")
-        y = bbox.get("y") or bbox.get("ymin")
-        width = bbox.get("width")
-        height = bbox.get("height")
-        if None not in (x, y, width, height) and _safe_float(width) and _safe_float(height):
+        x = _maybe_number(bbox.get("x") or bbox.get("xmin"))
+        y = _maybe_number(bbox.get("y") or bbox.get("ymin"))
+        box_w = _maybe_number(bbox.get("width"))
+        box_h = _maybe_number(bbox.get("height"))
+        if None not in (x, y, box_w, box_h):
             left = x
             top = y
-            right = _safe_float(x) + _safe_float(width)
-            bottom = _safe_float(y) + _safe_float(height)
+            right = x + box_w
+            bottom = y + box_h
+
+    frame_w = _safe_float(width) or None
+    frame_h = _safe_float(height) or None
+
+    def _normalize(value, scale):
+        if value is None:
+            return 0.0
+        numeric = float(value)
+        if scale and scale > 1 and abs(numeric) > 1.0:
+            numeric = numeric / scale
+        return max(0.0, min(1.0, numeric))
+
+    norm_left = _normalize(left, frame_w)
+    norm_top = _normalize(top, frame_h)
+    norm_right = _normalize(right, frame_w)
+    norm_bottom = _normalize(bottom, frame_h)
+
+    norm_right = max(norm_left, norm_right)
+    norm_bottom = max(norm_top, norm_bottom)
+
     return {
-        "left": _clamp_unit(left),
-        "top": _clamp_unit(top),
-        "right": _clamp_unit(right),
-        "bottom": _clamp_unit(bottom),
+        "left": norm_left,
+        "top": norm_top,
+        "right": norm_right,
+        "bottom": norm_bottom,
     }
 
 
@@ -324,7 +354,7 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def _detection_payload(detection, width: int, height: int) -> dict:
-    bbox_norm = _normalize_bbox_dict(detection.bbox or {})
+    bbox_norm = _normalize_bbox_dict(detection.bbox or {}, width=width, height=height)
     return {
         "label": detection.label or "",
         "confidence": _safe_float(detection.confidence) or 0.0,
@@ -361,6 +391,10 @@ def build_run_export(
         raise ReportExportError("Run has no detections to export")
 
     alias_map = _model_alias_map(inference_run.model_ids)
+    vlm_meta = (inference_run.results or {}).get("vlm_overlays") or {}
+    vlm_model_id = vlm_meta.get("model_id")
+    if vlm_model_id and vlm_model_id not in alias_map:
+        alias_map[vlm_model_id] = "B"
     grouped: dict[int, dict[str, list]] = defaultdict(lambda: defaultdict(list))
     for detection in detections:
         if detection.frame_index is None:
@@ -390,15 +424,21 @@ def build_run_export(
         if image_path is None or not image_path.is_file():
             raise ReportExportError(f"Frame image missing for frame {frame_index}")
 
+        base_image = cv2.imread(str(image_path))
+        if base_image is None:
+            raise ReportExportError(f"Unable to read frame image for {frame_index}")
+        frame_height, frame_width = base_image.shape[:2]
+
         overlay_name = f"frame_{_frame_token(frame_index)}_overlay.png"
         overlay_path = frames_dir / overlay_name
         overlay_detections = []
         for model_id, model_detections in grouped.get(frame_index, {}).items():
             alias = alias_map.get(model_id)
             for det in model_detections:
+                bbox_norm = _normalize_bbox_dict(det.bbox or {}, width=frame_width, height=frame_height)
                 overlay_detections.append(
                     {
-                        "bbox": det.bbox or {},
+                        "bbox": bbox_norm,
                         "label": det.label,
                         "confidence": _safe_float(det.confidence) or 0.0,
                         "model_id": alias or model_id or "unknown",
@@ -407,15 +447,10 @@ def build_run_export(
 
         overlay_return = draw_frame_overlay(image_path, overlay_detections, overlay_path, return_size=True)
         if isinstance(overlay_return, tuple):
-            _, (width, height) = overlay_return
-        else:
-            width = height = None
-        if width is None or height is None:
-            # Fallback to reading the image for dimensions
-            image = cv2.imread(str(image_path))
-            if image is None:
-                raise ReportExportError(f"Unable to read frame image for {frame_index}")
-            height, width = image.shape[:2]
+            _, (reported_width, reported_height) = overlay_return
+            if reported_width and reported_height:
+                frame_width, frame_height = reported_width, reported_height
+        width, height = frame_width, frame_height
 
         timestamp_seconds = metadata.get("timestamp_seconds")
         timestamp_ms = _timestamp_ms(timestamp_seconds)

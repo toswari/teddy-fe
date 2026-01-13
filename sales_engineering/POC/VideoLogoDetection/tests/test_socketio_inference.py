@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.extensions import db, socketio
-from app.models import Project, Video
+from app.models import Detection, Project, Video
 from app.services import inference_service
 
 
@@ -61,3 +61,93 @@ def test_inference_emits_socketio_events(app, tmp_path, monkeypatch):
         events = [e for e, _ in emitted]
         assert any(e == "inference:update" for e in events)
         assert run.status in ("completed", "failed")
+
+
+def test_local_vlm_models_bypass_clarifai(app, tmp_path, monkeypatch):
+    with app.app_context():
+        app.config["PROJECT_MEDIA_ROOT"] = str(tmp_path / "media")
+        _, video = _seed_project_video(tmp_path)
+
+        frames = [
+            inference_service.FrameSample(index=0, timestamp_seconds=0.0, payload=b"frame0"),
+            inference_service.FrameSample(index=1, timestamp_seconds=1.0, payload=b"frame1"),
+        ]
+        monkeypatch.setattr(
+            inference_service,
+            "sample_frames",
+            lambda v, fps, source_override=None: frames,
+        )
+
+        clarifai_calls: list[list[str]] = []
+
+        def fake_run_models(self, frames_arg, model_ids_arg, params_arg):
+            clarifai_calls.append(model_ids_arg)
+            return []
+
+        monkeypatch.setattr(
+            inference_service.ClarifaiClient,
+            "run_models",
+            fake_run_models,
+            raising=False,
+        )
+
+        vlm_calls: list[str] = []
+
+        def fake_run_vlm_for_run(run_id, model_id, limit, *, base_url, api_key, project_root=None):
+            vlm_calls.append(model_id)
+            inference_run = db.session.get(inference_service.InferenceRun, run_id)
+            frame_meta = (inference_run.results or {}).get("frames") or []
+            first = frame_meta[0] if frame_meta else {"index": 0, "timestamp_seconds": 0.0, "image_path": None}
+            detection = Detection(
+                inference_run_id=run_id,
+                frame_index=first.get("index"),
+                timestamp_seconds=first.get("timestamp_seconds"),
+                model_id=model_id,
+                label="local-vlm",
+                confidence=0.75,
+                bbox={"top": 0.1, "left": 0.1, "bottom": 0.3, "right": 0.3},
+                frame_image_path=first.get("image_path"),
+            )
+            db.session.add(detection)
+            existing = dict(inference_run.results or {})
+            overlay_path = f"/fake/{model_id}/{first.get('index', 0)}.png"
+            existing["vlm_overlays"] = {
+                "model_id": model_id,
+                "frames": {
+                    str(first.get("index", 0)): {"overlayPath": overlay_path},
+                },
+            }
+            inference_run.results = existing
+            db.session.commit()
+            return {
+                "processed": 1,
+                "modelId": model_id,
+                "frames": [
+                    {
+                        "frameIndex": first.get("index", 0),
+                        "overlayPath": overlay_path,
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(
+            inference_service,
+            "run_vlm_for_run",
+            fake_run_vlm_for_run,
+        )
+
+        request = inference_service.InferenceRequest(model_ids=["qwen/qwen2.5-vl-7b"])
+        run = inference_service.run_inference(video, request)
+
+        assert clarifai_calls == []
+        assert vlm_calls == ["qwen/qwen2.5-vl-7b"]
+        assert run.status == "completed"
+
+        overlays_meta = run.results.get("vlm_overlays") or {}
+        assert overlays_meta.get("model_id") == "qwen/qwen2.5-vl-7b"
+
+        vlm_detections = Detection.query.filter_by(
+            inference_run_id=run.id,
+            model_id="qwen/qwen2.5-vl-7b",
+        ).all()
+        assert len(vlm_detections) == 1

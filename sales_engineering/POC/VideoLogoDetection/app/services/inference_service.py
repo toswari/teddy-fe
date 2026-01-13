@@ -16,6 +16,7 @@ from app.models import Detection, InferenceRun, Video
 from .inference_models import InferenceRequest, InferenceParams
 from . import billing_service
 from flask import current_app
+from .vlm_service import PINNED_VLM_IDS, run_vlm_for_run, VLMServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +282,9 @@ class ClarifaiClient:
         results: list[dict] = []
         frame_list = list(frames)
         for model_id in model_ids:
+            if model_id in PINNED_VLM_IDS:
+                logger.debug("Skipping Clarifai client for LM Studio model %s", model_id)
+                continue
             if self.enabled:
                 results.extend(self._run_model_real(frame_list, model_id, params))
             else:
@@ -398,13 +402,35 @@ class ClarifaiClient:
                 logger.info("Frame indices in this batch: %s", [f.index for f in batch])
                 logger.info("Frame timestamps: %s", [f"{f.timestamp_seconds:.2f}s" for f in batch])
                 logger.info("Request body structure: %s", {"inputs": f"[{len(inputs)} items]"})
+                def _truncate_b64(value: str, max_chars: int = 30) -> str:
+                    try:
+                        return (value[:max_chars] + ('…' if len(value) > max_chars else ''))
+                    except Exception:
+                        return ''
+
                 if inputs:
                     logger.info("Sample input keys: %s", list(inputs[0].keys()))
                     logger.info("Sample input data keys: %s", list(inputs[0].get('data', {}).keys()))
-                    # Log the actual base64 size for first input
+                    # Log the actual base64 size for first input and a short preview (30 chars)
                     first_b64 = inputs[0].get('data', {}).get('image', {}).get('base64', '')
                     logger.info("First image base64 size: %d bytes", len(first_b64))
-                logger.info("Full request body (JSON): %s", body if len(str(body)) < 500 else f"{{inputs: [{len(inputs)} items with base64 images]}}")
+                    logger.info("First image base64 preview (30 chars): %s", _truncate_b64(first_b64))
+
+                # Sanitize body for logging: truncate any base64 values to 30 chars
+                try:
+                    sanitized_inputs = []
+                    for item in inputs:
+                        data = dict(item.get('data', {}))
+                        image = dict(data.get('image', {}))
+                        if 'base64' in image and isinstance(image['base64'], str):
+                            image['base64'] = _truncate_b64(image['base64'])
+                        data['image'] = image
+                        sanitized_inputs.append({'data': data})
+                    sanitized_body = {'inputs': sanitized_inputs}
+                except Exception:
+                    sanitized_body = {"inputs": f"[{len(inputs)} items with base64 images]"}
+
+                logger.info("Full request body (JSON, sanitized): %s", sanitized_body)
                 logger.info("=" * 80)
                 
                 attempt = 0
@@ -700,62 +726,122 @@ def run_inference(video: Video, request: InferenceRequest) -> InferenceRun:
         inference_run.id,
         video.id,
         request.model_ids,
-        clip_info["id"] if clip_info else "full-video",
+        clip_info["id"] if clip_info else None,
     )
-    running_payload = {
-        "id": inference_run.id,
-        "status": "running",
-        "message": f"Inference started for {len(request.model_ids)} model(s)",
-    }
-    if clip_info:
-        running_payload["message"] += f" on clip {clip_info['id']}"
-    _emit_status("inference:update", running_payload)
 
-    client = ClarifaiClient()
     run_started_at = time.time()
+    client = ClarifaiClient()
+
     try:
-        # Sample frames
-        _emit_status("inference:update", {"id": inference_run.id, "status": "sampling", "message": "Sampling frames"})
-        frames = sample_frames(
-            video,
-            request.params.fps,
-            source_override=source_override,
+        frames = sample_frames(video, request.params.fps, source_override=source_override)
+        _emit_status(
+            "inference:update",
+            {
+                "id": inference_run.id,
+                "status": "sampled",
+                "message": f"Sampled {len(frames)} frames",
+            },
         )
-        _emit_status("inference:update", {"id": inference_run.id, "status": "sampled", "message": f"Sampled {len(frames)} frames"})
 
-        # Persist frame images
-        _emit_status("inference:update", {"id": inference_run.id, "status": "storing_frames", "message": "Storing frame images"})
+        _emit_status(
+            "inference:update",
+            {
+                "id": inference_run.id,
+                "status": "storing_frames",
+                "message": "Storing frame images",
+            },
+        )
         frame_records = _store_frame_images(video, inference_run, frames)
-        _emit_status("inference:update", {"id": inference_run.id, "status": "frames_stored", "message": f"Stored {len(frame_records)} frame images"})
+        _emit_status(
+            "inference:update",
+            {
+                "id": inference_run.id,
+                "status": "frames_stored",
+                "message": f"Stored {len(frame_records)} frame images",
+            },
+        )
 
-        # Run models and emit partial results per batch
+        interim_results = dict(inference_run.results or {})
+        interim_results["frames"] = frame_records
+        inference_run.results = interim_results
+        db.session.flush()
+
         detections: list[dict] = []
         model_list = request.model_ids or []
-        total_batches = max(1, (len(frames) + request.params.batch_size - 1) // request.params.batch_size)
-        batch_counter = 0
-        for model_id in model_list:
-            for batch in _batched_frames(frames, request.params.batch_size):
-                batch_counter += 1
-                batch_detections = client.run_models(batch, [model_id], request.params)
-                detections.extend(batch_detections)
-                # Emit partial detection update
-                _emit_status(
-                    "inference:update",
-                    {
-                        "id": inference_run.id,
-                        "status": "processing",
-                        "message": f"Processed batch {batch_counter} for model {model_id}",
-                    },
-                )
+        clarifai_models = [model for model in model_list if model not in PINNED_VLM_IDS]
+        vlm_models = [model for model in model_list if model in PINNED_VLM_IDS]
 
-        # Persist and finalize
+        if clarifai_models:
+            total_batches = max(1, (len(frames) + request.params.batch_size - 1) // request.params.batch_size)
+            batch_counter = 0
+            for model_id in clarifai_models:
+                for batch in _batched_frames(frames, request.params.batch_size):
+                    batch_counter += 1
+                    batch_detections = client.run_models(batch, [model_id], request.params)
+                    detections.extend(batch_detections)
+                    _emit_status(
+                        "inference:update",
+                        {
+                            "id": inference_run.id,
+                            "status": "processing",
+                            "message": f"Processed batch {batch_counter}/{total_batches} for model {model_id}",
+                        },
+                    )
+
         _persist_detections(inference_run, detections, frame_records)
+        db.session.flush()
+
+        vlm_overlays_meta: dict | None = None
+        if vlm_models:
+            base_url = current_app.config.get("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+            api_key = current_app.config.get("LMSTUDIO_API_KEY")
+            for model_id in vlm_models:
+                try:
+                    run_vlm_for_run(
+                        inference_run.id,
+                        model_id,
+                        None,
+                        base_url=base_url,
+                        api_key=api_key,
+                    )
+                except VLMServiceError as exc:
+                    logger.error("LM Studio VLM run failed for model %s: %s", model_id, exc)
+                    raise InferenceServiceError(str(exc)) from exc
+
+            db.session.refresh(inference_run)
+            vlm_overlays_meta = (inference_run.results or {}).get("vlm_overlays")
+
+            vlm_rows = (
+                Detection.query.filter(
+                    Detection.inference_run_id == inference_run.id,
+                    Detection.model_id.in_(vlm_models),
+                ).all()
+            )
+            for det in vlm_rows:
+                detections.append(
+                    {
+                        "frame_index": det.frame_index,
+                        "timestamp_seconds": float(det.timestamp_seconds) if det.timestamp_seconds is not None else None,
+                        "model_id": det.model_id,
+                        "label": det.label,
+                        "confidence": float(det.confidence) if det.confidence is not None else None,
+                        "bbox": det.bbox,
+                    }
+                )
+        else:
+            vlm_overlays_meta = (inference_run.results or {}).get("vlm_overlays")
+
+        ordered_model_ids = clarifai_models + [m for m in vlm_models if m not in clarifai_models]
+        if ordered_model_ids:
+            inference_run.model_ids = ordered_model_ids
+
         _finalize_inference_run(
             inference_run,
             detections,
             frames,
             frame_records,
             clip_info,
+            vlm_overlays=vlm_overlays_meta,
             processing_time_seconds=time.time() - run_started_at,
         )
     except Exception as exc:
@@ -870,6 +956,7 @@ def _finalize_inference_run(
     frame_records: list[dict],
     clip: dict | None = None,
     *,
+    vlm_overlays: dict | None = None,
     processing_time_seconds: float | None = None,
 ) -> None:
     model_summary: dict[str, dict] = {}
@@ -887,17 +974,20 @@ def _finalize_inference_run(
         if count:
             summary["avg_confidence"] = round(summary["avg_confidence"] / count, 4)
 
-    inference_run.results = {
+    results_payload = {
         "frames_sampled": len(frames),
         "detections": detections,
         "models": model_summary,
         "frames": frame_records,
         "scope": "clip" if clip else "video",
     }
+    if vlm_overlays:
+        results_payload["vlm_overlays"] = vlm_overlays
     if clip:
-        inference_run.results["clip"] = clip
+        results_payload["clip"] = clip
     if processing_time_seconds is not None:
-        inference_run.results["processing_time_seconds"] = round(processing_time_seconds, 2)
+        results_payload["processing_time_seconds"] = round(processing_time_seconds, 2)
+    inference_run.results = results_payload
     inference_run.status = "completed"
     billing_service.apply_run_cost(inference_run, len(frames))
     db.session.commit()

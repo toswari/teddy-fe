@@ -1,6 +1,8 @@
 """Videos API blueprint."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from flask import Blueprint, jsonify, request, send_file, url_for, current_app
 from marshmallow import Schema, ValidationError, fields, validate
 from sqlalchemy.orm import selectinload
@@ -9,6 +11,7 @@ from app.api.schemas import DetectionSchema, InferenceRunSchema, VideoSchema
 from app.extensions import db, socketio
 from app.models import InferenceRun, Project, Video
 from app.services import reporting_service
+from app.services.reporting_service import ReportExportError
 from app.services.metrics_service import summarize_run_models
 from app.services.inference_models import InferenceRequest
 
@@ -48,6 +51,13 @@ video_schema = VideoSchema()
 videos_schema = VideoSchema(many=True)
 detections_schema = DetectionSchema(many=True)
 inference_run_schema = InferenceRunSchema()
+
+
+def _reports_root() -> Path:
+    base = current_app.config.get("REPORTS_ROOT")
+    if base:
+        return Path(base)
+    return Path(current_app.root_path).parent / "reports"
 
 
 @bp.get("")
@@ -307,6 +317,35 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
         ),
     )
 
+    overlays_root = _reports_root() / f"run_{run_id}" / "frames"
+    overlay_meta = (inference_run.results or {}).get("vlm_overlays") or {}
+    overlay_model_id = overlay_meta.get("model_id")
+    overlay_frames_meta = overlay_meta.get("frames") or {}
+    overlay_frames_payload: dict[str, dict[str, str]] = {}
+
+    for entry in ordered_frames:
+        frame_index = entry.get("frame_index")
+        if frame_index is None or frame_index < 0:
+            continue
+        overlay_file = overlays_root / f"frame_{int(frame_index):06}_overlay.png"
+        if not overlay_file.is_file():
+            continue
+        overlay_url = url_for(
+            "videos.get_vlm_overlay",
+            project_id=project_id,
+            video_id=video_id,
+            run_id=run_id,
+            frame_index=int(frame_index),
+        )
+        entry["vlm_overlay_url"] = overlay_url
+        frame_key = str(frame_index)
+        frame_meta = overlay_frames_meta.get(frame_key, {}) if isinstance(overlay_frames_meta, dict) else {}
+        payload_entry = {"url": overlay_url}
+        json_path = frame_meta.get("json_path") if isinstance(frame_meta, dict) else None
+        if json_path:
+            payload_entry["json_path"] = str(json_path)
+        overlay_frames_payload[frame_key] = payload_entry
+
     payload = {
         "run_id": inference_run.id,
         "video_id": inference_run.video_id,
@@ -321,6 +360,10 @@ def list_run_detections(project_id: int, video_id: int, run_id: int):
             for model_id in ordered_model_ids
         },
         "clip": (inference_run.results or {}).get("clip"),
+    }
+    payload["vlm_overlays"] = {
+        "model_id": overlay_model_id,
+        "frames": overlay_frames_payload,
     }
     current_app.logger.debug(
         "Prepared run payload (run_id=%s, models=%s, frames=%s)",
@@ -351,6 +394,59 @@ def get_run_frame(project_id: int, video_id: int, run_id: int, frame_index: int)
         return {"error": "Frame not found"}, 404
 
     return send_file(frame_path, mimetype="image/jpeg")
+
+
+@bp.get("/<int:video_id>/runs/<int:run_id>/vlm/overlays/<int:frame_index>")
+def get_vlm_overlay(project_id: int, video_id: int, run_id: int, frame_index: int):
+    if frame_index < 0:
+        return {"error": "Frame index must be non-negative"}, 400
+
+    video = db.session.get(Video, video_id)
+    if video is None:
+        return {"error": "Video not in project"}, 404
+    if video.project_id != project_id:
+        return {"error": "Video not in project"}, 404
+
+    InferenceRun.query.filter_by(id=run_id, video_id=video_id, project_id=project_id).first_or_404()
+
+    overlay_path = _reports_root() / f"run_{run_id}" / "frames" / f"frame_{frame_index:06}_overlay.png"
+    if not overlay_path.is_file():
+        return {"error": "Overlay not found"}, 404
+
+    return send_file(overlay_path, mimetype="image/png")
+
+
+@bp.get("/<int:video_id>/runs/<int:run_id>/export")
+def export_run_archive(project_id: int, video_id: int, run_id: int):
+    regenerate = request.args.get("regenerate", "false").lower() == "true"
+
+    run = (
+        InferenceRun.query.filter_by(id=run_id, video_id=video_id, project_id=project_id)
+        .options(selectinload(InferenceRun.detections))
+        .first()
+    )
+    if run is None:
+        return {"error": "Inference run not found for video"}, 404
+    if run.status != "completed":
+        return {"error": "Inference run is not completed yet."}, 409
+
+    try:
+        archive_path = reporting_service.build_run_export(run, regenerate=regenerate)
+    except ReportExportError as exc:
+        return {"error": str(exc)}, 400
+    except Exception as exc:  # noqa: BLE001
+        current_app.logger.exception("Run export build failed (run_id=%s)", run_id, exc_info=exc)
+        return {"error": "Failed to build run export."}, 500
+
+    if not archive_path.is_file():
+        return {"error": "Run export not found."}, 404
+
+    return send_file(
+        str(archive_path),
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"run_{run_id}.zip",
+    )
 
 
 @bp.post("/<int:video_id>/report")
