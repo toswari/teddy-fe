@@ -37,4 +37,3 @@ def test_inference_request_trims_clip_id(monkeypatch):
     request = InferenceRequest(clip_id="  clip-123  ")
 
     assert request.clip_id == "clip-123"
-```} no newline? adds? ensure newline at end. need to ensure closing newline. We'll add newline by editing content to include newline at end. Let's reapply create_file? can't; file already exists; need apply_patch to add newline ends? but there is newline? file currently ends with newline? I included newline by closing triple quoting plus newline? check: we ended with `assert request.clip_id == 

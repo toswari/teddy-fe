@@ -27,6 +27,8 @@ class BaseConfig:
     AUTO_CREATE_SCHEMA: bool = os.getenv("AUTO_CREATE_SCHEMA", "true").lower() == "true"
     PROJECT_MEDIA_ROOT: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")
+    LMSTUDIO_BASE_URL: str = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+    LMSTUDIO_API_KEY: str = os.getenv("LMSTUDIO_API_KEY", "lm-studio")
 
 
 class DevelopmentConfig(BaseConfig):

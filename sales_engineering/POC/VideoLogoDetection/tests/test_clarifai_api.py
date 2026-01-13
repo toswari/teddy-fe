@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+
 def test_clarifai_models_requires_pat(client, monkeypatch):
     monkeypatch.delenv("CLARIFAI_PAT", raising=False)
 
@@ -42,8 +43,11 @@ def test_clarifai_models_success(client, monkeypatch):
             return self._payload
 
     def fake_get(url, headers=None, params=None, timeout=None):
-        assert url.endswith("/v2/users/demo/apps/sandbox/models")
+        assert url.endswith("/v2/models")
         assert headers["Authorization"].startswith("Key ")
+        assert "X-Clarifai-User-Id" not in headers
+        assert "X-Clarifai-App-Id" not in headers
+        assert params == {"per_page": 10}
         return DummyResponse(models_payload)
 
     monkeypatch.setattr("app.services.clarifai_catalog.requests.get", fake_get)

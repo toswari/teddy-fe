@@ -14,6 +14,7 @@ marshmallow==3.20.1
 moviepy==2.1.2
 numpy==1.26.4
 opencv-python-headless==4.8.1.78
+openai>=1.60.0
 passlib==1.7.4
 Pillow==10.4.0
 psycopg2-binary==2.9.9

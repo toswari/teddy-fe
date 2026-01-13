@@ -9,11 +9,26 @@ const HARDCODED_MODELS = [
   { id: 'food-item-recognition', name: 'Food Recognition' },
   { id: 'apparel-detection', name: 'Apparel Detection' },
   { id: 'face-detection', name: 'Face Detection' },
-  {
-    id: 'https://clarifai.com/qwen/qwen-VL/models/Qwen2_5-VL-7B-Instruct/versions/0e5aefc37669445aa50f98786339f340/deployments/toswari-ai/deploy-qwen2_5-vl-7b-instruct-do8b',
-    name: 'Qwen Logo Detection (Clarifai OpenAI)',
-  },
+  { id: 'qwen/qwen2.5-vl-7b', name: 'Qwen2.5-VL 7B (LM Studio)' },
+  { id: 'zai-org/glm-4.6v-flash', name: 'GLM 4.6v Flash (LM Studio)' },
 ];
+
+const HARDCODED_MODEL_MAP = new Map(HARDCODED_MODELS.map((model) => [model.id, model.name]));
+
+const PINNED_VLM_MODELS = [
+  { id: 'qwen/qwen2.5-vl-7b', name: 'Qwen2.5-VL 7B', pinned: true },
+  { id: 'zai-org/glm-4.6v-flash', name: 'GLM 4.6v Flash', pinned: true },
+];
+
+const PINNED_VLM_IDS = new Set(PINNED_VLM_MODELS.map((model) => model.id));
+
+PINNED_VLM_MODELS.forEach((model) => {
+  if (!HARDCODED_MODEL_MAP.has(model.id)) {
+    HARDCODED_MODEL_MAP.set(model.id, model.name);
+  }
+});
+
+const DEFAULT_VLM_LIMIT = 3;
 
 const ZOOM_DEFAULT = 1;
 const ZOOM_MIN = 1;
@@ -27,6 +42,7 @@ const state = {
   metrics: null,
   palettes: new Map(),
   clarifaiModels: [],
+  vlmModels: [],
   comparison: {
     clipId: null,
     videoId: null,
@@ -38,6 +54,8 @@ const state = {
     frames: [],
     models: [],
     frameImages: new Map(),
+    overlayImages: new Map(),
+    overlayModelId: null,
     detectionsByModel: new Map(),
     zoom: {
       scale: ZOOM_DEFAULT,
@@ -46,6 +64,60 @@ const state = {
     },
   },
 };
+
+function isVlmModel(modelId) {
+  if (!modelId) {
+    return false;
+  }
+  if (PINNED_VLM_IDS.has(modelId)) {
+    return true;
+  }
+  return state.vlmModels.some((model) => model.id === modelId);
+}
+
+function getModelDisplayName(modelId) {
+  if (!modelId) {
+    return '';
+  }
+  if (HARDCODED_MODEL_MAP.has(modelId)) {
+    return HARDCODED_MODEL_MAP.get(modelId) || modelId;
+  }
+  const clarifaiMatch = state.clarifaiModels.find((model) => model.id === modelId);
+  if (clarifaiMatch?.name) {
+    return clarifaiMatch.name;
+  }
+  const vlmMatch = state.vlmModels.find((model) => model.id === modelId);
+  if (vlmMatch?.name) {
+    return vlmMatch.name;
+  }
+  return modelId;
+}
+
+function buildModelOptions(runModels) {
+  const seen = new Set();
+  const options = [];
+
+  HARDCODED_MODELS.forEach((model) => {
+    if (model.id && !seen.has(model.id)) {
+      options.push(model);
+      seen.add(model.id);
+    }
+  });
+
+  (runModels || []).forEach((modelId) => {
+    if (!modelId || seen.has(modelId)) {
+      return;
+    }
+    const displayName = getModelDisplayName(modelId) || modelId;
+    if (!HARDCODED_MODEL_MAP.has(modelId)) {
+      HARDCODED_MODEL_MAP.set(modelId, displayName);
+    }
+    options.push({ id: modelId, name: displayName });
+    seen.add(modelId);
+  });
+
+  return options;
+}
 
 const elements = {
   activeProject: document.getElementById('active-project'),
@@ -59,6 +131,7 @@ const elements = {
   comparisonRun: document.getElementById('comparison-run'),
   comparisonModelA: document.getElementById('comparison-model-a'),
   comparisonModelB: document.getElementById('comparison-model-b'),
+  comparisonModelVlm: document.getElementById('comparison-model-vlm'),
   runComparisonBtn: document.getElementById('run-comparison-btn'),
   frameSlider: document.getElementById('frame-slider'),
   frameLabel: document.getElementById('frame-label'),
@@ -72,6 +145,11 @@ const elements = {
   zoomResetBtn: document.getElementById('zoom-reset-btn'),
   modelToggleButtons: document.querySelectorAll('button[data-toggle="model"]'),
   exportRunBtn: document.getElementById('export-run-btn'),
+  vlmPanel: document.getElementById('vlm-panel'),
+  vlmModelSelect: document.getElementById('vlm-model-select'),
+  vlmLimit: document.getElementById('vlm-limit'),
+  vlmRunBtn: document.getElementById('vlm-run-btn'),
+  vlmStatus: document.getElementById('vlm-status'),
 };
 
 syncExportRunButton();
@@ -237,6 +315,155 @@ function parseModelSelectionInput(input, models) {
     }
   });
   return ids;
+}
+
+function normalizeVlmModel(model) {
+  if (!model) {
+    return null;
+  }
+  if (typeof model === 'string') {
+    return { id: model, name: model };
+  }
+  if (typeof model === 'object') {
+    const id = model.id || model.model_id || model.name;
+    if (!id) {
+      return null;
+    }
+    return {
+      id,
+      name: model.name || id,
+      description: model.description || null,
+      pinned: Boolean(model.pinned),
+    };
+  }
+  return null;
+}
+
+function mergePinnedVlmModels(remoteModels) {
+  const normalizedRemote = (remoteModels || [])
+    .map((item) => ({ ...normalizeVlmModel(item), pinned: false }))
+    .filter(Boolean);
+
+  const pinnedIds = new Set(PINNED_VLM_MODELS.map((model) => model.id));
+
+  const pinned = PINNED_VLM_MODELS.map((model) => {
+    const normalized = normalizeVlmModel(model);
+    const remote = normalizedRemote.find((item) => item.id === normalized.id);
+    return {
+      ...normalized,
+      description: remote?.description || normalized.description || null,
+      pinned: true,
+    };
+  });
+
+  const remaining = normalizedRemote
+    .filter((item) => !pinnedIds.has(item.id))
+    .sort((a, b) => {
+      const left = a.name || a.id;
+      const right = b.name || b.id;
+      return left.localeCompare(right);
+    });
+
+  return [...pinned, ...remaining];
+}
+
+function populateVlmSelect(models) {
+  if (!elements.vlmModelSelect) {
+    return;
+  }
+  setSelectOptions(elements.vlmModelSelect, models, elements.vlmModelSelect.value, {
+    labelFn: (item) => (item && item.name) || item.id || '',
+  });
+}
+
+async function refreshVlmModels() {
+  if (!elements.vlmModelSelect) {
+    return;
+  }
+
+  const hardcodedModels = PINNED_VLM_MODELS.map((model) => ({ ...model }));
+  state.vlmModels = hardcodedModels;
+  populateVlmSelect(state.vlmModels);
+
+  if (!elements.vlmModelSelect.value && state.vlmModels.length) {
+    elements.vlmModelSelect.value = state.vlmModels[0].id;
+  }
+
+  if (elements.vlmStatus) {
+    const count = state.vlmModels.length;
+    elements.vlmStatus.textContent = `Using local LM Studio defaults (${count} model${count === 1 ? '' : 's'}).`;
+  }
+}
+
+async function setupVlmSection() {
+  if (!elements.vlmPanel) {
+    return;
+  }
+
+  if (elements.vlmLimit && !elements.vlmLimit.value) {
+    elements.vlmLimit.value = DEFAULT_VLM_LIMIT;
+  }
+
+  await refreshVlmModels();
+
+  if (elements.vlmRunBtn) {
+    elements.vlmRunBtn.addEventListener('click', async () => {
+      const runId = Number(state.comparison.runId || elements.comparisonRun?.value);
+      if (!Number.isFinite(runId) || runId <= 0) {
+        alert('Select an inference run before running the VLM.');
+        return;
+      }
+
+      const modelId = elements.vlmModelSelect?.value;
+      if (!modelId) {
+        alert('Select a VLM model from the list.');
+        return;
+      }
+
+      const limitValue = elements.vlmLimit?.value ? Number(elements.vlmLimit.value) : DEFAULT_VLM_LIMIT;
+      if (!Number.isFinite(limitValue) || limitValue <= 0) {
+        alert('Frames value must be a positive integer.');
+        return;
+      }
+
+      elements.vlmRunBtn.disabled = true;
+      if (elements.vlmStatus) {
+        elements.vlmStatus.textContent = `Running ${modelId} on run #${runId}...`;
+      }
+
+      try {
+        const response = await fetch('/api/vlm/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ runId, modelId, limit: Math.round(limitValue) }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || 'VLM run failed');
+        }
+
+        if (elements.vlmStatus) {
+          const processed = payload?.processed ?? 0;
+          elements.vlmStatus.textContent = `Processed ${processed} frame${processed === 1 ? '' : 's'} with ${modelId}.`;
+        }
+
+        state.comparison.overlayModelId = modelId;
+        await refreshRunPayload({ preserveModels: false });
+        state.comparison.activeToggle = 'VLM';
+        updateModelToggleAvailability();
+        renderOverlay();
+      } catch (error) {
+        console.error('VLM run failed', error);
+        if (elements.vlmStatus) {
+          elements.vlmStatus.textContent = String(error?.message || error || 'Failed to run VLM');
+        }
+        alert('Failed to run VLM: ' + (error?.message || error));
+      } finally {
+        elements.vlmRunBtn.disabled = false;
+      }
+    });
+  }
 }
 
 async function fetchJSON(url, options = {}) {
@@ -962,6 +1189,8 @@ function populateRunSelect(runs, { preserveSelection = false } = {}) {
 async function handleRunSelection(runId, { preserveModels = false, preserveZoom = false } = {}) {
   if (!runId) {
     state.comparison.runId = null;
+    state.comparison.overlayImages = new Map();
+    state.comparison.overlayModelId = null;
     syncExportRunButton();
     populateModelSelects([]);
     resetComparisonDisplay('Select an inference run');
@@ -1000,11 +1229,20 @@ async function handleRunSelection(runId, { preserveModels = false, preserveZoom 
   }
 
   state.comparison.frameImages = new Map();
+  state.comparison.overlayImages = new Map();
   frames.forEach((frame) => {
-    if (typeof frame.frame_index === 'number' && frame.frame_index >= 0 && frame.image_url) {
-      state.comparison.frameImages.set(frame.frame_index, frame.image_url);
+    if (typeof frame.frame_index === 'number' && frame.frame_index >= 0) {
+      if (frame.image_url) {
+        state.comparison.frameImages.set(frame.frame_index, frame.image_url);
+      }
+      if (frame.vlm_overlay_url) {
+        state.comparison.overlayImages.set(frame.frame_index, frame.vlm_overlay_url);
+      }
     }
   });
+
+  const overlayModelId = payload.vlm_overlays?.model_id || null;
+  state.comparison.overlayModelId = overlayModelId && availableModels.includes(overlayModelId) ? overlayModelId : null;
 
   state.comparison.detectionsByModel = new Map();
   Object.entries(payload.detections_by_model || {}).forEach(([modelId, detections]) => {
@@ -1198,6 +1436,8 @@ function updateModelSelections(models, { preserveModels = false } = {}) {
     return HARDCODED_MODELS[index]?.id || HARDCODED_MODELS[0]?.id || null;
   };
 
+  const overlayModelId = state.comparison.overlayModelId;
+
   if (!state.comparison.modelA) {
     state.comparison.modelA = fallbackModel(0);
   } else if (!preserveModels && !models.includes(state.comparison.modelA)) {
@@ -1205,9 +1445,11 @@ function updateModelSelections(models, { preserveModels = false } = {}) {
   }
 
   if (!state.comparison.modelB) {
-    state.comparison.modelB = fallbackModel(1);
+    const preferred = overlayModelId && models.includes(overlayModelId) ? overlayModelId : fallbackModel(1);
+    state.comparison.modelB = preferred || state.comparison.modelA;
   } else if (!preserveModels && !models.includes(state.comparison.modelB)) {
-    state.comparison.modelB = fallbackModel(1) || state.comparison.modelA;
+    const preferred = overlayModelId && models.includes(overlayModelId) ? overlayModelId : fallbackModel(1);
+    state.comparison.modelB = preferred || state.comparison.modelA;
   }
 
   if (state.comparison.activeToggle === 'A' && !state.comparison.modelA) {
@@ -1216,20 +1458,34 @@ function updateModelSelections(models, { preserveModels = false } = {}) {
     state.comparison.activeToggle = 'A';
   }
 
+  if (state.comparison.activeToggle === 'VLM') {
+    const hasOverlay = state.comparison.overlayImages.size > 0 && overlayModelId;
+    if (!hasOverlay) {
+      state.comparison.activeToggle = state.comparison.modelB ? 'B' : 'A';
+    }
+  }
+
   state.comparison.frameIndex = 0;
   populateModelSelects(models);
 }
 
 function populateModelSelects(models) {
-  console.debug('[populateModelSelects] Called with models:', models);
-  console.debug('[populateModelSelects] Using hardcoded models:', HARDCODED_MODELS);
-  
-  // Always use hardcoded models for dropdown options
-  setSelectOptions(elements.comparisonModelA, HARDCODED_MODELS, state.comparison.modelA, {
-    labelFn: (item) => item.name || item.id,
+  const options = buildModelOptions(models);
+  setSelectOptions(elements.comparisonModelA, options, state.comparison.modelA, {
+    labelFn: (item) => {
+      if (item && typeof item === 'object') {
+        return item.name || getModelDisplayName(item.id) || item.id || '';
+      }
+      return getModelDisplayName(item) || String(item ?? '');
+    },
   });
-  setSelectOptions(elements.comparisonModelB, HARDCODED_MODELS, state.comparison.modelB, {
-    labelFn: (item) => item.name || item.id,
+  setSelectOptions(elements.comparisonModelB, options, state.comparison.modelB, {
+    labelFn: (item) => {
+      if (item && typeof item === 'object') {
+        return item.name || getModelDisplayName(item.id) || item.id || '';
+      }
+      return getModelDisplayName(item) || String(item ?? '');
+    },
   });
   updateModelToggleAvailability();
 }
@@ -1318,20 +1574,43 @@ function updateModelToggleAvailability() {
   if (!elements.modelToggleButtons) return;
   elements.modelToggleButtons.forEach((button) => {
     const slot = button.dataset.model;
-    const modelId = slot === 'A' ? state.comparison.modelA : state.comparison.modelB;
+    let modelId = null;
+    if (slot === 'A') {
+      modelId = state.comparison.modelA;
+    } else if (slot === 'B') {
+      modelId = state.comparison.modelB;
+    } else if (slot === 'VLM') {
+      modelId = state.comparison.overlayModelId || state.comparison.modelB;
+    }
     const baseLabel = button.dataset.label || button.textContent || slot;
     let suffix = '';
+    const detections = modelId ? state.comparison.detectionsByModel.get(modelId) || [] : [];
     if (modelId) {
-      const detections = state.comparison.detectionsByModel.get(modelId) || [];
       const countText = detections.length ? ` (${detections.length})` : ' (0)';
-      suffix = ` · ${modelId}${countText}`;
+      suffix = ` · ${getModelDisplayName(modelId)}${countText}`;
     }
     button.textContent = `${baseLabel}${suffix}`;
+
+    if (slot === 'VLM') {
+      const hasOverlay = state.comparison.overlayImages.size > 0 && Boolean(modelId);
+      button.disabled = !hasOverlay;
+      button.setAttribute('aria-disabled', String(!hasOverlay));
+      button.classList.toggle('active', state.comparison.activeToggle === slot && hasOverlay);
+      if (!hasOverlay) {
+        button.title = 'Run a VLM pass to enable overlays';
+      } else {
+        button.title = `Show overlays for ${getModelDisplayName(modelId)}`;
+      }
+      return;
+    }
+
     if (!modelId) {
       button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
       button.classList.remove('active');
     } else {
       button.disabled = false;
+      button.setAttribute('aria-disabled', 'false');
       button.classList.toggle('active', state.comparison.activeToggle === slot);
     }
   });
@@ -1360,11 +1639,30 @@ function renderOverlay() {
   }
 
   const models = frame.models || {};
-  const primaryModel = state.comparison.activeToggle === 'A' ? state.comparison.modelA : state.comparison.modelB;
+  const activeToggle = state.comparison.activeToggle;
+  let primaryModel = null;
+  if (activeToggle === 'A') {
+    primaryModel = state.comparison.modelA;
+  } else if (activeToggle === 'B') {
+    primaryModel = state.comparison.modelB;
+  } else if (activeToggle === 'VLM') {
+    primaryModel = state.comparison.overlayModelId || state.comparison.modelB;
+  }
+
   const overlayDetections = primaryModel ? models[primaryModel] || [] : [];
 
-  renderDetectionList(frame, models);
-  drawOverlay(frame, overlayDetections);
+  renderDetectionList(frame, models, primaryModel, activeToggle);
+
+  if (activeToggle === 'VLM') {
+    const overlayUrl = typeof frame.frame_index === 'number' ? state.comparison.overlayImages.get(frame.frame_index) : null;
+    if (overlayUrl) {
+      renderOverlayImage(overlayUrl);
+    } else {
+      drawOverlay(frame, overlayDetections);
+    }
+  } else {
+    drawOverlay(frame, overlayDetections);
+  }
 
   elements.frameSlider.max = String(Math.max(0, frames.length - 1));
   elements.frameSlider.value = String(clampedIndex);
@@ -1376,7 +1674,7 @@ function renderOverlay() {
   }
 }
 
-function renderDetectionList(frame, models) {
+function renderDetectionList(frame, models, activeModelId = null, activeToggle = 'A') {
   if (!elements.detectionList) return;
   clearContainer(elements.detectionList);
 
@@ -1386,8 +1684,11 @@ function renderDetectionList(frame, models) {
   const timestamp = formatTimestamp(frame?.timestamp_seconds);
   frameInfo.textContent = `Frame ${frameLabel} · ${timestamp} · ${Object.keys(models).length} models`;
   elements.detectionList.appendChild(frameInfo);
-
-  const entries = Object.entries(models);
+  const entries = Object.entries(models).sort((a, b) => {
+    if (a[0] === activeModelId && b[0] !== activeModelId) return -1;
+    if (b[0] === activeModelId && a[0] !== activeModelId) return 1;
+    return a[0].localeCompare(b[0]);
+  });
   if (!entries.length) {
     const empty = document.createElement('div');
     empty.className = 'text-sm text-slate-500 italic';
@@ -1399,10 +1700,14 @@ function renderDetectionList(frame, models) {
   entries.forEach(([modelId, detections]) => {
     const container = document.createElement('div');
     container.className = 'mb-3';
+    container.classList.toggle('ring-1', modelId === activeModelId);
+    container.classList.toggle('ring-blue-200', modelId === activeModelId && activeToggle === 'VLM');
+    container.classList.toggle('rounded', modelId === activeModelId);
 
     const title = document.createElement('div');
     title.className = 'text-sm font-medium text-slate-700 flex items-center justify-between';
-    title.textContent = `${modelId} (${detections.length})`;
+    const modelName = getModelDisplayName(modelId);
+    title.textContent = `${modelName} (${detections.length})`;
     container.appendChild(title);
 
     const list = document.createElement('ul');
@@ -1609,6 +1914,26 @@ function resetZoom() {
   updateZoomButtonsState();
 }
 
+function renderOverlayImage(url) {
+  if (!elements.overlayLayer) {
+    return;
+  }
+  clearContainer(elements.overlayLayer);
+  if (!url) {
+    const fallback = document.createElement('div');
+    fallback.className = 'absolute inset-0 flex items-center justify-center text-xs text-slate-400';
+    fallback.textContent = 'Run the VLM to generate overlays for this frame';
+    elements.overlayLayer.appendChild(fallback);
+    return;
+  }
+  const image = document.createElement('img');
+  image.src = url;
+  image.alt = 'Vision-Language Model overlay';
+  image.className = 'pointer-events-none absolute inset-0 h-full w-full object-contain';
+  image.style.opacity = '0.92';
+  elements.overlayLayer.appendChild(image);
+}
+
 function drawOverlay(frame, detections) {
   if (!elements.overlayLayer) {
     console.warn('[drawOverlay] overlayLayer element not found');
@@ -1758,7 +2083,17 @@ function setupComparisonControls() {
         event.preventDefault();
         const slot = button.dataset.model;
         if (!slot) return;
-        const targetModel = slot === 'A' ? state.comparison.modelA : state.comparison.modelB;
+        let targetModel = null;
+        if (slot === 'A') {
+          targetModel = state.comparison.modelA;
+        } else if (slot === 'B') {
+          targetModel = state.comparison.modelB;
+        } else if (slot === 'VLM') {
+          targetModel = state.comparison.overlayModelId || state.comparison.modelB;
+          if (!state.comparison.overlayImages.size) {
+            return;
+          }
+        }
         if (!targetModel) return;
         state.comparison.activeToggle = slot;
         updateModelToggleAvailability();
@@ -1903,6 +2238,7 @@ async function initDashboard() {
   try {
     setupTabs();
     setupComparisonControls();
+    await setupVlmSection();
     // Load Clarifai models before populating dropdowns
     try {
       await loadClarifaiModels();
