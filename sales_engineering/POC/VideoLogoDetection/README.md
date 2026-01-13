@@ -47,6 +47,7 @@ For this POC, only PostgreSQL runs in a container; the Flask app runs on the hos
 For detailed requirements and design, see:
 
 - Software specification: SoftwareSpecification.md
+- User guide: UserGuide.md
 - Technical implementation plan: Technical Implementation Plan.md
 - Technology stack details: TechnologyStack.md
 - UI coding guidance: UI Coding Guidance.md
@@ -54,6 +55,18 @@ For detailed requirements and design, see:
 - Media storage layout: docs/storage-layout.md
 - Sample data loader: scripts/load_sample_data.py
 - Detection overlay mock: visit `/demo/detection-overlay` in the running app to see a reference UI for drawing bounding boxes and concept badges on top of a frame.
+
+## Exporting Run Artifacts
+
+When reviewing detections inside the dashboard, the **Export Run** button sits next to the Frame Overlay Review run selector. The button automatically targets the currently selected run and:
+
+1. Calls `GET /api/reports/run/<runId>/download`.
+2. Streams back `run_<runId>.zip` containing:
+	- `frames/frame_<frame>_overlay.png` – per-frame PNGs with model-specific bounding boxes (Model A = red `#FF0000`, Model B = dark blue `#003366`).
+	- `json/model_<A|B>_frame_<frame>.json` plus optional `detections_aggregate.json`.
+	- `manifest.json` summarizing run metadata, file counts, and timestamps.
+
+Archives are written to `reports/run_<runId>.zip` on disk before downloading, so they can also be distributed manually if needed.
 
 ## Core Workflows
 

@@ -9,6 +9,10 @@ const HARDCODED_MODELS = [
   { id: 'food-item-recognition', name: 'Food Recognition' },
   { id: 'apparel-detection', name: 'Apparel Detection' },
   { id: 'face-detection', name: 'Face Detection' },
+  {
+    id: 'https://clarifai.com/qwen/qwen-VL/models/Qwen2_5-VL-7B-Instruct/versions/0e5aefc37669445aa50f98786339f340/deployments/toswari-ai/deploy-qwen2_5-vl-7b-instruct-do8b',
+    name: 'Qwen Logo Detection (Clarifai OpenAI)',
+  },
 ];
 
 const ZOOM_DEFAULT = 1;
@@ -67,7 +71,10 @@ const elements = {
   zoomOutBtn: document.getElementById('zoom-out-btn'),
   zoomResetBtn: document.getElementById('zoom-reset-btn'),
   modelToggleButtons: document.querySelectorAll('button[data-toggle="model"]'),
+  exportRunBtn: document.getElementById('export-run-btn'),
 };
+
+syncExportRunButton();
 
 if (elements.framePlaceholder) {
   elements.framePlaceholder.dataset.placeholderSrc = elements.framePlaceholder.src;
@@ -77,6 +84,8 @@ const socket = window.io ? window.io() : null;
 
 let zoomControlsInitialized = false;
 let panzoomInstance = null;
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isDashboardPage() {
   return Boolean(elements.videoList && elements.inferenceCards);
@@ -240,6 +249,72 @@ async function fetchJSON(url, options = {}) {
     throw new Error(errorText || 'Request failed');
   }
   return response.json();
+}
+
+function triggerFileDownload(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.URL.revokeObjectURL(url);
+}
+
+async function fetchRunArchiveBlob({ runId, projectId = null, videoId = null, attempts = 5 }) {
+  if (!runId) {
+    throw new Error('Run ID is required for export.');
+  }
+
+  const endpoints = [];
+  if (projectId && videoId) {
+    endpoints.push(`/api/projects/${projectId}/videos/${videoId}/runs/${runId}/export`);
+  }
+  endpoints.push(`/api/reports/run/${runId}/download`);
+
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      return await attemptRunArchiveFetch(endpoint, attempts);
+    } catch (error) {
+      lastError = error;
+      console.warn(`Run export via ${endpoint} failed`, error);
+    }
+  }
+  throw lastError || new Error('Failed to export run.');
+}
+
+async function attemptRunArchiveFetch(endpoint, attempts) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const response = await fetch(endpoint);
+    if (response.status === 202) {
+      await delay(1500);
+      continue;
+    }
+    if (!response.ok) {
+      const message = await extractRunExportError(response);
+      throw new Error(message);
+    }
+    return response.blob();
+  }
+  throw new Error('Export is still preparing. Please try again shortly.');
+}
+
+async function extractRunExportError(response) {
+  const fallback = await response.text();
+  if (!fallback) {
+    return 'Failed to export run.';
+  }
+  try {
+    const payload = JSON.parse(fallback);
+    if (payload?.error) {
+      return payload.error;
+    }
+  } catch (error) {
+    // Ignore JSON parse errors and return the raw fallback string
+  }
+  return fallback;
 }
 
 function safeSetText(element, text) {
@@ -879,12 +954,15 @@ function populateRunSelect(runs, { preserveSelection = false } = {}) {
     state.comparison.runId = null;
   }
 
+  syncExportRunButton();
+
   return selectedRunId;
 }
 
 async function handleRunSelection(runId, { preserveModels = false, preserveZoom = false } = {}) {
   if (!runId) {
     state.comparison.runId = null;
+    syncExportRunButton();
     populateModelSelects([]);
     resetComparisonDisplay('Select an inference run');
     // Hide run parameters display
@@ -946,6 +1024,7 @@ async function handleRunSelection(runId, { preserveModels = false, preserveZoom 
   });
 
   state.comparison.runId = Number(runId);
+  syncExportRunButton();
   state.comparison.frames = frames;
   state.comparison.models = availableModels;
 
@@ -958,6 +1037,77 @@ async function refreshRunPayload({ preserveModels = true } = {}) {
     return;
   }
   await handleRunSelection(state.comparison.runId, { preserveModels, preserveZoom: true });
+}
+
+function resolveRunContext(runId) {
+  const numericId = Number(runId);
+  if (!Number.isFinite(numericId)) {
+    return null;
+  }
+  for (const video of state.videos.values()) {
+    const runs = Array.isArray(video.inference_runs) ? video.inference_runs : [];
+    const match = runs.find((run) => Number(run.id) === numericId);
+    if (match) {
+      return {
+        videoId: video.id,
+        projectId: video.project_id ?? state.activeProject?.id ?? null,
+        run: match,
+      };
+    }
+  }
+  return null;
+}
+
+function syncExportRunButton() {
+  if (!elements.exportRunBtn) {
+    return;
+  }
+  const hasRunSelected = Number.isFinite(Number(state.comparison.runId)) && Number(state.comparison.runId) > 0;
+  elements.exportRunBtn.disabled = !hasRunSelected;
+  elements.exportRunBtn.setAttribute('aria-disabled', String(!hasRunSelected));
+  elements.exportRunBtn.title = hasRunSelected ? 'Download the selected run export' : 'Select a run to enable export';
+}
+
+async function handleRunExportClick() {
+  const button = elements.exportRunBtn;
+  if (!button) {
+    return;
+  }
+
+  const clip = state.comparison.clipId ? state.clips.get(state.comparison.clipId) : null;
+  const targetRunId = Number(state.comparison.runId);
+  if (!Number.isFinite(targetRunId) || targetRunId <= 0) {
+    window.alert('Select a run to export.');
+    return;
+  }
+
+  let targetVideoId = clip?.videoId ?? state.comparison.videoId ?? null;
+  let targetProjectId = state.activeProject?.id ?? null;
+  if (!targetVideoId || !targetProjectId) {
+    const context = resolveRunContext(targetRunId);
+    if (context) {
+      targetVideoId = targetVideoId ?? context.videoId;
+      targetProjectId = targetProjectId ?? context.projectId ?? targetProjectId;
+    }
+  }
+
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Preparing…';
+  try {
+    const blob = await fetchRunArchiveBlob({
+      runId: targetRunId,
+      projectId: targetProjectId,
+      videoId: targetVideoId,
+    });
+    triggerFileDownload(blob, `run_${targetRunId}.zip`);
+  } catch (error) {
+    console.error('Run export failed', error);
+    window.alert(error.message || 'Failed to export run.');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
 }
 
 function enrichFrames(payload) {
@@ -1586,6 +1736,11 @@ function setupComparisonControls() {
       const modelId = event.target.value || null;
       setComparisonModel('A', modelId);
       void refreshRunPayload({ preserveModels: true });
+    });
+  }
+  if (elements.exportRunBtn) {
+    elements.exportRunBtn.addEventListener('click', () => {
+      void handleRunExportClick();
     });
   }
 

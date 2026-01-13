@@ -27,7 +27,8 @@ The Minimum Viable Product (MVP) is a functional forensic tool capable of:
 	Estimating analysis costs before execution based on video length, sampling parameters, and active models.
 
 - **Forensic Reporting**  
-	Exporting curated frames and metadata into a formatted `.docx` report suitable for human review.
+	Exporting curated frames and metadata into a formatted `.docx` report suitable for human review.  
+	Each completed inference run must also support a downloadable archive (`run_<id>.zip`) containing overlay PNGs, per-model JSON detections, and a manifest so analysts can share the raw evidence alongside the narrative report.
 
 - **Model Benchmarking**  
 	Comparing the performance (accuracy/confidence) and cost-efficiency of different models within the same project.
@@ -235,7 +236,8 @@ Back-end code SHOULD follow a consistent, modular layout:
 	- Generate a `.docx` report that includes:  
 		- Key frames with bounding boxes and metadata.  
 		- A model efficiency table and cost metrics.  
-		- Optional narrative summaries (via Gemini).
+		- Optional narrative summaries (via Gemini).  
+	- Provide a one-click “Export Run” action in the dashboard that packages the selected run’s overlays, JSON detections, and manifest into `run_<id>.zip` so downstream reviewers can ingest artifacts programmatically.
 
 ---
 
