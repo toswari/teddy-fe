@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarifai Rapid Prototyping - Solution Engineering Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        .markdown-content h1 { font-size: 1.75rem; font-weight: bold; margin: 1.5rem 0 1rem; color: #1e40af; border-bottom: 2px solid #3b82f6; padding-bottom: 0.5rem; }
+        .markdown-content h2 { font-size: 1.35rem; font-weight: bold; margin: 1.25rem 0 0.75rem; color: #2563eb; }
+        .markdown-content h3 { font-size: 1.15rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #3b82f6; }
+        .markdown-content h4 { font-size: 1.05rem; font-weight: 600; margin: 0.75rem 0 0.5rem; color: #4b5563; }
+        .markdown-content p { margin: 0.5rem 0; line-height: 1.7; }
+        .markdown-content ul { list-style-type: disc; margin-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+        .markdown-content ol { list-style-type: decimal; margin-left: 1.5rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+        .markdown-content li { margin: 0.25rem 0; line-height: 1.6; }
+        .markdown-content table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        .markdown-content th, .markdown-content td { border: 1px solid #d1d5db; padding: 0.625rem 0.75rem; text-align: left; }
+        .markdown-content th { background-color: #eff6ff; font-weight: 600; color: #1e40af; }
+        .markdown-content tr:nth-child(even) { background-color: #f9fafb; }
+        .markdown-content tr:hover { background-color: #f3f4f6; }
+        .markdown-content code { background-color: #f3f4f6; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.875em; color: #be185d; }
+        .markdown-content pre { background-color: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 1rem 0; }
+        .markdown-content pre code { background-color: transparent; color: inherit; padding: 0; }
+        .markdown-content blockquote { border-left: 4px solid #3b82f6; padding-left: 1rem; margin: 1rem 0; color: #4b5563; font-style: italic; }
+        .markdown-content hr { border: none; border-top: 2px solid #e5e7eb; margin: 1.5rem 0; }
+        .markdown-content strong { color: #1f2937; }
+        .markdown-content a { color: #2563eb; text-decoration: underline; }
+        .markdown-content a:hover { color: #1d4ed8; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col" x-data="app()">
+    <!-- Help Overlay -->
+    <div x-show="showHelp" x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+         @click.self="showHelp = false">
+        <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Help Header -->
+            <div class="bg-blue-600 text-white px-6 py-4 rounded-t-xl flex justify-between items-center sticky top-0">
+                <div>
+                    <h2 class="text-xl font-bold"><i class="fas fa-question-circle mr-2"></i> How to Use This Tool</h2>
+                    <p class="text-blue-200 text-sm">Clarifai Rapid Prototyping Assistant</p>
+                </div>
+                <button @click="showHelp = false" class="text-white hover:text-blue-200 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Help Content -->
+            <div class="p-6 space-y-6">
+                <!-- Quick Start -->
+                <div>
+                    <h3 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-rocket mr-2"></i> Quick Start</h3>
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                        <li><strong>Create a Project</strong> - Enter customer info, industry, and goals</li>
+                        <li><strong>Upload Documents</strong> - Add RFPs, requirements docs, or reference materials</li>
+                        <li><strong>Generate Outputs</strong> - Create discovery questions, proposals, or compute analysis</li>
+                        <li><strong>Review & Export</strong> - View generated documents and download as needed</li>
+                    </ol>
+                </div>
+
+                <!-- Features -->
+                <div>
+                    <h3 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-star mr-2"></i> Key Features</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800"><i class="fas fa-file-alt mr-2 text-purple-500"></i> Discovery Questions</h4>
+                            <p class="text-sm text-gray-600">Generate tailored discovery questions based on industry and project goals</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800"><i class="fas fa-file-contract mr-2 text-green-500"></i> Proposal Generation</h4>
+                            <p class="text-sm text-gray-600">Create comprehensive proposals with VLM recommendations and GPU sizing</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800"><i class="fas fa-microchip mr-2 text-blue-500"></i> Compute Analysis</h4>
+                            <p class="text-sm text-gray-600">Get detailed GPU reservation recommendations with ROI analysis</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-gray-800"><i class="fas fa-book-open mr-2 text-orange-500"></i> SE Implementation Guide</h4>
+                            <p class="text-sm text-gray-600">Step-by-step guide with code examples and prompts for the SE</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Recommendations -->
+                <div>
+                    <h3 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-brain mr-2"></i> Model Recommendations</h3>
+                    <p class="text-gray-700 mb-2">This tool recommends <strong>Vision-Language Models (VLMs)</strong> over legacy CV models:</p>
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-blue-200">
+                                    <th class="text-left py-2">Model</th>
+                                    <th class="text-left py-2">Best For</th>
+                                    <th class="text-left py-2">GPU Tier</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-700">
+                                <tr class="border-b border-blue-100">
+                                    <td class="py-2 font-medium">mm-poly-8b ⭐</td>
+                                    <td class="py-2">Visual understanding (Clarifai)</td>
+                                    <td class="py-2">Standard (24GB)</td>
+                                </tr>
+                                <tr class="border-b border-blue-100">
+                                    <td class="py-2">Llama 3.2 Vision</td>
+                                    <td class="py-2">Document analysis</td>
+                                    <td class="py-2">Standard (24GB)</td>
+                                </tr>
+                                <tr class="border-b border-blue-100">
+                                    <td class="py-2">Qwen2-VL</td>
+                                    <td class="py-2">Complex reasoning</td>
+                                    <td class="py-2">Standard-Enterprise</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2">Phi-3 Vision</td>
+                                    <td class="py-2">Cost-sensitive</td>
+                                    <td class="py-2">Entry (16GB)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Example Projects -->
+                <div>
+                    <h3 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-lightbulb mr-2"></i> Example Use Cases</h3>
+                    <div class="space-y-3">
+                        <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-blue-500">
+                            <h4 class="font-semibold">Retail - Visual Search Platform</h4>
+                            <p class="text-sm text-gray-600">Goals: Product image search, similar item recommendations, inventory visual analysis</p>
+                            <p class="text-sm text-gray-500 mt-1"><i class="fas fa-microchip mr-1"></i> Recommended: 2x L4 24GB GPUs</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-green-500">
+                            <h4 class="font-semibold">Healthcare - Medical Image Analysis</h4>
+                            <p class="text-sm text-gray-600">Goals: Radiology triage, anomaly detection, report generation</p>
+                            <p class="text-sm text-gray-500 mt-1"><i class="fas fa-microchip mr-1"></i> Recommended: 2x L40S 48GB GPUs</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-purple-500">
+                            <h4 class="font-semibold">Manufacturing - Quality Inspection</h4>
+                            <p class="text-sm text-gray-600">Goals: Defect detection, compliance checking, process monitoring</p>
+                            <p class="text-sm text-gray-500 mt-1"><i class="fas fa-microchip mr-1"></i> Recommended: 4x L4 24GB GPUs</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resources -->
+                <div>
+                    <h3 class="text-lg font-bold text-blue-600 mb-3"><i class="fas fa-book mr-2"></i> Resources</h3>
+                    <div class="grid md:grid-cols-2 gap-3">
+                        <a href="https://docs.clarifai.com/" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                            <i class="fas fa-file-alt text-blue-500 mr-3"></i>
+                            <div>
+                                <p class="font-medium">API Documentation</p>
+                                <p class="text-sm text-gray-500">docs.clarifai.com</p>
+                            </div>
+                        </a>
+                        <a href="https://clarifai.com/explore" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                            <i class="fas fa-search text-green-500 mr-3"></i>
+                            <div>
+                                <p class="font-medium">Model Library</p>
+                                <p class="text-sm text-gray-500">clarifai.com/explore</p>
+                            </div>
+                        </a>
+                        <a href="https://docs.clarifai.com/compute/overview" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                            <i class="fas fa-server text-purple-500 mr-3"></i>
+                            <div>
+                                <p class="font-medium">Compute Orchestration</p>
+                                <p class="text-sm text-gray-500">GPU deployment guide</p>
+                            </div>
+                        </a>
+                        <a href="https://docs.clarifai.com/compute/inference/" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                            <i class="fas fa-code text-yellow-500 mr-3"></i>
+                            <div>
+                                <p class="font-medium">Inference Guide</p>
+                                <p class="text-sm text-gray-500">SDK integration</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Help Footer -->
+            <div class="bg-gray-50 px-6 py-4 rounded-b-xl border-t">
+                <p class="text-sm text-gray-500 text-center">
+                    <i class="fas fa-keyboard mr-1"></i> Press <kbd class="bg-gray-200 px-2 py-1 rounded text-xs">?</kbd> anytime to open this help
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div>
+                        <h1 class="text-xl font-bold">Rapid Prototyping</h1>
+                        <p class="text-blue-200 text-sm">Solution Engineering Assistant</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="bg-blue-500 px-3 py-1 rounded-full text-sm">
+                        <i class="fas fa-microchip mr-1"></i> CO Focused
+                    </span>
+                    <button @click="showHelp = true" class="bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-full text-sm transition" title="Help">
+                        <i class="fas fa-question-circle mr-1"></i> Help
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 flex-1">
+        <!-- Navigation Tabs -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="flex border-b">
+                <button @click="activeTab = 'projects'" 
+                        :class="activeTab === 'projects' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-6 py-3 border-b-2 font-medium">
+                    <i class="fas fa-folder mr-2"></i> Projects
+                </button>
+                <button @click="activeTab = 'new'" 
+                        :class="activeTab === 'new' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-6 py-3 border-b-2 font-medium">
+                    <i class="fas fa-plus mr-2"></i> New Project
+                </button>
+                <button @click="activeTab = 'pricing'; loadPricingData()" 
+                        :class="activeTab === 'pricing' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-6 py-3 border-b-2 font-medium">
+                    <i class="fas fa-dollar-sign mr-2"></i> GPU Pricing
+                </button>
+                <button @click="activeTab = 'industries'" 
+                        :class="activeTab === 'industries' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        class="px-6 py-3 border-b-2 font-medium">
+                    <i class="fas fa-industry mr-2"></i> Industry Questions
+                </button>
+            </div>
+        </div>
+
+        <!-- Projects Tab -->
+        <div x-show="activeTab === 'projects'" x-cloak>
+            <div class="grid gap-4">
+                <template x-if="projects.length === 0">
+                    <div class="bg-white rounded-lg shadow p-8 text-center">
+                        <i class="fas fa-folder-open text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-600">No projects yet. Create your first project to get started!</p>
+                        <button @click="activeTab = 'new'" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                            <i class="fas fa-plus mr-2"></i> Create Project
+                        </button>
+                    </div>
+                </template>
+                
+                <template x-for="project in projects" :key="project.id">
+                    <div class="bg-white rounded-lg shadow p-4 hover:shadow-md transition cursor-pointer"
+                         @click="selectProject(project)">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-lg" x-text="project.project_name"></h3>
+                                <p class="text-gray-600" x-text="project.customer_name"></p>
+                                <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                    <span><i class="fas fa-industry mr-1"></i> <span x-text="project.industry"></span></span>
+                                    <span><i class="fas fa-file mr-1"></i> <span x-text="project.files.length"></span> files</span>
+                                    <span><i class="fas fa-file-alt mr-1"></i> <span x-text="project.outputs.length"></span> outputs</span>
+                                </div>
+                            </div>
+                            <span class="px-2 py-1 rounded text-xs"
+                                  :class="project.status === 'created' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'"
+                                  x-text="project.status"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- New Project Tab -->
+        <div x-show="activeTab === 'new'" x-cloak>
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-bold mb-4"><i class="fas fa-plus-circle mr-2 text-blue-600"></i> Create New Project</h2>
+                
+                <form @submit.prevent="createProject" class="space-y-4">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+                            <input type="text" x-model="newProject.customer_name" required
+                                   class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                   placeholder="Acme Corporation">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Project Name *</label>
+                            <input type="text" x-model="newProject.project_name" required
+                                   class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                   placeholder="AI Visual Search Platform">
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
+                            <select x-model="newProject.industry" required
+                                    class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">Select Industry</option>
+                                <option value="technology">Technology</option>
+                                <option value="retail">Retail / E-commerce</option>
+                                <option value="healthcare">Healthcare</option>
+                                <option value="financial">Financial Services</option>
+                                <option value="manufacturing">Manufacturing</option>
+                                <option value="media">Media & Entertainment</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
+                            <input type="email" x-model="newProject.contact_email"
+                                   class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                   placeholder="contact@customer.com">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Project Goals</label>
+                        <div class="space-y-2">
+                            <template x-for="(goal, index) in newProject.goals" :key="index">
+                                <div class="flex space-x-2">
+                                    <input type="text" x-model="newProject.goals[index]"
+                                           class="flex-1 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                                           placeholder="Enter a project goal">
+                                    <button type="button" @click="newProject.goals.splice(index, 1)"
+                                            class="text-red-500 hover:text-red-700 px-2">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </template>
+                            <button type="button" @click="newProject.goals.push('')"
+                                    class="text-blue-600 hover:text-blue-800 text-sm">
+                                <i class="fas fa-plus mr-1"></i> Add Goal
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Compute Requirements Section -->
+                    <div class="border-t pt-4 mt-4">
+                        <h3 class="font-medium text-gray-700 mb-3">
+                            <i class="fas fa-microchip mr-2 text-blue-600"></i> Compute Requirements (for GPU Reservation Analysis)
+                        </h3>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Expected GPU Type</label>
+                                <select x-model="newProject.compute_requirements.gpu_type"
+                                        class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Not sure yet</option>
+                                    <optgroup label="Entry Tier ($5-6K/yr)">
+                                        <option value="T4">NVIDIA T4 16GB</option>
+                                    </optgroup>
+                                    <optgroup label="Standard Tier ($8-13K/yr)">
+                                        <option value="L4">NVIDIA L4 24GB</option>
+                                        <option value="A10G">NVIDIA A10G 24GB</option>
+                                    </optgroup>
+                                    <optgroup label="Performance Tier ($18-25K/yr)">
+                                        <option value="L40S">NVIDIA L40S 48GB</option>
+                                    </optgroup>
+                                    <optgroup label="Enterprise Tier ($20-65K/yr)">
+                                        <option value="A100">NVIDIA A100 80GB</option>
+                                        <option value="H100">NVIDIA H100 80GB</option>
+                                        <option value="GH200">NVIDIA GH200 96GB</option>
+                                        <option value="B200">NVIDIA B200 192GB</option>
+                                    </optgroup>
+                                    <optgroup label="Scale Tier ($174K+/yr)">
+                                        <option value="H100-8x">8x NVIDIA H100</option>
+                                        <option value="B200-8x">8x NVIDIA B200</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Estimated GPU Count</label>
+                                <select x-model="newProject.compute_requirements.gpu_count"
+                                        class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">Unknown</option>
+                                    <option value="1-2">1-2 GPUs</option>
+                                    <option value="3-4">3-4 GPUs</option>
+                                    <option value="5-8">5-8 GPUs</option>
+                                    <option value="8+">8+ GPUs</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">Commitment Interest</label>
+                                <select x-model="newProject.compute_requirements.commitment"
+                                        class="w-full border rounded-lg px-3 py-2 text-sm">
+                                    <option value="">To discuss</option>
+                                    <option value="on-demand">On-demand only</option>
+                                    <option value="1-year">1-year reservation</option>
+                                    <option value="3-year">3-year reservation</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Budget Range</label>
+                            <select x-model="newProject.budget_range"
+                                    class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Budget Range</option>
+                                <option value="<50k">Less than $50,000/year</option>
+                                <option value="50k-100k">$50,000 - $100,000/year</option>
+                                <option value="100k-250k">$100,000 - $250,000/year</option>
+                                <option value="250k-500k">$250,000 - $500,000/year</option>
+                                <option value="500k+">$500,000+/year</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
+                            <select x-model="newProject.timeline"
+                                    class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Timeline</option>
+                                <option value="immediate">Immediate (< 1 month)</option>
+                                <option value="quarter">This Quarter</option>
+                                <option value="6months">Next 6 Months</option>
+                                <option value="year">Within a Year</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" @click="resetNewProject" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+                            Reset
+                        </button>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+                            <i class="fas fa-save mr-2"></i> Create Project
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Industry Questions Tab -->
+        <div x-show="activeTab === 'industries'" x-cloak>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold"><i class="fas fa-question-circle mr-2 text-blue-600"></i> Industry Discovery Questions</h2>
+                    <button @click="showAddQuestions = true" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                        <i class="fas fa-plus mr-2"></i> Add Questions
+                    </button>
+                </div>
+                
+                <div class="mb-4">
+                    <select x-model="selectedIndustry" @change="loadIndustryQuestions"
+                            class="border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                        <option value="">Select Industry</option>
+                        <template x-for="ind in industries" :key="ind.industry">
+                            <option :value="ind.industry" x-text="`${ind.industry} (${ind.question_count} questions)`"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <div x-show="industryQuestions.length > 0" class="space-y-3">
+                    <template x-for="(question, index) in industryQuestions" :key="index">
+                        <div class="border rounded-lg p-4" :class="question.compute_relevant ? 'border-blue-300 bg-blue-50' : ''">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <p class="font-medium" x-text="question.question"></p>
+                                    <div class="flex items-center space-x-3 mt-2 text-sm">
+                                        <span class="px-2 py-0.5 rounded bg-gray-200" x-text="question.category"></span>
+                                        <span class="px-2 py-0.5 rounded"
+                                              :class="{
+                                                  'bg-red-200 text-red-800': question.importance === 'critical',
+                                                  'bg-orange-200 text-orange-800': question.importance === 'high',
+                                                  'bg-yellow-200 text-yellow-800': question.importance === 'medium',
+                                                  'bg-gray-200': question.importance === 'low'
+                                              }"
+                                              x-text="question.importance"></span>
+                                        <span x-show="question.compute_relevant" class="px-2 py-0.5 rounded bg-blue-200 text-blue-800">
+                                            <i class="fas fa-microchip mr-1"></i> Compute
+                                        </span>
+                                    </div>
+                                    <div x-show="question.follow_ups && question.follow_ups.length > 0" class="mt-2 text-sm text-gray-600">
+                                        <p class="font-medium">Follow-ups:</p>
+                                        <ul class="list-disc ml-4">
+                                            <template x-for="fu in question.follow_ups" :key="fu">
+                                                <li x-text="fu"></li>
+                                            </template>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- GPU Pricing Tab -->
+        <div x-show="activeTab === 'pricing'" x-cloak>
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold"><i class="fas fa-microchip mr-2 text-blue-600"></i> GPU Pricing Reference (January 2026)</h2>
+                    <div class="flex space-x-2">
+                        <select x-model="pricingFilter.region" @change="filterPricing()"
+                                class="border rounded-lg px-3 py-2 text-sm">
+                            <option value="">All Regions</option>
+                            <template x-for="region in pricingRegions" :key="region.region">
+                                <option :value="region.region" x-text="`${region.region} (${region.gpu_count} GPUs)`"></option>
+                            </template>
+                        </select>
+                        <select x-model="pricingFilter.minVram" @change="filterPricing()"
+                                class="border rounded-lg px-3 py-2 text-sm">
+                            <option value="">All VRAM</option>
+                            <option value="16">16GB+</option>
+                            <option value="24">24GB+</option>
+                            <option value="48">48GB+</option>
+                            <option value="80">80GB+</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- GPU Tiers Overview -->
+                <div class="mb-6 grid md:grid-cols-5 gap-4">
+                    <div class="bg-gray-50 rounded-lg p-4 border-l-4 border-gray-400">
+                        <h4 class="font-bold text-gray-700">Entry</h4>
+                        <p class="text-sm text-gray-600">16GB VRAM</p>
+                        <p class="text-lg font-bold text-gray-800">$5-6K/yr</p>
+                        <p class="text-xs text-gray-500">Dev/Test, Small Inference</p>
+                    </div>
+                    <div class="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-400">
+                        <h4 class="font-bold text-blue-700">Standard</h4>
+                        <p class="text-sm text-blue-600">24GB VRAM</p>
+                        <p class="text-lg font-bold text-blue-800">$8-13K/yr</p>
+                        <p class="text-xs text-blue-500">Production Inference</p>
+                    </div>
+                    <div class="bg-purple-50 rounded-lg p-4 border-l-4 border-purple-400">
+                        <h4 class="font-bold text-purple-700">Performance</h4>
+                        <p class="text-sm text-purple-600">48GB VRAM</p>
+                        <p class="text-lg font-bold text-purple-800">$18-25K/yr</p>
+                        <p class="text-xs text-purple-500">LLM, Training</p>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4 border-l-4 border-green-400">
+                        <h4 class="font-bold text-green-700">Enterprise</h4>
+                        <p class="text-sm text-green-600">80-192GB VRAM</p>
+                        <p class="text-lg font-bold text-green-800">$20-65K/yr</p>
+                        <p class="text-xs text-green-500">Foundation Models</p>
+                    </div>
+                    <div class="bg-orange-50 rounded-lg p-4 border-l-4 border-orange-400">
+                        <h4 class="font-bold text-orange-700">Scale</h4>
+                        <p class="text-sm text-orange-600">640GB+ VRAM</p>
+                        <p class="text-lg font-bold text-orange-800">$174K+/yr</p>
+                        <p class="text-xs text-orange-500">Distributed Training</p>
+                    </div>
+                </div>
+
+                <!-- Pricing Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">GPU</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Region</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">VRAM</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">On-Demand/hr</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Clarifai/hr</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Annual</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="gpu in filteredGpus" :key="gpu.name + gpu.cloud_region">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3">
+                                        <span class="font-medium" x-text="gpu.name"></span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-500" x-text="gpu.cloud_region"></td>
+                                    <td class="px-4 py-3">
+                                        <span class="px-2 py-1 text-xs rounded-full"
+                                              :class="{
+                                                  'bg-gray-100': gpu.vram_gb <= 16,
+                                                  'bg-blue-100': gpu.vram_gb > 16 && gpu.vram_gb <= 24,
+                                                  'bg-purple-100': gpu.vram_gb > 24 && gpu.vram_gb <= 48,
+                                                  'bg-green-100': gpu.vram_gb > 48 && gpu.vram_gb <= 192,
+                                                  'bg-orange-100': gpu.vram_gb > 192
+                                              }"
+                                              x-text="gpu.vram_gb + 'GB'"></span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right text-sm" x-text="'$' + gpu.on_demand_hourly.toFixed(4)"></td>
+                                    <td class="px-4 py-3 text-right text-sm font-medium text-blue-600" x-text="'$' + gpu.clarifai_hourly.toFixed(4)"></td>
+                                    <td class="px-4 py-3 text-right">
+                                        <span class="font-bold" x-text="'$' + gpu.clarifai_annual.toLocaleString()"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 text-sm text-gray-500">
+                    <p><strong>Note:</strong> Pricing shown is for yearly reservations through Clarifai Compute Orchestration. 
+                    Contact your Solution Engineer for custom pricing and volume discounts.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Detail Modal - Step-by-Step Wizard -->
+        <div x-show="selectedProject" x-cloak 
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+             @click.self="selectedProject = null">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                <!-- Modal Header -->
+                <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold" x-text="selectedProject?.project_name"></h2>
+                        <p class="text-blue-200" x-text="selectedProject?.customer_name"></p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button @click="confirmDelete(selectedProject)" 
+                                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition"
+                                title="Delete Project">
+                            <i class="fas fa-trash mr-1"></i> Delete
+                        </button>
+                        <button @click="selectedProject = null" class="text-white hover:text-blue-200 p-1">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step Progress Bar -->
+                <div class="bg-gray-100 px-6 py-4 border-b">
+                    <div class="flex items-center justify-between max-w-3xl mx-auto">
+                        <template x-for="(step, index) in workflowSteps" :key="index">
+                            <div class="flex items-center">
+                                <!-- Step Circle -->
+                                <button @click="goToStep(index + 1)"
+                                        class="flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all"
+                                        :class="{
+                                            'bg-blue-600 border-blue-600 text-white': currentStep === index + 1,
+                                            'bg-green-500 border-green-500 text-white': isStepComplete(index + 1),
+                                            'bg-white border-gray-300 text-gray-400': currentStep !== index + 1 && !isStepComplete(index + 1)
+                                        }">
+                                    <i :class="isStepComplete(index + 1) ? 'fas fa-check' : step.icon" class="text-sm"></i>
+                                </button>
+                                <!-- Step Label -->
+                                <span class="ml-2 text-sm font-medium hidden md:inline"
+                                      :class="{
+                                          'text-blue-600': currentStep === index + 1,
+                                          'text-green-600': isStepComplete(index + 1),
+                                          'text-gray-400': currentStep !== index + 1 && !isStepComplete(index + 1)
+                                      }"
+                                      x-text="step.label"></span>
+                                <!-- Connector Line -->
+                                <div x-show="index < workflowSteps.length - 1" 
+                                     class="w-8 md:w-16 h-0.5 mx-2"
+                                     :class="isStepComplete(index + 1) ? 'bg-green-500' : 'bg-gray-300'"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    
+                    <!-- Step 1: Initial Upload -->
+                    <div x-show="currentStep === 1">
+                        <div class="max-w-2xl mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600 mb-4">
+                                    <i class="fas fa-upload text-2xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Step 1: Upload Initial Documents</h3>
+                                <p class="text-gray-600 mt-2">Upload RFPs, requirements docs, meeting notes, and any relevant materials</p>
+                            </div>
+                            
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6"
+                                 @dragover.prevent="dragover = true"
+                                 @dragleave.prevent="dragover = false"
+                                 @drop.prevent="handleDrop($event)"
+                                 :class="dragover ? 'border-blue-500 bg-blue-50' : ''">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-3"></i>
+                                <p class="text-gray-600 mb-3">Drag & drop files here, or</p>
+                                <label class="bg-blue-600 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-blue-700 inline-block">
+                                    <i class="fas fa-folder-open mr-2"></i> Browse Files
+                                    <input type="file" class="hidden" multiple @change="handleFileSelect($event)">
+                                </label>
+                                <p class="text-sm text-gray-500 mt-3">Supports: PDF, DOCX, MD, TXT, Images</p>
+                            </div>
+
+                            <!-- Uploaded Files -->
+                            <div x-show="selectedProject?.files.length > 0" class="mb-6">
+                                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-check-circle text-green-500 mr-2"></i> Uploaded Files
+                                </h4>
+                                <div class="bg-gray-50 rounded-lg p-4 space-y-2">
+                                    <template x-for="file in selectedProject?.files" :key="file">
+                                        <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
+                                            <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
+                                            <span class="text-xs text-green-600"><i class="fas fa-check"></i></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="bg-blue-50 rounded-lg p-4 text-sm text-blue-800">
+                                <i class="fas fa-lightbulb mr-2"></i>
+                                <strong>Tip:</strong> The more context you provide, the better the generated outputs will be. Include customer emails, meeting notes, and any technical requirements.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Generate Discovery Questions -->
+                    <div x-show="currentStep === 2">
+                        <div class="max-w-2xl mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-100 text-purple-600 mb-4">
+                                    <i class="fas fa-question-circle text-2xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Step 2: Generate Discovery Questions</h3>
+                                <p class="text-gray-600 mt-2">Generate tailored questions based on your uploaded materials</p>
+                            </div>
+
+                            <div class="bg-white border rounded-lg p-6 mb-6">
+                                <button @click="generateDocument('discovery')" 
+                                        :disabled="generating"
+                                        class="w-full bg-purple-600 text-white px-6 py-4 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center text-lg">
+                                    <i class="fas fa-magic mr-3"></i>
+                                    <span x-show="!generating">Generate Discovery Questions</span>
+                                    <span x-show="generating"><i class="fas fa-spinner fa-spin mr-2"></i> Generating...</span>
+                                </button>
+                            </div>
+
+                            <!-- Show generated discovery questions -->
+                            <div x-show="hasDiscoveryOutput()" class="mb-6">
+                                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-check-circle text-green-500 mr-2"></i> Discovery Questions Generated
+                                </h4>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <template x-for="output in getDiscoveryOutputs()" :key="output">
+                                        <div class="flex items-center justify-between py-2">
+                                            <span class="text-sm text-green-800"><i class="fas fa-file-alt mr-2"></i> <span x-text="output"></span></span>
+                                            <div class="flex space-x-2">
+                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
+                                                    <i class="fas fa-eye mr-1"></i> View
+                                                </button>
+                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    <i class="fas fa-download mr-1"></i> Download
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="bg-purple-50 rounded-lg p-4 text-sm text-purple-800">
+                                <i class="fas fa-lightbulb mr-2"></i>
+                                <strong>Next:</strong> Download the questions, conduct your discovery call with the customer, then upload the answered questions in Step 3.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Upload Answered Questions -->
+                    <div x-show="currentStep === 3">
+                        <div class="max-w-2xl mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4">
+                                    <i class="fas fa-comments text-2xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Step 3: Upload Customer Answers</h3>
+                                <p class="text-gray-600 mt-2">Upload the answered discovery questions from your customer call</p>
+                            </div>
+
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6"
+                                 @dragover.prevent="dragover = true"
+                                 @dragleave.prevent="dragover = false"
+                                 @drop.prevent="handleDrop($event)"
+                                 :class="dragover ? 'border-green-500 bg-green-50' : ''">
+                                <i class="fas fa-file-upload text-4xl text-gray-400 mb-3"></i>
+                                <p class="text-gray-600 mb-3">Upload answered questions document</p>
+                                <label class="bg-green-600 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-green-700 inline-block">
+                                    <i class="fas fa-upload mr-2"></i> Upload Answers
+                                    <input type="file" class="hidden" multiple @change="handleFileSelect($event)">
+                                </label>
+                                <p class="text-sm text-gray-500 mt-3">TXT, MD, DOCX, or PDF format</p>
+                            </div>
+
+                            <!-- Show all uploaded files -->
+                            <div x-show="selectedProject?.files.length > 0" class="mb-6">
+                                <h4 class="font-semibold text-gray-700 mb-3">All Project Files</h4>
+                                <div class="bg-gray-50 rounded-lg p-4 space-y-2">
+                                    <template x-for="file in selectedProject?.files" :key="file">
+                                        <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
+                                            <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
+                                            <span class="text-xs text-green-600"><i class="fas fa-check"></i></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="bg-green-50 rounded-lg p-4 text-sm text-green-800">
+                                <i class="fas fa-lightbulb mr-2"></i>
+                                <strong>Tip:</strong> Include detailed notes from your discovery call. The AI will use this information to create a more accurate and relevant proposal.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Generate Proposal -->
+                    <div x-show="currentStep === 4">
+                        <div class="max-w-2xl mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 mb-4">
+                                    <i class="fas fa-file-contract text-2xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Step 4: Generate Proposal</h3>
+                                <p class="text-gray-600 mt-2">Generate a comprehensive proposal based on all gathered information</p>
+                            </div>
+
+                            <div class="bg-white border rounded-lg p-6 mb-6">
+                                <button @click="generateDocument('proposal')" 
+                                        :disabled="generating"
+                                        class="w-full bg-emerald-600 text-white px-6 py-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center text-lg">
+                                    <i class="fas fa-magic mr-3"></i>
+                                    <span x-show="!generating">Generate Proposal</span>
+                                    <span x-show="generating"><i class="fas fa-spinner fa-spin mr-2"></i> Generating...</span>
+                                </button>
+                            </div>
+
+                            <!-- Show generated proposals -->
+                            <div x-show="hasProposalOutput()" class="mb-6">
+                                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-check-circle text-green-500 mr-2"></i> Proposals Generated
+                                </h4>
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <template x-for="output in getProposalOutputs()" :key="output">
+                                        <div class="flex items-center justify-between py-2">
+                                            <span class="text-sm text-green-800"><i class="fas fa-file-contract mr-2"></i> <span x-text="output"></span></span>
+                                            <div class="flex space-x-2">
+                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
+                                                    <i class="fas fa-eye mr-1"></i> View
+                                                </button>
+                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    <i class="fas fa-download mr-1"></i> Download
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="bg-emerald-50 rounded-lg p-4 text-sm text-emerald-800">
+                                <i class="fas fa-lightbulb mr-2"></i>
+                                <strong>Next:</strong> Review the proposal, make notes on any changes needed, and upload feedback in Step 5 before generating final documents.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Upload Feedback/Changes -->
+                    <div x-show="currentStep === 5">
+                        <div class="max-w-2xl mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 text-amber-600 mb-4">
+                                    <i class="fas fa-edit text-2xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Step 5: Upload Feedback (Optional)</h3>
+                                <p class="text-gray-600 mt-2">Upload any customer feedback or requested changes to the proposal</p>
+                            </div>
+
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6"
+                                 @dragover.prevent="dragover = true"
+                                 @dragleave.prevent="dragover = false"
+                                 @drop.prevent="handleDrop($event)"
+                                 :class="dragover ? 'border-amber-500 bg-amber-50' : ''">
+                                <i class="fas fa-comments text-4xl text-gray-400 mb-3"></i>
+                                <p class="text-gray-600 mb-3">Upload feedback or change requests</p>
+                                <label class="bg-amber-600 text-white px-6 py-2 rounded-lg cursor-pointer hover:bg-amber-700 inline-block">
+                                    <i class="fas fa-upload mr-2"></i> Upload Feedback
+                                    <input type="file" class="hidden" multiple @change="handleFileSelect($event)">
+                                </label>
+                                <p class="text-sm text-gray-500 mt-3">Or skip to generate final documents</p>
+                            </div>
+
+                            <div class="grid md:grid-cols-2 gap-4 mb-6">
+                                <button @click="generateDocument('proposal')" 
+                                        :disabled="generating"
+                                        class="bg-emerald-600 text-white px-4 py-3 rounded-lg hover:bg-emerald-700 disabled:opacity-50">
+                                    <i class="fas fa-redo mr-2"></i> Regenerate Proposal
+                                </button>
+                                <button @click="currentStep = 6" 
+                                        class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700">
+                                    <i class="fas fa-arrow-right mr-2"></i> Skip to Final Docs
+                                </button>
+                            </div>
+
+                            <div class="bg-amber-50 rounded-lg p-4 text-sm text-amber-800">
+                                <i class="fas fa-lightbulb mr-2"></i>
+                                <strong>Tip:</strong> If the customer has feedback, upload it and regenerate the proposal. The new version will incorporate their changes.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 6: Generate Final Documents -->
+                    <div x-show="currentStep === 6">
+                        <div class="max-w-3xl mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 text-blue-600 mb-4">
+                                    <i class="fas fa-file-export text-2xl"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">Step 6: Generate Final Documents</h3>
+                                <p class="text-gray-600 mt-2">Generate compute analysis, ROI, and SE implementation guide</p>
+                            </div>
+
+                            <div class="grid md:grid-cols-2 gap-4 mb-6">
+                                <div class="bg-white border rounded-lg p-6">
+                                    <div class="text-center mb-4">
+                                        <i class="fas fa-microchip text-3xl text-blue-600"></i>
+                                        <h4 class="font-semibold mt-2">Compute Analysis & ROI</h4>
+                                        <p class="text-sm text-gray-500">GPU recommendations and cost analysis</p>
+                                    </div>
+                                    <button @click="generateDocument('compute-analysis')" 
+                                            :disabled="generating"
+                                            class="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                                        <span x-show="!generating"><i class="fas fa-magic mr-2"></i> Generate</span>
+                                        <span x-show="generating"><i class="fas fa-spinner fa-spin"></i></span>
+                                    </button>
+                                </div>
+                                <div class="bg-white border rounded-lg p-6">
+                                    <div class="text-center mb-4">
+                                        <i class="fas fa-book-open text-3xl text-orange-600"></i>
+                                        <h4 class="font-semibold mt-2">SE Implementation Guide</h4>
+                                        <p class="text-sm text-gray-500">Step-by-step guide with code examples</p>
+                                    </div>
+                                    <button @click="generateDocument('se-guide')" 
+                                            :disabled="generating"
+                                            class="w-full bg-orange-600 text-white px-4 py-3 rounded-lg hover:bg-orange-700 disabled:opacity-50">
+                                        <span x-show="!generating"><i class="fas fa-magic mr-2"></i> Generate</span>
+                                        <span x-show="generating"><i class="fas fa-spinner fa-spin"></i></span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- All Outputs -->
+                            <div x-show="selectedProject?.outputs.length > 0" class="mb-6">
+                                <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
+                                    <i class="fas fa-folder-open mr-2 text-blue-600"></i> All Generated Documents
+                                </h4>
+                                <div class="bg-gray-50 rounded-lg p-4 space-y-2">
+                                    <template x-for="output in selectedProject?.outputs" :key="output">
+                                        <div class="flex items-center justify-between bg-white rounded px-4 py-3 shadow-sm hover:shadow transition">
+                                            <div class="flex items-center">
+                                                <i :class="{
+                                                    'fas fa-question-circle text-purple-500': output.includes('discovery'),
+                                                    'fas fa-file-contract text-green-500': output.includes('proposal'),
+                                                    'fas fa-microchip text-blue-500': output.includes('compute'),
+                                                    'fas fa-book-open text-orange-500': output.includes('se_guide'),
+                                                    'fas fa-file-alt text-gray-400': !output.includes('discovery') && !output.includes('proposal') && !output.includes('compute') && !output.includes('se_guide')
+                                                }" class="mr-3"></i>
+                                                <span class="text-sm font-medium" x-text="output"></span>
+                                            </div>
+                                            <div class="flex space-x-3">
+                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
+                                                    <i class="fas fa-eye mr-1"></i> View
+                                                </button>
+                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    <i class="fas fa-download mr-1"></i> Download
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="bg-blue-50 rounded-lg p-4 text-sm text-blue-800">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <strong>Complete!</strong> You've generated all the documents for this project. You can always come back and regenerate or add more files.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Generated Content Preview (shown across all steps) -->
+                    <div x-show="generatedContent" class="mt-6 pt-6 border-t">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-bold text-lg"><i class="fas fa-file-alt mr-2 text-blue-600"></i> Latest Generated Content</h3>
+                            <div class="flex items-center space-x-3">
+                                <button @click="viewDocument(generatedFilename)" class="text-green-600 hover:text-green-800">
+                                    <i class="fas fa-expand mr-1"></i> Full View
+                                </button>
+                                <button @click="downloadContent" class="text-blue-600 hover:text-blue-800">
+                                    <i class="fas fa-download mr-1"></i> Download
+                                </button>
+                                <button @click="generatedContent = ''" class="text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="border rounded-lg p-4 max-h-64 overflow-y-auto bg-gray-50 markdown-content"
+                             x-html="renderMarkdown(generatedContent)">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer with Navigation -->
+                <div class="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
+                    <button @click="currentStep > 1 ? currentStep-- : null" 
+                            :disabled="currentStep === 1"
+                            class="px-4 py-2 rounded-lg border transition"
+                            :class="currentStep === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-100 text-gray-700'">
+                        <i class="fas fa-arrow-left mr-2"></i> Previous
+                    </button>
+                    
+                    <div class="text-sm text-gray-500">
+                        Step <span x-text="currentStep"></span> of 6
+                    </div>
+                    
+                    <button @click="currentStep < 6 ? currentStep++ : null"
+                            :disabled="currentStep === 6"
+                            class="px-4 py-2 rounded-lg transition"
+                            :class="currentStep === 6 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'">
+                        Next <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div x-show="showDeleteConfirm" x-cloak
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4"
+             @click.self="showDeleteConfirm = false"
+             @keydown.escape.window="showDeleteConfirm = false">
+            <div class="bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden">
+                <!-- Header -->
+                <div class="bg-red-600 text-white px-6 py-4">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-exclamation-triangle text-2xl"></i>
+                        <h2 class="text-xl font-bold">Delete Project?</h2>
+                    </div>
+                </div>
+                
+                <!-- Body -->
+                <div class="p-6">
+                    <p class="text-gray-700 mb-4">
+                        Are you sure you want to delete the project 
+                        <strong x-text="projectToDelete?.project_name"></strong> 
+                        for <strong x-text="projectToDelete?.customer_name"></strong>?
+                    </p>
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                        <p class="text-red-800 text-sm">
+                            <i class="fas fa-warning mr-2"></i>
+                            <strong>Warning:</strong> This action cannot be undone. All files, outputs, and project data will be permanently deleted.
+                        </p>
+                    </div>
+                    <div class="text-sm text-gray-500 mb-4">
+                        <p><i class="fas fa-file mr-2"></i> <span x-text="projectToDelete?.files?.length || 0"></span> uploaded files</p>
+                        <p><i class="fas fa-file-alt mr-2"></i> <span x-text="projectToDelete?.outputs?.length || 0"></span> generated outputs</p>
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="bg-gray-100 px-6 py-4 flex justify-end space-x-3">
+                    <button @click="showDeleteConfirm = false" 
+                            class="px-4 py-2 text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button @click="deleteProject()" 
+                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+                        <i class="fas fa-trash mr-2"></i> Delete Project
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Viewer Modal -->
+        <div x-show="showDocumentViewer" x-cloak
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+             @click.self="showDocumentViewer = false"
+             @keydown.escape.window="showDocumentViewer = false">
+            <div class="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
+                <!-- Modal Header -->
+                <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex justify-between items-center flex-shrink-0">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-file-alt text-xl"></i>
+                        <div>
+                            <h2 class="text-lg font-bold" x-text="viewerDocument.filename"></h2>
+                            <p class="text-blue-200 text-sm">Document Preview</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <a :href="`/api/outputs/${selectedProject?.id}/${viewerDocument.filename}`" 
+                           download
+                           class="bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm transition">
+                            <i class="fas fa-download mr-2"></i> Download
+                        </a>
+                        <button @click="showDocumentViewer = false" class="text-white hover:text-blue-200 p-2">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    <!-- Loading State -->
+                    <div x-show="viewerDocument.loading" class="flex flex-col items-center justify-center h-64">
+                        <i class="fas fa-spinner fa-spin text-4xl text-blue-600 mb-4"></i>
+                        <p class="text-gray-600">Loading document...</p>
+                    </div>
+
+                    <!-- Document Content -->
+                    <div x-show="!viewerDocument.loading" 
+                         class="bg-white rounded-lg shadow-inner border p-6 markdown-content prose max-w-none"
+                         x-html="renderMarkdown(viewerDocument.content)">
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="bg-gray-100 px-6 py-3 flex justify-between items-center border-t flex-shrink-0">
+                    <span class="text-sm text-gray-500">
+                        <i class="fas fa-info-circle mr-1"></i> Press ESC or click outside to close
+                    </span>
+                    <button @click="showDocumentViewer = false" 
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm transition">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Questions Modal -->
+        <div x-show="showAddQuestions" x-cloak
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+             @click.self="showAddQuestions = false">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
+                <h2 class="text-xl font-bold mb-4">Add Industry Questions</h2>
+                
+                <form @submit.prevent="addIndustryQuestions" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
+                        <input type="text" x-model="newQuestions.industry" required
+                               class="w-full border rounded-lg px-3 py-2"
+                               placeholder="e.g., automotive, logistics">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Questions</label>
+                        <template x-for="(q, index) in newQuestions.questions" :key="index">
+                            <div class="border rounded-lg p-3 mb-2">
+                                <input type="text" x-model="q.question" required
+                                       class="w-full border rounded px-2 py-1 mb-2"
+                                       placeholder="Question text">
+                                <div class="flex space-x-2">
+                                    <select x-model="q.category" class="border rounded px-2 py-1 text-sm">
+                                        <option value="business">Business</option>
+                                        <option value="technical">Technical</option>
+                                        <option value="compute">Compute</option>
+                                        <option value="budget">Budget</option>
+                                        <option value="integration">Integration</option>
+                                    </select>
+                                    <select x-model="q.importance" class="border rounded px-2 py-1 text-sm">
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="critical">Critical</option>
+                                    </select>
+                                    <label class="flex items-center text-sm">
+                                        <input type="checkbox" x-model="q.compute_relevant" class="mr-1">
+                                        Compute Relevant
+                                    </label>
+                                    <button type="button" @click="newQuestions.questions.splice(index, 1)"
+                                            class="text-red-500 hover:text-red-700 ml-auto">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        <button type="button" @click="addNewQuestion" class="text-blue-600 hover:text-blue-800 text-sm">
+                            <i class="fas fa-plus mr-1"></i> Add Question
+                        </button>
+                    </div>
+
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" @click="showAddQuestions = false" class="px-4 py-2 text-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                            Save Questions
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-4 mt-auto">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row items-center justify-between space-y-3 md:space-y-0">
+                <!-- Clarifai Logo & Link -->
+                <a href="https://clarifai.com" target="_blank" class="flex items-center space-x-3 hover:opacity-80 transition">
+                    <svg class="h-8 w-8" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="45" fill="#3B82F6"/>
+                        <path d="M30 50C30 38.954 38.954 30 50 30C55.5 30 60.5 32 64.5 35.5L58 42C55.5 39.5 52.5 38 50 38C43.373 38 38 43.373 38 50C38 56.627 43.373 62 50 62C52.5 62 55.5 60.5 58 58L64.5 64.5C60.5 68 55.5 70 50 70C38.954 70 30 61.046 30 50Z" fill="white"/>
+                    </svg>
+                    <div>
+                        <p class="font-semibold">Clarifai</p>
+                        <p class="text-xs text-gray-400">clarifai.com</p>
+                    </div>
+                </a>
+                
+                <!-- Center Text -->
+                <p class="text-gray-400 text-sm text-center">Rapid Prototyping Assistant - Solution Engineering</p>
+                
+                <!-- Links -->
+                <div class="flex items-center space-x-4 text-sm">
+                    <a href="https://docs.clarifai.com/" target="_blank" class="text-gray-400 hover:text-white transition">
+                        <i class="fas fa-book mr-1"></i> Docs
+                    </a>
+                    <a href="https://clarifai.com/explore" target="_blank" class="text-gray-400 hover:text-white transition">
+                        <i class="fas fa-search mr-1"></i> Models
+                    </a>
+                    <button @click="showHelp = true" class="text-gray-400 hover:text-white transition">
+                        <i class="fas fa-question-circle mr-1"></i> Help
+                    </button>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Keyboard shortcut for help
+        document.addEventListener('keydown', function(e) {
+            if (e.key === '?' && !e.target.matches('input, textarea, select')) {
+                const appEl = document.querySelector('[x-data]');
+                if (appEl && appEl.__x) {
+                    appEl.__x.$data.showHelp = !appEl.__x.$data.showHelp;
+                }
+            }
+            if (e.key === 'Escape') {
+                const appEl = document.querySelector('[x-data]');
+                if (appEl && appEl.__x) {
+                    appEl.__x.$data.showHelp = false;
+                }
+            }
+        });
+
+        function app() {
+            return {
+                activeTab: 'projects',
+                projects: [],
+                selectedProject: null,
+                industries: [],
+                industryQuestions: [],
+                selectedIndustry: '',
+                showAddQuestions: false,
+                generating: false,
+                generatedContent: '',
+                generatedFilename: '',
+                dragover: false,
+                
+                // Help overlay
+                showHelp: false,
+                
+                // Pricing data
+                allGpus: [],
+                filteredGpus: [],
+                pricingRegions: [],
+                pricingFilter: {
+                    region: '',
+                    minVram: ''
+                },
+
+                // Document viewer modal
+                showDocumentViewer: false,
+                viewerDocument: {
+                    filename: '',
+                    content: '',
+                    loading: false
+                },
+
+                // Delete confirmation
+                showDeleteConfirm: false,
+                projectToDelete: null,
+
+                // Workflow steps
+                currentStep: 1,
+                workflowSteps: [
+                    { label: 'Upload', icon: 'fas fa-upload' },
+                    { label: 'Questions', icon: 'fas fa-question-circle' },
+                    { label: 'Answers', icon: 'fas fa-comments' },
+                    { label: 'Proposal', icon: 'fas fa-file-contract' },
+                    { label: 'Feedback', icon: 'fas fa-edit' },
+                    { label: 'Final Docs', icon: 'fas fa-file-export' }
+                ],
+
+                newProject: {
+                    customer_name: '',
+                    project_name: '',
+                    industry: '',
+                    contact_email: '',
+                    goals: [''],
+                    constraints: [],
+                    budget_range: '',
+                    timeline: '',
+                    compute_requirements: {
+                        gpu_type: '',
+                        gpu_count: '',
+                        commitment: ''
+                    }
+                },
+
+                newQuestions: {
+                    industry: '',
+                    questions: [
+                        { question: '', category: 'business', importance: 'medium', compute_relevant: false }
+                    ]
+                },
+
+                async init() {
+                    await this.loadProjects();
+                    await this.loadIndustries();
+                },
+
+                async loadProjects() {
+                    try {
+                        const response = await fetch('/api/projects');
+                        this.projects = await response.json();
+                    } catch (e) {
+                        console.error('Error loading projects:', e);
+                    }
+                },
+
+                async loadIndustries() {
+                    try {
+                        const response = await fetch('/api/industries');
+                        this.industries = await response.json();
+                    } catch (e) {
+                        console.error('Error loading industries:', e);
+                    }
+                },
+
+                async loadIndustryQuestions() {
+                    if (!this.selectedIndustry) {
+                        this.industryQuestions = [];
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`/api/industries/${this.selectedIndustry}/questions`);
+                        this.industryQuestions = await response.json();
+                    } catch (e) {
+                        console.error('Error loading questions:', e);
+                    }
+                },
+
+                async createProject() {
+                    try {
+                        const response = await fetch('/api/projects', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newProject)
+                        });
+                        const project = await response.json();
+                        this.projects.unshift(project);
+                        this.resetNewProject();
+                        this.activeTab = 'projects';
+                        this.selectProject(project);
+                    } catch (e) {
+                        console.error('Error creating project:', e);
+                        alert('Error creating project');
+                    }
+                },
+
+                resetNewProject() {
+                    this.newProject = {
+                        customer_name: '',
+                        project_name: '',
+                        industry: '',
+                        contact_email: '',
+                        goals: [''],
+                        constraints: [],
+                        budget_range: '',
+                        timeline: '',
+                        compute_requirements: {
+                            gpu_type: '',
+                            gpu_count: '',
+                            commitment: ''
+                        }
+                    };
+                },
+
+                selectProject(project) {
+                    this.selectedProject = project;
+                    this.generatedContent = '';
+                    this.generatedFilename = '';
+                    // Determine which step user should be on based on project state
+                    this.currentStep = this.determineCurrentStep(project);
+                },
+
+                determineCurrentStep(project) {
+                    // Check project outputs to determine appropriate step
+                    const outputs = project.outputs || [];
+                    const files = project.files || [];
+                    
+                    // If SE guide exists, they've completed everything
+                    if (outputs.some(o => o.includes('se_guide'))) return 6;
+                    // If proposal exists, move to feedback step
+                    if (outputs.some(o => o.includes('proposal'))) return 5;
+                    // If discovery questions exist and there are more files uploaded after, move to proposal step
+                    if (outputs.some(o => o.includes('discovery')) && files.length > 1) return 4;
+                    // If discovery questions exist, move to upload answers step
+                    if (outputs.some(o => o.includes('discovery'))) return 3;
+                    // If files exist, move to generate questions step
+                    if (files.length > 0) return 2;
+                    // Default to first step
+                    return 1;
+                },
+
+                isStepComplete(stepNum) {
+                    const project = this.selectedProject;
+                    if (!project) return false;
+                    
+                    const outputs = project.outputs || [];
+                    const files = project.files || [];
+                    
+                    switch(stepNum) {
+                        case 1: return files.length > 0;
+                        case 2: return outputs.some(o => o.includes('discovery'));
+                        case 3: return outputs.some(o => o.includes('discovery')) && files.length > 1;
+                        case 4: return outputs.some(o => o.includes('proposal'));
+                        case 5: return outputs.some(o => o.includes('proposal')); // Feedback is optional
+                        case 6: return outputs.some(o => o.includes('se_guide') || o.includes('compute'));
+                        default: return false;
+                    }
+                },
+
+                goToStep(stepNum) {
+                    // Allow going to any step - user can navigate freely
+                    this.currentStep = stepNum;
+                },
+
+                hasDiscoveryOutput() {
+                    return this.selectedProject?.outputs?.some(o => o.includes('discovery')) || false;
+                },
+
+                getDiscoveryOutputs() {
+                    return this.selectedProject?.outputs?.filter(o => o.includes('discovery')) || [];
+                },
+
+                hasProposalOutput() {
+                    return this.selectedProject?.outputs?.some(o => o.includes('proposal')) || false;
+                },
+
+                getProposalOutputs() {
+                    return this.selectedProject?.outputs?.filter(o => o.includes('proposal')) || [];
+                },
+
+                confirmDelete(project) {
+                    this.projectToDelete = project;
+                    this.showDeleteConfirm = true;
+                },
+
+                async deleteProject() {
+                    if (!this.projectToDelete) return;
+
+                    try {
+                        const response = await fetch(`/api/projects/${this.projectToDelete.id}`, {
+                            method: 'DELETE'
+                        });
+                        
+                        if (response.ok) {
+                            // Remove from projects list
+                            this.projects = this.projects.filter(p => p.id !== this.projectToDelete.id);
+                            
+                            // Close modals
+                            this.showDeleteConfirm = false;
+                            this.selectedProject = null;
+                            this.projectToDelete = null;
+                            
+                            // Show success (could add a toast notification here)
+                            console.log('Project deleted successfully');
+                        } else {
+                            const error = await response.json();
+                            alert('Error deleting project: ' + (error.detail || 'Unknown error'));
+                        }
+                    } catch (e) {
+                        console.error('Error deleting project:', e);
+                        alert('Error deleting project. Please try again.');
+                    }
+                },
+
+                async handleFileSelect(event) {
+                    const files = event.target.files;
+                    await this.uploadFiles(files);
+                },
+
+                async handleDrop(event) {
+                    this.dragover = false;
+                    const files = event.dataTransfer.files;
+                    await this.uploadFiles(files);
+                },
+
+                async uploadFiles(files) {
+                    for (const file of files) {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('file_type', 'document');
+
+                        try {
+                            const response = await fetch(`/api/projects/${this.selectedProject.id}/upload`, {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await response.json();
+                            if (!this.selectedProject.files.includes(result.filename)) {
+                                this.selectedProject.files.push(result.filename);
+                            }
+                        } catch (e) {
+                            console.error('Error uploading file:', e);
+                        }
+                    }
+                },
+
+                async generateDocument(type) {
+                    this.generating = true;
+                    this.generatedContent = '';
+
+                    try {
+                        const response = await fetch(`/api/generate/${type}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                project_id: this.selectedProject.id,
+                                generation_type: type
+                            })
+                        });
+                        const result = await response.json();
+                        this.generatedContent = result.content;
+                        this.generatedFilename = result.output_file;
+                        
+                        if (!this.selectedProject.outputs.includes(result.output_file)) {
+                            this.selectedProject.outputs.push(result.output_file);
+                        }
+                    } catch (e) {
+                        console.error('Error generating document:', e);
+                        alert('Error generating document. Make sure CLARIFAI_API_KEY is set.');
+                    } finally {
+                        this.generating = false;
+                    }
+                },
+
+                downloadContent() {
+                    if (this.generatedFilename) {
+                        window.open(`/api/outputs/${this.selectedProject.id}/${this.generatedFilename}`, '_blank');
+                    }
+                },
+
+                addNewQuestion() {
+                    this.newQuestions.questions.push({
+                        question: '',
+                        category: 'business',
+                        importance: 'medium',
+                        compute_relevant: false
+                    });
+                },
+
+                async addIndustryQuestions() {
+                    try {
+                        const response = await fetch(`/api/industries/${this.newQuestions.industry}/questions`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newQuestions)
+                        });
+                        await response.json();
+                        await this.loadIndustries();
+                        this.showAddQuestions = false;
+                        this.newQuestions = {
+                            industry: '',
+                            questions: [
+                                { question: '', category: 'business', importance: 'medium', compute_relevant: false }
+                            ]
+                        };
+                        this.selectedIndustry = this.newQuestions.industry;
+                        await this.loadIndustryQuestions();
+                    } catch (e) {
+                        console.error('Error adding questions:', e);
+                    }
+                },
+
+                renderMarkdown(content) {
+                    if (!content) return '';
+                    return marked.parse(content);
+                },
+
+                async loadPricingData() {
+                    try {
+                        // Load regions
+                        const regionsResponse = await fetch('/api/pricing/regions');
+                        const regionsData = await regionsResponse.json();
+                        this.pricingRegions = regionsData.regions;
+                        
+                        // Load all GPUs
+                        const gpusResponse = await fetch('/api/pricing/gpus');
+                        const gpusData = await gpusResponse.json();
+                        this.allGpus = gpusData.gpus;
+                        this.filteredGpus = this.allGpus;
+                    } catch (e) {
+                        console.error('Error loading pricing data:', e);
+                    }
+                },
+
+                filterPricing() {
+                    let filtered = this.allGpus;
+                    
+                    if (this.pricingFilter.region) {
+                        filtered = filtered.filter(g => g.cloud_region === this.pricingFilter.region);
+                    }
+                    
+                    if (this.pricingFilter.minVram) {
+                        const minVram = parseInt(this.pricingFilter.minVram);
+                        filtered = filtered.filter(g => g.vram_gb >= minVram);
+                    }
+                    
+                    this.filteredGpus = filtered;
+                },
+
+                async viewDocument(filename) {
+                    this.viewerDocument.filename = filename;
+                    this.viewerDocument.content = '';
+                    this.viewerDocument.loading = true;
+                    this.showDocumentViewer = true;
+
+                    try {
+                        const response = await fetch(`/api/outputs/${this.selectedProject.id}/${filename}`);
+                        if (response.ok) {
+                            this.viewerDocument.content = await response.text();
+                        } else {
+                            this.viewerDocument.content = '# Error\n\nUnable to load document. Please try downloading instead.';
+                        }
+                    } catch (e) {
+                        console.error('Error loading document:', e);
+                        this.viewerDocument.content = '# Error\n\nFailed to load document: ' + e.message;
+                    } finally {
+                        this.viewerDocument.loading = false;
+                    }
+                }
+            };
+        }
+    </script>
+</body>
+</html>

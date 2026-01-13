@@ -1,0 +1,278 @@
+{
+  "technology": [
+    {
+      "question": "What is your current cloud infrastructure and GPU usage?",
+      "category": "compute",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "What cloud providers do you use?",
+        "What GPU types are you currently running?",
+        "What is your monthly cloud spend?"
+      ]
+    },
+    {
+      "question": "What AI/ML workloads are you running today?",
+      "category": "technical",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Training vs inference split?",
+        "Model sizes and types?",
+        "Batch vs real-time processing?"
+      ]
+    },
+    {
+      "question": "What are your performance requirements (latency, throughput)?",
+      "category": "technical",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "What latency is acceptable?",
+        "Peak throughput requirements?",
+        "SLA requirements?"
+      ]
+    },
+    {
+      "question": "What is your AI/ML budget allocation for the next 12 months?",
+      "category": "budget",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "CapEx vs OpEx preference?",
+        "Annual commitment capability?",
+        "Budget approval process?"
+      ]
+    },
+    {
+      "question": "How do you handle scaling for AI workloads?",
+      "category": "compute",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Auto-scaling requirements?",
+        "Peak vs baseline usage ratio?",
+        "Growth projections?"
+      ]
+    }
+  ],
+  "retail": [
+    {
+      "question": "What visual AI use cases are you implementing (search, recommendations, etc.)?",
+      "category": "business",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Volume of images processed daily?",
+        "Real-time vs batch requirements?",
+        "Model complexity needs?"
+      ]
+    },
+    {
+      "question": "What is your product catalog size and update frequency?",
+      "category": "technical",
+      "importance": "medium",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Images per product?",
+        "Re-indexing frequency?",
+        "Storage requirements?"
+      ]
+    },
+    {
+      "question": "What are your peak traffic periods and scaling needs?",
+      "category": "compute",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Holiday season scaling?",
+        "Flash sale handling?",
+        "Geographic distribution?"
+      ]
+    },
+    {
+      "question": "What is your current infrastructure spend on AI/ML?",
+      "category": "budget",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Current GPU costs?",
+        "Comparison shopping done?",
+        "Budget flexibility for reservations?"
+      ]
+    }
+  ],
+  "healthcare": [
+    {
+      "question": "What are your data residency and compliance requirements?",
+      "category": "compliance",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "HIPAA requirements?",
+        "On-premise vs cloud preference?",
+        "Data sovereignty needs?"
+      ]
+    },
+    {
+      "question": "What medical imaging workloads do you need to support?",
+      "category": "technical",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Image modalities (CT, MRI, X-ray)?",
+        "Volume per day?",
+        "Model types needed?"
+      ]
+    },
+    {
+      "question": "What are your uptime and availability requirements?",
+      "category": "compute",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "SLA requirements?",
+        "Disaster recovery needs?",
+        "Redundancy requirements?"
+      ]
+    },
+    {
+      "question": "What is your timeline for AI deployment and budget cycle?",
+      "category": "budget",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Pilot vs production timeline?",
+        "Budget approval authority?",
+        "Multi-year commitment possible?"
+      ]
+    }
+  ],
+  "financial": [
+    {
+      "question": "What are your regulatory and compliance requirements for AI infrastructure?",
+      "category": "compliance",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Data residency requirements?",
+        "Audit trail needs?",
+        "Vendor assessment process?"
+      ]
+    },
+    {
+      "question": "What real-time processing requirements do you have?",
+      "category": "technical",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Transaction processing latency?",
+        "Fraud detection speed requirements?",
+        "Market data processing needs?"
+      ]
+    },
+    {
+      "question": "What is your GPU infrastructure strategy?",
+      "category": "compute",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Current GPU spend?",
+        "On-prem vs cloud mix?",
+        "Reserved capacity interest?"
+      ]
+    },
+    {
+      "question": "What is your procurement process for infrastructure commitments?",
+      "category": "budget",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Approval levels for yearly commitments?",
+        "Vendor qualification process?",
+        "Contract terms flexibility?"
+      ]
+    }
+  ],
+  "manufacturing": [
+    {
+      "question": "What edge computing requirements do you have for factory floor AI?",
+      "category": "compute",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Latency requirements?",
+        "Connectivity constraints?",
+        "Edge vs cloud processing split?"
+      ]
+    },
+    {
+      "question": "What is your quality inspection volume and throughput needs?",
+      "category": "technical",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Units inspected per hour?",
+        "Camera/sensor count?",
+        "Defect detection accuracy needs?"
+      ]
+    },
+    {
+      "question": "What is your infrastructure investment cycle?",
+      "category": "budget",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "CapEx budget availability?",
+        "Multi-year planning horizon?",
+        "ROI requirements?"
+      ]
+    },
+    {
+      "question": "How do you handle AI workloads across multiple facilities?",
+      "category": "compute",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Number of facilities?",
+        "Centralized vs distributed processing?",
+        "Network connectivity?"
+      ]
+    }
+  ],
+  "media": [
+    {
+      "question": "What content processing volumes do you handle?",
+      "category": "technical",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Hours of video per day?",
+        "Image processing volume?",
+        "Real-time vs batch split?"
+      ]
+    },
+    {
+      "question": "What are your transcoding and processing GPU needs?",
+      "category": "compute",
+      "importance": "critical",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Current GPU infrastructure?",
+        "Peak processing requirements?",
+        "Quality tiers supported?"
+      ]
+    },
+    {
+      "question": "What is your content delivery timeline and infrastructure budget?",
+      "category": "budget",
+      "importance": "high",
+      "compute_relevant": true,
+      "follow_ups": [
+        "Time-to-publish requirements?",
+        "Infrastructure cost targets?",
+        "Scaling budget for growth?"
+      ]
+    }
+  ]
+}
