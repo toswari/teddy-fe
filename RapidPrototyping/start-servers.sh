@@ -4,6 +4,10 @@ set -euo pipefail
 
 # Start local web application (FastAPI/uvicorn) directly on the host
 # and use podman/docker only to start the database containers.
+#
+# Optional environment variables (set in your shell or .env):
+#   export CLARIFAI_PAT=your_pat_here   # or CLARIFAI_API_KEY
+#   export PORT=8081                    # override default 8080 if busy
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
