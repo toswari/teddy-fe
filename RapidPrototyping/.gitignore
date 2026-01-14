@@ -1,12 +1,18 @@
 # Ignore sales_engineering POC outputs and temp files
 sales_engineering/POC/VideoLogoDetection/.vscode/tasks.json
-sales_engineering/POC/VideoLogoDetection/reports/run_43/
-sales_engineering/POC/VideoLogoDetection/reports/run_73/
-sales_engineering/POC/VideoLogoDetection/reports/run_75.zip
-sales_engineering/POC/VideoLogoDetection/reports/run_75/
-sales_engineering/POC/VideoLogoDetection/reports/run_77/
+sales_engineering/POC/VideoLogoDetection/reports
+# Ignore sales_engineering POC outputs and temp files
+sales_engineering/POC/VideoLogoDetection/.vscode/tasks.json
+sales_engineering/POC/VideoLogoDetection/reports/
 sales_engineering/POC/VideoLogoDetection/tmp/
 
+# Common ignores
+.DS_Store
+__pycache__/
+*.pyc
+env/
+venv/
+*.egg-info/
 # Common ignores
 .DS_Store
 __pycache__/
