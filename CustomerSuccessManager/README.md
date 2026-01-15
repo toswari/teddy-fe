@@ -2,6 +2,12 @@
 
 A comprehensive web-based dashboard for Customer Success teams to monitor and manage enterprise customer accounts, track engineering efforts, document links, Slack channels, and generate professional reports.
 
+
+
+https://github.com/user-attachments/assets/cc51aa5c-5ea3-436c-b9d9-d958b7ceb617
+
+
+
 ## Features
 
 ### Dashboard
