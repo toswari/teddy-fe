@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Account Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><i class="fas fa-building"></i> Account Manager</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <i class="fas fa-th-large"></i> Dashboard
+                </a>
+                <a href="#" class="nav-item" data-view="accounts">
+                    <i class="fas fa-users"></i> All Accounts
+                </a>
+                <a href="#" class="nav-item" data-view="expiring">
+                    <i class="fas fa-exclamation-triangle"></i> Expiring Soon
+                </a>
+                <a href="#" class="nav-item" data-view="active-engineering">
+                    <i class="fas fa-cogs"></i> Active Engineering
+                </a>
+                <a href="#" class="nav-item" data-view="needs-review">
+                    <i class="fas fa-flag"></i> Needs Review
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="stats-mini">
+                    <div class="stat-item">
+                        <span class="stat-value" id="total-accounts">0</span>
+                        <span class="stat-label">Total Accounts</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="active-contracts">0</span>
+                        <span class="stat-label">Active Contracts</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="search-container">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="search-input" placeholder="Search accounts, reps, or Salesforce IDs...">
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="add-account-btn">
+                        <i class="fas fa-plus"></i> Add Account
+                    </button>
+                    <button class="btn btn-secondary" id="report-btn">
+                        <i class="fas fa-file-pdf"></i> Generate Report
+                    </button>
+                    <button class="btn btn-secondary" id="export-btn">
+                        <i class="fas fa-download"></i> Export JSON
+                    </button>
+                    <button class="btn btn-secondary" id="db-management-btn" title="Database Management">
+                        <i class="fas fa-database"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="loading-overlay">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading accounts...</p>
+                </div>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active">
+                <div class="dashboard-stats">
+                    <div class="stat-card clickable" data-filter="all">
+                        <div class="stat-icon blue"><i class="fas fa-building"></i></div>
+                        <div class="stat-info">
+                            <h3 id="dash-total">0</h3>
+                            <p>Total Accounts</p>
+                        </div>
+                    </div>
+                    <div class="stat-card clickable" data-filter="active">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="dash-active">0</h3>
+                            <p>Active Contracts</p>
+                        </div>
+                    </div>
+                    <div class="stat-card clickable" data-filter="expiring">
+                        <div class="stat-icon orange"><i class="fas fa-clock"></i></div>
+                        <div class="stat-info">
+                            <h3 id="dash-expiring">0</h3>
+                            <p>Expiring in 60 Days</p>
+                        </div>
+                    </div>
+                    <div class="stat-card clickable" data-filter="engineering">
+                        <div class="stat-icon purple"><i class="fas fa-wrench"></i></div>
+                        <div class="stat-info">
+                            <h3 id="dash-engineering">0</h3>
+                            <p>Active Engineering</p>
+                        </div>
+                    </div>
+                    <div class="stat-card clickable" data-filter="needs-review">
+                        <div class="stat-icon red"><i class="fas fa-flag"></i></div>
+                        <div class="stat-info">
+                            <h3 id="dash-review">0</h3>
+                            <p>Needs Review</p>
+                        </div>
+                    </div>
+                    <div class="stat-card clickable" data-filter="expired">
+                        <div class="stat-icon gray"><i class="fas fa-times-circle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="dash-expired">0</h3>
+                            <p>Expired/Closed</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card expiring-soon-card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-exclamation-triangle"></i> Contracts Expiring Soon</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="expiring-list" class="account-list-mini"></div>
+                        </div>
+                    </div>
+                    <div class="card recent-contact-card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-clock"></i> Recent Activity</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-contacts-list" class="account-list-mini"></div>
+                        </div>
+                    </div>
+                    <div class="card reps-card">
+                        <div class="card-header">
+                            <h2><i class="fas fa-user-tie"></i> Accounts by Rep</h2>
+                        </div>
+                        <div class="card-body">
+                            <div id="reps-breakdown" class="reps-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accounts View -->
+            <div id="accounts-view" class="view">
+                <div class="view-header">
+                    <h2>All Enterprise Accounts</h2>
+                    <div class="filter-controls">
+                        <select id="filter-rep">
+                            <option value="">All Sales Reps</option>
+                        </select>
+                        <select id="filter-status">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="expiring">Expiring Soon</option>
+                            <option value="expired">Expired</option>
+                            <option value="poc">POC</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="accounts-grid" id="accounts-grid"></div>
+            </div>
+
+            <!-- Expiring View -->
+            <div id="expiring-view" class="view">
+                <div class="view-header">
+                    <h2>Contracts Expiring Soon</h2>
+                </div>
+                <div class="accounts-grid" id="expiring-grid"></div>
+            </div>
+
+            <!-- Active Engineering View -->
+            <div id="active-engineering-view" class="view">
+                <div class="view-header">
+                    <h2>Accounts with Active Engineering Efforts</h2>
+                </div>
+                <div class="accounts-grid" id="engineering-grid"></div>
+            </div>
+
+            <!-- Needs Review View -->
+            <div id="needs-review-view" class="view">
+                <div class="view-header">
+                    <h2><i class="fas fa-flag"></i> Accounts Flagged for Review</h2>
+                    <p class="view-subtitle">These accounts have been flagged by CSE for accuracy review</p>
+                </div>
+                <div class="accounts-grid" id="review-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Account Detail Modal -->
+    <div id="account-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Account Details</h2>
+                <button class="close-btn" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Account Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="edit-modal-title">Add New Account</h2>
+                <button class="close-btn" id="close-edit-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="account-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="account-name">Account Name *</label>
+                            <input type="text" id="account-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="salesforce-id">Salesforce ID *</label>
+                            <input type="text" id="salesforce-id" required>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="overview">Overview</label>
+                            <textarea id="overview" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="contract-start">Contract Start Date</label>
+                            <input type="date" id="contract-start">
+                        </div>
+                        <div class="form-group">
+                            <label for="contract-end">Contract End Date</label>
+                            <input type="date" id="contract-end">
+                        </div>
+                        <div class="form-group">
+                            <label for="sales-rep">Sales Representative</label>
+                            <input type="text" id="sales-rep">
+                        </div>
+                        <div class="form-group">
+                            <label for="last-contact-fe">Last Contact (Field Engineering)</label>
+                            <input type="text" id="last-contact-fe">
+                        </div>
+                        <div class="form-group">
+                            <label for="last-contact-sales">Last Contact (Sales)</label>
+                            <input type="text" id="last-contact-sales">
+                        </div>
+                        <div class="form-group">
+                            <label for="sentiment"><i class="fas fa-circle"></i> Customer Sentiment</label>
+                            <select id="sentiment">
+                                <option value="excellent">● Excellent</option>
+                                <option value="good">● Good</option>
+                                <option value="neutral" selected>● Neutral</option>
+                                <option value="at-risk">● At Risk</option>
+                                <option value="critical">● Critical</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="is-poc">
+                                <input type="checkbox" id="is-poc"> This is a POC
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label for="needs-review" class="review-label">
+                                <input type="checkbox" id="needs-review"> <i class="fas fa-flag"></i> Flag for Review
+                            </label>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="engineering-efforts">Current Engineering Efforts</label>
+                            <textarea id="engineering-efforts" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="engineering-status"><i class="fas fa-wrench"></i> Engineering Status</label>
+                            <select id="engineering-status">
+                                <option value="none">● Not Active</option>
+                                <option value="active">● Active</option>
+                            </select>
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="cse-notes"><i class="fas fa-sticky-note"></i> CSE Notes</label>
+                            <textarea id="cse-notes" rows="4" placeholder="Enter notes for Customer Success Engineer..."></textarea>
+                        </div>
+                        
+                        <div class="form-section full-width">
+                            <h3><i class="fas fa-link"></i> Links</h3>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="contract-link">Contract Link</label>
+                            <input type="url" id="contract-link" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label for="billing-link">Billing Link</label>
+                            <input type="url" id="billing-link" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label for="slack-link">Slack Channel</label>
+                            <input type="url" id="slack-link" placeholder="https://clarifai.slack.com/...">
+                        </div>
+                        <div class="form-group">
+                            <label for="gdrive-link">Google Drive</label>
+                            <input type="url" id="gdrive-link" placeholder="https://drive.google.com/...">
+                        </div>
+                        <div class="form-group">
+                            <label for="field-eng-link">Field Engineering Doc</label>
+                            <input type="url" id="field-eng-link" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label for="sales-link">Sales Doc</label>
+                            <input type="url" id="sales-link" placeholder="https://...">
+                        </div>
+                        <div class="form-group">
+                            <label for="clarifai-org">Clarifai Org URL</label>
+                            <input type="url" id="clarifai-org" placeholder="https://clarifai.com/...">
+                        </div>
+                        <div class="form-group">
+                            <label for="jira-link">Jira Link</label>
+                            <input type="url" id="jira-link" placeholder="https://...">
+                        </div>
+                        
+                        <div class="form-section full-width">
+                            <h3><i class="fas fa-file-alt"></i> Additional Documents</h3>
+                            <div id="additional-docs-container">
+                                <!-- Dynamic additional docs -->
+                            </div>
+                            <button type="button" class="btn btn-small" id="add-doc-btn">
+                                <i class="fas fa-plus"></i> Add Document Link
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-form">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Confirm Delete</h2>
+                <button class="close-btn" id="close-delete-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this account? This action cannot be undone.</p>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" id="cancel-delete">Cancel</button>
+                    <button class="btn btn-danger" id="confirm-delete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Management Modal -->
+    <div id="db-management-modal" class="modal">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2><i class="fas fa-database"></i> Database Management</h2>
+                <button class="close-btn" onclick="app.closeModal('db-management-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="db-management-section">
+                    <h3><i class="fas fa-download"></i> Export Backup</h3>
+                    <p>Download a complete backup of all accounts, links, and status history.</p>
+                    <button class="btn btn-primary" id="backup-export-btn">
+                        <i class="fas fa-download"></i> Download Backup
+                    </button>
+                </div>
+                
+                <div class="db-management-section">
+                    <h3><i class="fas fa-upload"></i> Restore from Backup</h3>
+                    <p>Upload a previously exported backup file to restore data. This will replace all existing data.</p>
+                    <input type="file" id="backup-file-input" accept=".json" style="display: none;">
+                    <button class="btn btn-warning" id="backup-restore-btn">
+                        <i class="fas fa-upload"></i> Select Backup File
+                    </button>
+                    <span id="selected-file-name" class="file-name-display"></span>
+                </div>
+                
+                <div class="db-management-section danger-zone">
+                    <h3><i class="fas fa-exclamation-triangle"></i> Danger Zone</h3>
+                    <p>Clear all data from the database. This action cannot be undone!</p>
+                    <button class="btn btn-danger" id="db-clear-btn">
+                        <i class="fas fa-trash-alt"></i> Clear All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Database Confirmation Modal -->
+    <div id="clear-db-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-exclamation-triangle"></i> Confirm Clear Database</h2>
+                <button class="close-btn" onclick="app.closeModal('clear-db-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="warning-text">This will permanently delete ALL accounts, links, and status history. This action cannot be undone!</p>
+                <p>Type <strong>DELETE ALL</strong> to confirm:</p>
+                <input type="text" id="confirm-clear-input" placeholder="Type DELETE ALL">
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="app.closeModal('clear-db-modal')">Cancel</button>
+                    <button class="btn btn-danger" id="confirm-clear-btn" disabled>Clear Database</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Backup Confirmation Modal -->
+    <div id="restore-confirm-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-upload"></i> Confirm Restore</h2>
+                <button class="close-btn" onclick="app.cancelRestore()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>This will replace all existing data with:</p>
+                <ul id="restore-summary" class="restore-summary-list">
+                    <!-- Populated dynamically -->
+                </ul>
+                <p id="restore-date" class="restore-date"></p>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="app.cancelRestore()">Cancel</button>
+                    <button class="btn btn-warning" id="confirm-restore-btn">Restore Data</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Format Modal -->
+    <div id="report-format-modal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-alt"></i> Generate Report</h2>
+                <button class="close-btn" onclick="app.closeModal('report-format-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Choose the report format:</p>
+                <div class="report-format-options">
+                    <button class="btn btn-primary report-format-btn" onclick="app.generateReport('html')">
+                        <i class="fas fa-file-code"></i>
+                        <span>HTML Report</span>
+                        <small>View in browser, print to PDF</small>
+                    </button>
+                    <button class="btn btn-secondary report-format-btn" onclick="app.generateReport('markdown')">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Markdown Report</span>
+                        <small>Open in IDE</small>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

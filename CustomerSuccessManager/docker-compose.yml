@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  account-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprise-account-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist the SQLite database
+      - account-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATA_DIR=/app/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  account-data:
+    driver: local
