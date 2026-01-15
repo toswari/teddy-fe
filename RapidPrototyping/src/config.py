@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     """Application settings from environment variables."""
     
     clarifai_api_key: str = Field(default="", env="CLARIFAI_API_KEY")
+    # Backwards compatibility: also accept CLARIFAI_PAT /.env clarifai_pat
+    clarifai_pat: Optional[str] = Field(default=None, env="CLARIFAI_PAT")
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
     output_dir: str = Field(default="projects", env="OUTPUT_DIR")
     config_dir: str = Field(default="config", env="CONFIG_DIR")
@@ -57,6 +59,18 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
+    @model_validator(mode="after")
+    def _populate_api_key_from_pat(self) -> "Settings":
+        """If only CLARIFAI_PAT/clarifai_pat is set, use it as clarifai_api_key.
+
+        This avoids validation errors when a PAT is provided via CLARIFAI_PAT
+        while keeping clarifai_api_key as the primary setting used by clients.
+        """
+        if not self.clarifai_api_key and self.clarifai_pat:
+            # BaseSettings models are frozen; use object.__setattr__
+            object.__setattr__(self, "clarifai_api_key", self.clarifai_pat)
+        return self
 
 
 class ConfigManager:

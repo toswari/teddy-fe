@@ -117,6 +117,23 @@ Step-by-step technical guide for Solution Engineers:
 - API quick reference
 - Best practices and tips
 
+### Download All ZIP (PDF/DOCX)
+- Step 6 now includes **Download All** controls that bundle every generated Markdown deliverable into a single ZIP.
+- The backend converts Markdown → HTML once and then:
+  - Renders PDFs via **WeasyPrint** for print-ready exports.
+  - Builds DOCX files via **python-docx**/**html2docx** for easy editing in Word.
+- Added Python dependencies: `markdown`, `weasyprint`, `html2docx`, `python-docx` (already listed in `requirements.txt`).
+- Local OS prerequisites for WeasyPrint (install via your package manager): `cairo`, `pango`, `gdk-pixbuf` (Linux), or `brew install cairo pango gdk-pixbuf` (macOS).
+- The UI lets users choose PDF or DOCX output and shows loading/error states while the ZIP streams down.
+- API endpoint: `GET /api/projects/{project_id}/outputs/zip`
+  - Query params:
+    - `format=pdf|docx` (default `pdf`).
+    - `include_md=true|false` (defaults to the environment toggle described below).
+  - Response: `application/zip` with filenames such as `discovery_<timestamp>.pdf`.
+- Environment toggles:
+  - `DOWNLOAD_PAGE_SIZE=LETTER|A4` sets the `@page` size used by WeasyPrint (default `LETTER`).
+  - `DOWNLOAD_INCLUDE_MD=true|false` controls whether raw Markdown files are bundled when the query param is omitted (default `false`).
+
 ## 🤖 Model Recommendations
 
 The framework prioritizes **Vision-Language Models (VLMs)** over legacy computer vision approaches:
@@ -282,6 +299,7 @@ hackday-rapid-prototyping/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/outputs/{project_id}/{filename}` | Download generated document |
+| `GET` | `/api/projects/{project_id}/outputs/zip?format=pdf&include_md=false` | Stream a ZIP containing all project documents converted to PDF or DOCX |
 
 ## 🔧 Environment Variables
 

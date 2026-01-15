@@ -1,0 +1,32 @@
+{
+  "id": "c6f01604",
+  "customer_name": "Hirtz and Carter",
+  "project_name": "Image QA analysis",
+  "industry": "retail",
+  "contact_email": "teddy.oswari@clarifai.com",
+  "goals": [
+    "Create Image analysis system that can detect image problem (image QA) "
+  ],
+  "constraints": [],
+  "budget_range": "",
+  "timeline": "",
+  "compute_requirements": {
+    "gpu_type": "",
+    "gpu_count": "",
+    "commitment": ""
+  },
+  "status": "created",
+  "created_at": "2026-01-15T09:37:04.493453",
+  "files": [
+    "Digital-Photography Levels.docx",
+    "Updated_QA_Checklists.pdf",
+    "Jan12-transcript.csv"
+  ],
+  "outputs": [
+    "discovery_20260115_093739.md",
+    "proposal_20260115_094609.md",
+    "compute_analysis_20260115_094752.md",
+    "se_guide_20260115_094825.md",
+    "se_guide_20260115_094827.md"
+  ]
+}

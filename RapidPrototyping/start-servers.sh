@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-# Start local web application (FastAPI/uvicorn) directly on the host
-# and use podman/docker only to start the database containers.
+# Start local web application (FastAPI/uvicorn) directly on the host.
+# No external database is required for this application.
 #
 # Optional environment variables (set in your shell or .env):
 #   export CLARIFAI_PAT=your_pat_here   # or CLARIFAI_API_KEY
@@ -17,22 +17,26 @@ PORT="${PORT:-8080}"
 echo "[start-servers] Project root: $ROOT_DIR"
 echo "[start-servers] Target web port: $PORT"
 
-start_databases() {
-  echo "[start-servers] Starting database containers (postgres-db, classifai-db) if available..."
+ensure_port_free() {
+  local port="$PORT"
 
-  if command -v podman >/dev/null 2>&1; then
-    echo "[start-servers] Using podman to start DB containers"
-    podman start postgres-db classifai-db 2>/dev/null || echo "[start-servers] Warning: podman containers postgres-db/classifai-db not found or not startable"
-    return
+  if command -v lsof >/dev/null 2>&1; then
+    # Find any process listening on this TCP port
+    local pids
+    pids="$(lsof -t -i TCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    if [[ -n "$pids" ]]; then
+      echo "[start-servers] Port $port is already in use by PID(s): $pids"
+      echo "[start-servers] Attempting to terminate process(es) on port $port..."
+      if ! kill $pids 2>/dev/null; then
+        echo "[start-servers] Warning: failed to terminate PID(s) $pids; you may need to kill them manually" >&2
+      else
+        # Give the OS a moment to free the port
+        sleep 1
+      fi
+    fi
+  else
+    echo "[start-servers] lsof not found; cannot automatically free port $port" >&2
   fi
-
-  if command -v docker >/dev/null 2>&1; then
-    echo "[start-servers] Using docker to start DB containers"
-    docker start postgres-db classifai-db 2>/dev/null || echo "[start-servers] Warning: docker containers postgres-db/classifai-db not found or not startable"
-    return
-  fi
-
-  echo "[start-servers] No podman or docker found; skipping database startup"
 }
 
 setup_venv() {
@@ -65,12 +69,14 @@ start_web_app() {
 
   export PYTHONPATH="$ROOT_DIR"
 
+  # Ensure the target port is free before starting uvicorn
+  ensure_port_free
+
   # Run uvicorn from the project root so relative paths (uploads/projects) match
   python -m uvicorn src.web.app:app --host 0.0.0.0 --port "$PORT"
 }
 
 main() {
-  start_databases
   setup_venv
   start_web_app
 }
