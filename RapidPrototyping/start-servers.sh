@@ -21,18 +21,22 @@ ensure_port_free() {
   local port="$PORT"
 
   if command -v lsof >/dev/null 2>&1; then
-    # Find any process listening on this TCP port
-    local pids
-    pids="$(lsof -t -i TCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-    if [[ -n "$pids" ]]; then
-      echo "[start-servers] Port $port is already in use by PID(s): $pids"
-      echo "[start-servers] Attempting to terminate process(es) on port $port..."
-      if ! kill $pids 2>/dev/null; then
-        echo "[start-servers] Warning: failed to terminate PID(s) $pids; you may need to kill them manually" >&2
-      else
-        # Give the OS a moment to free the port
+    echo "[start-servers] Checking if port $port is in use..."
+    # Use requested command to terminate any processes on the port
+    # Note: If xargs -r is unavailable on your system, fallback logic is handled below.
+    if ! lsof -t -i :"$port" | xargs -r kill -9 2>/dev/null; then
+      # Fallback: manually collect PIDs and kill if xargs -r isn't supported
+      local pids
+      pids="$(lsof -t -i TCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+      if [[ -n "$pids" ]]; then
+        echo "[start-servers] Port $port is in use by PID(s): $pids"
+        echo "[start-servers] Killing PID(s) on port $port with -9..."
+        kill -9 $pids 2>/dev/null || echo "[start-servers] Warning: failed to kill PID(s) $pids" >&2
         sleep 1
       fi
+    else
+      echo "[start-servers] Freed port $port successfully."
+      sleep 1
     fi
   else
     echo "[start-servers] lsof not found; cannot automatically free port $port" >&2
