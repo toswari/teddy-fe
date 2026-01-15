@@ -2,6 +2,12 @@
 
 An AI-powered framework for Solution Engineers to rapidly generate project proposals, technical guides, and deliverables for Clarifai customers.
 
+
+
+https://github.com/user-attachments/assets/79790b96-4d10-4800-8d66-ea99440165fc
+
+
+
 ## 🎯 Purpose
 
 This framework acts as an intelligent assistant for Clarifai Solution Engineers in pre/post-sales roles, helping to:
@@ -361,3 +367,4 @@ services:
 ## 📄 License
 
 MIT License - See LICENSE file for details
+
