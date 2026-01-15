@@ -49,6 +49,15 @@ cd src/web && uvicorn app:app --reload --port 8080
 
 ## 🖥️ Web Interface
 
+## 📚 Documentation
+
+Key reference documents are available under the `docs/` folder:
+
+- [docs/Agent.md](docs/Agent.md): Agent architecture, context, and output handling
+- [docs/DownloadAllDoc.md](docs/DownloadAllDoc.md): Feature overview for "Download All" documents
+- [docs/DownloadAllDocTech.md](docs/DownloadAllDocTech.md): Technical design and implementation details
+- [docs/DownloadAllDoc-Task.md](docs/DownloadAllDoc-Task.md): Task checklist and QA steps
+
 The web UI is built with **Alpine.js** and **Tailwind CSS**, providing a modern single-page application experience.
 
 ### Main Features
