@@ -302,6 +302,14 @@ hackday-rapid-prototyping/
 | `DELETE` | `/api/outputs/{project_id}/{filename}` | Delete a generated document and update metadata |
 | `GET` | `/api/projects/{project_id}/outputs/zip?format=pdf&include_md=false` | Stream a ZIP containing all project documents converted to PDF or DOCX |
 
+### Uploaded Files
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/projects/{project_id}/files` | List uploaded project files |
+| `GET` | `/api/projects/{project_id}/uploads/{filename}` | Download/serve an uploaded file |
+| `DELETE` | `/api/projects/{project_id}/uploads/{filename}` | Delete an uploaded file and update metadata |
+
 ## 🔧 Environment Variables
 
 | Variable | Description | Required | Default |

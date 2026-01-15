@@ -691,7 +691,17 @@
                                     <template x-for="file in selectedProject?.files" :key="file">
                                         <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
                                             <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
-                                            <span class="text-xs text-green-600"><i class="fas fa-check"></i></span>
+                                            <div class="flex space-x-3">
+                                                <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
+                                                    <i class="fas fa-eye mr-1"></i> View
+                                                </button>
+                                                <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    <i class="fas fa-download mr-1"></i> Download
+                                                </a>
+                                                <button @click="deleteUploadedFile(file)" class="text-red-600 hover:text-red-800 text-sm">
+                                                    <i class="fas fa-trash mr-1"></i> Delete
+                                                </button>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -786,7 +796,17 @@
                                     <template x-for="file in selectedProject?.files" :key="file">
                                         <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
                                             <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
-                                            <span class="text-xs text-green-600"><i class="fas fa-check"></i></span>
+                                            <div class="flex space-x-3">
+                                                <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
+                                                    <i class="fas fa-eye mr-1"></i> View
+                                                </button>
+                                                <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    <i class="fas fa-download mr-1"></i> Download
+                                                </a>
+                                                <button @click="deleteUploadedFile(file)" class="text-red-600 hover:text-red-800 text-sm">
+                                                    <i class="fas fa-trash mr-1"></i> Delete
+                                                </button>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -1709,6 +1729,63 @@
                         this.viewerDocument.content = '# Error\n\nFailed to load document: ' + e.message;
                     } finally {
                         this.viewerDocument.loading = false;
+                    }
+                },
+
+                async viewUploadedFile(filename) {
+                    this.viewerDocument.filename = filename;
+                    this.viewerDocument.content = '';
+                    this.viewerDocument.loading = true;
+                    this.showDocumentViewer = true;
+
+                    try {
+                        const response = await fetch(`/api/projects/${this.selectedProject.id}/uploads/${encodeURIComponent(filename)}`);
+                        if (response.ok) {
+                            // Attempt to read as text; non-text will likely display garbled - advise download instead
+                            const contentType = response.headers.get('content-type') || '';
+                            if (contentType.includes('text') || contentType.includes('markdown')) {
+                                this.viewerDocument.content = await response.text();
+                            } else {
+                                const blob = await response.blob();
+                                this.viewerDocument.content = '# Preview Unavailable\n\nThis file type cannot be displayed inline. Please use Download.';
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = filename;
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                window.URL.revokeObjectURL(url);
+                            }
+                        } else {
+                            this.viewerDocument.content = '# Error\n\nUnable to load uploaded file. Please try downloading instead.';
+                        }
+                    } catch (e) {
+                        console.error('Error loading uploaded file:', e);
+                        this.viewerDocument.content = '# Error\n\nFailed to load uploaded file: ' + e.message;
+                    } finally {
+                        this.viewerDocument.loading = false;
+                    }
+                },
+
+                async deleteUploadedFile(filename) {
+                    if (!this.selectedProject) return;
+                    const confirmed = confirm(`Delete ${filename}? This cannot be undone.`);
+                    if (!confirmed) return;
+
+                    try {
+                        const response = await fetch(`/api/projects/${this.selectedProject.id}/uploads/${encodeURIComponent(filename)}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Failed to delete file.');
+                        }
+
+                        this.selectedProject.files = (this.selectedProject.files || []).filter(f => f !== filename);
+                    } catch (e) {
+                        console.error('Error deleting file:', e);
+                        alert(e.message || 'Error deleting file. Please try again.');
                     }
                 },
 

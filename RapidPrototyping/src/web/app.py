@@ -369,6 +369,47 @@ async def list_files(project_id: str):
 
 # ----- Generation Endpoints -----
 
+@app.get("/api/projects/{project_id}/uploads/{filename}")
+async def get_uploaded_file(project_id: str, filename: str):
+    """Download/serve an uploaded file for a project."""
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    upload_dir = PROJECTS_DIR / project_id / "uploads"
+    file_path = upload_dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # For simplicity, always serve as download; viewer will fetch text when applicable.
+    return FileResponse(file_path, filename=filename)
+
+
+@app.delete("/api/projects/{project_id}/uploads/{filename}")
+async def delete_uploaded_file(project_id: str, filename: str):
+    """Delete an uploaded file and update project metadata."""
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    upload_dir = PROJECTS_DIR / project_id / "uploads"
+    file_path = upload_dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        file_path.unlink()
+    except Exception as e:
+        logger.error(f"Failed to delete uploaded file {filename}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete file")
+
+    # Update metadata: remove from files list if present
+    if filename in project.get("files", []):
+        project["files"].remove(filename)
+        project_store._save_metadata(project_id, project)
+
+    return {"status": "deleted", "filename": filename}
+
 @app.post("/api/generate/discovery")
 async def generate_discovery(request: GenerateRequest, background_tasks: BackgroundTasks):
     """Generate discovery questions for a project."""
