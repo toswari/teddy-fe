@@ -57,8 +57,8 @@ Checklist to implement the feature that downloads all generated project document
   - [x] Calls the `/outputs/zip` endpoint.
   - [x] Asserts a valid ZIP is returned and entries are present.
 - [ ] Manual QA:
-  - [ ] Generate all documents for a real project via the UI.
-  - [ ] Click "Download All" and confirm:
-    - [ ] ZIP downloads successfully.
-    - [ ] All expected PDFs are inside.
-    - [ ] PDFs open and render correctly in a viewer.
+  - [x] Generate all documents for a real project via the UI.
+  - [x] Click "Download All" and confirm:
+    - [x] ZIP downloads successfully.
+    - [x] All expected PDFs are inside.
+    - [x] PDFs open and render correctly in a viewer.

@@ -299,6 +299,7 @@ hackday-rapid-prototyping/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/outputs/{project_id}/{filename}` | Download generated document |
+| `DELETE` | `/api/outputs/{project_id}/{filename}` | Delete a generated document and update metadata |
 | `GET` | `/api/projects/{project_id}/outputs/zip?format=pdf&include_md=false` | Stream a ZIP containing all project documents converted to PDF or DOCX |
 
 ## 🔧 Environment Variables

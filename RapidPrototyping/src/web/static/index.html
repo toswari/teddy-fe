@@ -994,6 +994,9 @@
                                                 <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
                                                     <i class="fas fa-download mr-1"></i> Download
                                                 </a>
+                                                <button @click="deleteDocument(output)" class="text-red-600 hover:text-red-800 text-sm">
+                                                    <i class="fas fa-trash mr-1"></i> Delete
+                                                </button>
                                             </div>
                                         </div>
                                     </template>
@@ -1706,6 +1709,32 @@
                         this.viewerDocument.content = '# Error\n\nFailed to load document: ' + e.message;
                     } finally {
                         this.viewerDocument.loading = false;
+                    }
+                },
+
+                async deleteDocument(filename) {
+                    if (!this.selectedProject) return;
+                    const confirmed = confirm(`Delete ${filename}? This cannot be undone.`);
+                    if (!confirmed) return;
+
+                    try {
+                        const response = await fetch(`/api/outputs/${this.selectedProject.id}/${encodeURIComponent(filename)}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Failed to delete document.');
+                        }
+
+                        this.selectedProject.outputs = (this.selectedProject.outputs || []).filter(o => o !== filename);
+
+                        if (this.viewerDocument?.filename === filename) {
+                            this.showDocumentViewer = false;
+                            this.viewerDocument = { filename: '', content: '', loading: false };
+                        }
+                    } catch (e) {
+                        console.error('Error deleting document:', e);
+                        alert(e.message || 'Error deleting document. Please try again.');
                     }
                 }
             };

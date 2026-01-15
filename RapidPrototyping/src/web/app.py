@@ -814,6 +814,28 @@ async def get_output_file(project_id: str, filename: str):
     return FileResponse(file_path, filename=filename)
 
 
+@app.delete("/api/outputs/{project_id}/{filename}")
+async def delete_output_file(project_id: str, filename: str):
+    """Delete a generated output file."""
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    file_path = PROJECTS_DIR / project_id / "outputs" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Delete the file
+    file_path.unlink()
+    
+    # Remove from project's outputs list
+    if filename in project.get("outputs", []):
+        project["outputs"].remove(filename)
+        project_store._save_metadata(project_id, project)
+    
+    return {"status": "deleted", "filename": filename}
+
+
 @app.get("/api/projects/{project_id}/outputs/zip")
 async def download_all_outputs(
     project_id: str,
