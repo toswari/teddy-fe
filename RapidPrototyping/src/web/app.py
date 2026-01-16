@@ -83,6 +83,12 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 # Industry question manager
 question_manager = IndustryQuestionManager()
 
+# Serve documentation files under /docs
+try:
+    app.mount("/docs", StaticFiles(directory="docs"), name="docs")
+except Exception as e:
+    logger.warning(f"Failed to mount docs directory: {e}")
+
 
 # ============== Pydantic Models ==============
 
