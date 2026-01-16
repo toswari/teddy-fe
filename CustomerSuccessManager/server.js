@@ -765,6 +765,10 @@ app.get('/api/report', (req, res) => {
                 cseNotes: account.cse_notes,
                 needsReview: !!account.needs_review,
                 sentiment: account.sentiment || 'neutral',
+                primaryPocName: account.primary_poc_name,
+                primaryPocEmail: account.primary_poc_email,
+                secondaryPocName: account.secondary_poc_name,
+                secondaryPocEmail: account.secondary_poc_email,
                 links: linksObj,
                 latestStatus: latestStatus ? {
                     statusText: latestStatus.status_text,
