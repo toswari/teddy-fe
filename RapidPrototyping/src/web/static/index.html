@@ -178,35 +178,7 @@
                                 <p class="text-sm text-gray-500">SDK integration</p>
                             </div>
                         </a>
-                        <!-- Local docs links -->
-                        <a href="/docs/Agent.md" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                            <i class="fas fa-user-cog text-blue-600 mr-3"></i>
-                            <div>
-                                <p class="font-medium">Agents Overview</p>
-                                <p class="text-sm text-gray-500">docs/Agent.md</p>
-                            </div>
-                        </a>
-                        <a href="/docs/DownloadAllDoc.md" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                            <i class="fas fa-file-archive text-indigo-600 mr-3"></i>
-                            <div>
-                                <p class="font-medium">Download All – Feature</p>
-                                <p class="text-sm text-gray-500">docs/DownloadAllDoc.md</p>
-                            </div>
-                        </a>
-                        <a href="/docs/DownloadAllDocTech.md" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                            <i class="fas fa-tools text-gray-700 mr-3"></i>
-                            <div>
-                                <p class="font-medium">Download All – Technical</p>
-                                <p class="text-sm text-gray-500">docs/DownloadAllDocTech.md</p>
-                            </div>
-                        </a>
-                        <a href="/docs/DownloadAllDoc-Task.md" target="_blank" class="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                            <i class="fas fa-list-check text-green-600 mr-3"></i>
-                            <div>
-                                <p class="font-medium">Download All – Tasks</p>
-                                <p class="text-sm text-gray-500">docs/DownloadAllDoc-Task.md</p>
-                            </div>
-                        </a>
+                        <!-- Local docs links removed to prevent direct Markdown access -->
                     </div>
                 </div>
             </div>
@@ -721,12 +693,16 @@
                                         <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
                                             <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
                                             <div class="flex space-x-3">
-                                                <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
-                                                    <i class="fas fa-eye mr-1"></i> View
-                                                </button>
-                                                <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
-                                                    <i class="fas fa-download mr-1"></i> Download
-                                                </a>
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
+                                                        <i class="fas fa-eye mr-1"></i> View
+                                                    </button>
+                                                </template>
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                        <i class="fas fa-download mr-1"></i> Download
+                                                    </a>
+                                                </template>
                                                 <button @click="deleteUploadedFile(file)" class="text-red-600 hover:text-red-800 text-sm">
                                                     <i class="fas fa-trash mr-1"></i> Delete
                                                 </button>
@@ -773,14 +749,6 @@
                                     <template x-for="output in getDiscoveryOutputs()" :key="output">
                                         <div class="flex items-center justify-between py-2">
                                             <span class="text-sm text-green-800"><i class="fas fa-file-alt mr-2"></i> <span x-text="output"></span></span>
-                                            <div class="flex space-x-2">
-                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
-                                                    <i class="fas fa-eye mr-1"></i> View
-                                                </button>
-                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
-                                                    <i class="fas fa-download mr-1"></i> Download
-                                                </a>
-                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -826,12 +794,16 @@
                                         <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
                                             <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
                                             <div class="flex space-x-3">
-                                                <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
-                                                    <i class="fas fa-eye mr-1"></i> View
-                                                </button>
-                                                <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
-                                                    <i class="fas fa-download mr-1"></i> Download
-                                                </a>
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
+                                                        <i class="fas fa-eye mr-1"></i> View
+                                                    </button>
+                                                </template>
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                        <i class="fas fa-download mr-1"></i> Download
+                                                    </a>
+                                                </template>
                                                 <button @click="deleteUploadedFile(file)" class="text-red-600 hover:text-red-800 text-sm">
                                                     <i class="fas fa-trash mr-1"></i> Delete
                                                 </button>
@@ -1037,12 +1009,6 @@
                                                 <span class="text-sm font-medium" x-text="output"></span>
                                             </div>
                                             <div class="flex space-x-3">
-                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
-                                                    <i class="fas fa-eye mr-1"></i> View
-                                                </button>
-                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
-                                                    <i class="fas fa-download mr-1"></i> Download
-                                                </a>
                                                 <button @click="deleteDocument(output)" class="text-red-600 hover:text-red-800 text-sm">
                                                     <i class="fas fa-trash mr-1"></i> Delete
                                                 </button>
