@@ -17,6 +17,14 @@ const accountWriteLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+// Stricter rate limiter for administrative database operations (backup, clear, restore)
+const adminDbLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // limit each IP to 10 admin DB requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Ensure data directory exists
 const dataDir = process.env.DATA_DIR || './data';
 if (!fs.existsSync(dataDir)) {
@@ -805,7 +813,7 @@ app.get('/api/report', (req, res) => {
 });
 
 // Database Management - Export Backup
-app.get('/api/backup', (req, res) => {
+app.get('/api/backup', adminDbLimiter, (req, res) => {
     try {
         // Get all accounts
         const accounts = db.prepare(`SELECT * FROM accounts`).all();
@@ -845,7 +853,7 @@ app.get('/api/backup', (req, res) => {
 });
 
 // Database Management - Clear Database
-app.delete('/api/database', (req, res) => {
+app.delete('/api/database', adminDbLimiter, (req, res) => {
     try {
         db.prepare(`DELETE FROM status_updates`).run();
         db.prepare(`DELETE FROM account_links`).run();
@@ -862,7 +870,7 @@ app.delete('/api/database', (req, res) => {
 });
 
 // Database Management - Restore from Backup
-app.post('/api/restore', (req, res) => {
+app.post('/api/restore', adminDbLimiter, (req, res) => {
     try {
         const { data } = req.body;
         
