@@ -598,6 +598,18 @@ function generateReport(accounts) {
                                     <span class="label">Last Contact (Sales)</span>
                                     <span class="value">${account.lastContactSales || 'Not recorded'}</span>
                                 </div>
+                                ${account.primaryPocName || account.primaryPocEmail ? `
+                                <div class="detail-item">
+                                    <span class="label">Primary POC</span>
+                                    <span class="value">${account.primaryPocName || 'Not specified'}${account.primaryPocEmail ? `<br><a href="mailto:${account.primaryPocEmail}" style="font-size: 0.85em; color: #4f46e5;">${account.primaryPocEmail}</a>` : ''}</span>
+                                </div>
+                                ` : ''}
+                                ${account.secondaryPocName || account.secondaryPocEmail ? `
+                                <div class="detail-item">
+                                    <span class="label">Secondary POC</span>
+                                    <span class="value">${account.secondaryPocName || 'Not specified'}${account.secondaryPocEmail ? `<br><a href="mailto:${account.secondaryPocEmail}" style="font-size: 0.85em; color: #4f46e5;">${account.secondaryPocEmail}</a>` : ''}</span>
+                                </div>
+                                ` : ''}
                             </div>
                             
                             ${hasActiveEngineering(account) || account.latestStatus ? `
@@ -795,6 +807,20 @@ function generateMarkdownReport(accounts) {
                 md += `| Salesforce ID | ${account.salesforceId} |\n`;
             }
             md += `\n`;
+            
+            // Points of Contact
+            if (account.primaryPocName || account.primaryPocEmail || account.secondaryPocName || account.secondaryPocEmail) {
+                md += `#### Points of Contact\n\n`;
+                md += `| Role | Name | Email |\n`;
+                md += `|------|------|-------|\n`;
+                if (account.primaryPocName || account.primaryPocEmail) {
+                    md += `| Primary POC | ${account.primaryPocName || 'Not specified'} | ${account.primaryPocEmail || 'Not specified'} |\n`;
+                }
+                if (account.secondaryPocName || account.secondaryPocEmail) {
+                    md += `| Secondary POC | ${account.secondaryPocName || 'Not specified'} | ${account.secondaryPocEmail || 'Not specified'} |\n`;
+                }
+                md += `\n`;
+            }
             
             // Overview
             if (account.overview) {

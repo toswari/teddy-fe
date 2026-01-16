@@ -811,6 +811,32 @@ class AccountManager {
                 </div>
             </div>
             
+            ${account.primaryPocName || account.primaryPocEmail || account.secondaryPocName || account.secondaryPocEmail ? `
+            <div class="modal-section">
+                <h3><i class="fas fa-user-circle"></i> Points of Contact</h3>
+                <div class="modal-details-grid">
+                    ${account.primaryPocName || account.primaryPocEmail ? `
+                    <div class="modal-detail-item">
+                        <span class="modal-detail-label">Primary POC</span>
+                        <span class="modal-detail-value">
+                            ${account.primaryPocName || 'Not specified'}
+                            ${account.primaryPocEmail ? `<br><a href="mailto:${account.primaryPocEmail}" style="font-size: 0.9em; color: #4f46e5;">${account.primaryPocEmail}</a>` : ''}
+                        </span>
+                    </div>
+                    ` : ''}
+                    ${account.secondaryPocName || account.secondaryPocEmail ? `
+                    <div class="modal-detail-item">
+                        <span class="modal-detail-label">Secondary POC</span>
+                        <span class="modal-detail-value">
+                            ${account.secondaryPocName || 'Not specified'}
+                            ${account.secondaryPocEmail ? `<br><a href="mailto:${account.secondaryPocEmail}" style="font-size: 0.9em; color: #4f46e5;">${account.secondaryPocEmail}</a>` : ''}
+                        </span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            ` : ''}
+            
             ${account.cseNotes ? `
             <div class="modal-section">
                 <h3><i class="fas fa-sticky-note"></i> CSE Notes</h3>
@@ -934,6 +960,10 @@ class AccountManager {
             document.getElementById('sales-rep').value = account.salesRep || '';
             document.getElementById('last-contact-fe').value = account.lastContactFE || '';
             document.getElementById('last-contact-sales').value = account.lastContactSales || '';
+            document.getElementById('primary-poc-name').value = account.primaryPocName || '';
+            document.getElementById('primary-poc-email').value = account.primaryPocEmail || '';
+            document.getElementById('secondary-poc-name').value = account.secondaryPocName || '';
+            document.getElementById('secondary-poc-email').value = account.secondaryPocEmail || '';
             document.getElementById('is-poc').checked = account.isPOC || false;
             document.getElementById('needs-review').checked = account.needsReview || false;
             document.getElementById('sentiment').value = account.sentiment || 'neutral';
@@ -991,6 +1021,10 @@ class AccountManager {
             salesRep: document.getElementById('sales-rep').value,
             lastContactFE: document.getElementById('last-contact-fe').value || null,
             lastContactSales: document.getElementById('last-contact-sales').value || null,
+            primaryPocName: document.getElementById('primary-poc-name').value || null,
+            primaryPocEmail: document.getElementById('primary-poc-email').value || null,
+            secondaryPocName: document.getElementById('secondary-poc-name').value || null,
+            secondaryPocEmail: document.getElementById('secondary-poc-email').value || null,
             isPOC: document.getElementById('is-poc').checked,
             needsReview: document.getElementById('needs-review').checked,
             sentiment: document.getElementById('sentiment').value || 'neutral',
