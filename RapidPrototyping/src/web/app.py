@@ -13,6 +13,8 @@ import json
 import uuid
 import shutil
 import logging
+import zipfile
+from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -20,7 +22,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from src.config import get_config, init_config
@@ -39,12 +41,23 @@ from src.web.huggingface_models import (
     get_all_vlm_models, get_all_llm_models, get_embedding_models,
     ModelTask, HuggingFaceModel, USE_CASE_TO_TASKS
 )
+from src.web.download_utils import convert_markdown_file, is_markdown_file
 
 
 logger = logging.getLogger(__name__)
 
 # Initialize configuration
 init_config()
+
+
+def _include_markdown_by_default() -> bool:
+    """Return True when DOWNLOAD_INCLUDE_MD env opt-in is active."""
+    return os.getenv("DOWNLOAD_INCLUDE_MD", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 app = FastAPI(
     title="Clarifai Rapid Prototyping Framework",
@@ -69,6 +82,8 @@ PROJECTS_DIR.mkdir(exist_ok=True)
 
 # Industry question manager
 question_manager = IndustryQuestionManager()
+
+# Docs are not exposed via the UI; do not mount /docs as static
 
 
 # ============== Pydantic Models ==============
@@ -355,6 +370,47 @@ async def list_files(project_id: str):
 
 
 # ----- Generation Endpoints -----
+
+@app.get("/api/projects/{project_id}/uploads/{filename}")
+async def get_uploaded_file(project_id: str, filename: str):
+    """Download/serve an uploaded file for a project."""
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    upload_dir = PROJECTS_DIR / project_id / "uploads"
+    file_path = upload_dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # For simplicity, always serve as download; viewer will fetch text when applicable.
+    return FileResponse(file_path, filename=filename)
+
+
+@app.delete("/api/projects/{project_id}/uploads/{filename}")
+async def delete_uploaded_file(project_id: str, filename: str):
+    """Delete an uploaded file and update project metadata."""
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    upload_dir = PROJECTS_DIR / project_id / "uploads"
+    file_path = upload_dir / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        file_path.unlink()
+    except Exception as e:
+        logger.error(f"Failed to delete uploaded file {filename}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete file")
+
+    # Update metadata: remove from files list if present
+    if filename in project.get("files", []):
+        project["files"].remove(filename)
+        project_store._save_metadata(project_id, project)
+
+    return {"status": "deleted", "filename": filename}
 
 @app.post("/api/generate/discovery")
 async def generate_discovery(request: GenerateRequest, background_tasks: BackgroundTasks):
@@ -799,6 +855,82 @@ async def get_output_file(project_id: str, filename: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path, filename=filename)
+
+
+@app.delete("/api/outputs/{project_id}/{filename}")
+async def delete_output_file(project_id: str, filename: str):
+    """Delete a generated output file."""
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    file_path = PROJECTS_DIR / project_id / "outputs" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Delete the file
+    file_path.unlink()
+    
+    # Remove from project's outputs list
+    if filename in project.get("outputs", []):
+        project["outputs"].remove(filename)
+        project_store._save_metadata(project_id, project)
+    
+    return {"status": "deleted", "filename": filename}
+
+
+@app.get("/api/projects/{project_id}/outputs/zip")
+async def download_all_outputs(
+    project_id: str,
+    format: str = "pdf",
+    include_md: Optional[bool] = None,
+):
+    """Download all generated markdown outputs for a project as a ZIP of PDFs or DOCX files."""
+
+    project = project_store.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    target_format = format.lower()
+    if target_format not in {"pdf", "docx"}:
+        raise HTTPException(status_code=400, detail="format must be 'pdf' or 'docx'")
+
+    outputs_dir = PROJECTS_DIR / project_id / "outputs"
+    if not outputs_dir.exists():
+        raise HTTPException(status_code=404, detail="Outputs directory not found for project")
+
+    markdown_files = sorted(
+        [path for path in outputs_dir.iterdir() if path.is_file() and is_markdown_file(path)]
+    )
+
+    if not markdown_files:
+        raise HTTPException(status_code=400, detail="No markdown documents found for this project")
+
+    include_md_value = _include_markdown_by_default() if include_md is None else include_md
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+        for file_path in markdown_files:
+            try:
+                converted_bytes = convert_markdown_file(file_path, target_format)
+            except Exception as exc:  # pragma: no cover - logged for troubleshooting
+                logger.exception("Failed to convert %s to %s", file_path.name, target_format)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to convert {file_path.name} to {target_format}",
+                ) from exc
+
+            archive_name = f"{file_path.stem}.{target_format}"
+            zip_file.writestr(archive_name, converted_bytes)
+
+        if include_md_value:
+            for file_path in markdown_files:
+                zip_file.write(file_path, arcname=file_path.name)
+
+    zip_buffer.seek(0)
+    download_filename = f"project-{project_id}-docs-{target_format}.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{download_filename}"'}
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
 
 
 # ============== Hugging Face Model Discovery API ==============

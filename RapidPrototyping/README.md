@@ -55,6 +55,15 @@ cd src/web && uvicorn app:app --reload --port 8080
 
 ## 🖥️ Web Interface
 
+## 📚 Documentation
+
+Key reference documents are available under the `docs/` folder:
+
+- [docs/Agent.md](docs/Agent.md): Agent architecture, context, and output handling
+- [docs/DownloadAllDoc.md](docs/DownloadAllDoc.md): Feature overview for "Download All" documents
+- [docs/DownloadAllDocTech.md](docs/DownloadAllDocTech.md): Technical design and implementation details
+- [docs/DownloadAllDoc-Task.md](docs/DownloadAllDoc-Task.md): Task checklist and QA steps
+
 The web UI is built with **Alpine.js** and **Tailwind CSS**, providing a modern single-page application experience.
 
 ### Main Features
@@ -122,6 +131,23 @@ Step-by-step technical guide for Solution Engineers:
 - Industry-specific prompts
 - API quick reference
 - Best practices and tips
+
+### Download All ZIP (PDF/DOCX)
+- Step 6 now includes **Download All** controls that bundle every generated Markdown deliverable into a single ZIP.
+- The backend converts Markdown → HTML once and then:
+  - Renders PDFs via **WeasyPrint** for print-ready exports.
+  - Builds DOCX files via **python-docx**/**html2docx** for easy editing in Word.
+- Added Python dependencies: `markdown`, `weasyprint`, `html2docx`, `python-docx` (already listed in `requirements.txt`).
+- Local OS prerequisites for WeasyPrint (install via your package manager): `cairo`, `pango`, `gdk-pixbuf` (Linux), or `brew install cairo pango gdk-pixbuf` (macOS).
+- The UI lets users choose PDF or DOCX output and shows loading/error states while the ZIP streams down.
+- API endpoint: `GET /api/projects/{project_id}/outputs/zip`
+  - Query params:
+    - `format=pdf|docx` (default `pdf`).
+    - `include_md=true|false` (defaults to the environment toggle described below).
+  - Response: `application/zip` with filenames such as `discovery_<timestamp>.pdf`.
+- Environment toggles:
+  - `DOWNLOAD_PAGE_SIZE=LETTER|A4` sets the `@page` size used by WeasyPrint (default `LETTER`).
+  - `DOWNLOAD_INCLUDE_MD=true|false` controls whether raw Markdown files are bundled when the query param is omitted (default `false`).
 
 ## 🤖 Model Recommendations
 
@@ -288,6 +314,16 @@ hackday-rapid-prototyping/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/outputs/{project_id}/{filename}` | Download generated document |
+| `DELETE` | `/api/outputs/{project_id}/{filename}` | Delete a generated document and update metadata |
+| `GET` | `/api/projects/{project_id}/outputs/zip?format=pdf&include_md=false` | Stream a ZIP containing all project documents converted to PDF or DOCX |
+
+### Uploaded Files
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/projects/{project_id}/files` | List uploaded project files |
+| `GET` | `/api/projects/{project_id}/uploads/{filename}` | Download/serve an uploaded file |
+| `DELETE` | `/api/projects/{project_id}/uploads/{filename}` | Delete an uploaded file and update metadata |
 
 ## 🔧 Environment Variables
 

@@ -178,6 +178,7 @@
                                 <p class="text-sm text-gray-500">SDK integration</p>
                             </div>
                         </a>
+                        <!-- Local docs links removed to prevent direct Markdown access -->
                     </div>
                 </div>
             </div>
@@ -691,7 +692,21 @@
                                     <template x-for="file in selectedProject?.files" :key="file">
                                         <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
                                             <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
-                                            <span class="text-xs text-green-600"><i class="fas fa-check"></i></span>
+                                            <div class="flex space-x-3">
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
+                                                        <i class="fas fa-eye mr-1"></i> View
+                                                    </button>
+                                                </template>
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                        <i class="fas fa-download mr-1"></i> Download
+                                                    </a>
+                                                </template>
+                                                <button @click="deleteUploadedFile(file)" class="text-red-600 hover:text-red-800 text-sm">
+                                                    <i class="fas fa-trash mr-1"></i> Delete
+                                                </button>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -734,14 +749,6 @@
                                     <template x-for="output in getDiscoveryOutputs()" :key="output">
                                         <div class="flex items-center justify-between py-2">
                                             <span class="text-sm text-green-800"><i class="fas fa-file-alt mr-2"></i> <span x-text="output"></span></span>
-                                            <div class="flex space-x-2">
-                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
-                                                    <i class="fas fa-eye mr-1"></i> View
-                                                </button>
-                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
-                                                    <i class="fas fa-download mr-1"></i> Download
-                                                </a>
-                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -786,7 +793,21 @@
                                     <template x-for="file in selectedProject?.files" :key="file">
                                         <div class="flex items-center justify-between bg-white rounded px-3 py-2 shadow-sm">
                                             <span class="text-sm"><i class="fas fa-file mr-2 text-gray-400"></i> <span x-text="file"></span></span>
-                                            <span class="text-xs text-green-600"><i class="fas fa-check"></i></span>
+                                            <div class="flex space-x-3">
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <button @click="viewUploadedFile(file)" class="text-green-600 hover:text-green-800 text-sm">
+                                                        <i class="fas fa-eye mr-1"></i> View
+                                                    </button>
+                                                </template>
+                                                <template x-if="!(file || '').toLowerCase().endsWith('.md')">
+                                                    <a :href="`/api/projects/${selectedProject.id}/uploads/${encodeURIComponent(file)}`" download class="text-blue-600 hover:text-blue-800 text-sm">
+                                                        <i class="fas fa-download mr-1"></i> Download
+                                                    </a>
+                                                </template>
+                                                <button @click="deleteUploadedFile(file)" class="text-red-600 hover:text-red-800 text-sm">
+                                                    <i class="fas fa-trash mr-1"></i> Delete
+                                                </button>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>
@@ -933,6 +954,42 @@
                                 </div>
                             </div>
 
+                            <!-- Download All Documents -->
+                            <div x-show="selectedProject?.outputs.length > 0" class="bg-white border rounded-lg p-6 mb-6">
+                                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800 flex items-center">
+                                            <i class="fas fa-file-archive text-blue-500 mr-2"></i> Download Entire Package
+                                        </h4>
+                                        <p class="text-sm text-gray-500">Convert every generated document to PDF or DOCX and download as a single ZIP.</p>
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                                        <button
+                                            @click="downloadAllProjectOutputs('pdf')"
+                                            :disabled="downloadingAll"
+                                            class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60">
+                                            <template x-if="downloadingAll && downloadingAllFormat === 'pdf'">
+                                                <span><i class="fas fa-spinner fa-spin mr-2"></i>Preparing PDF ZIP...</span>
+                                            </template>
+                                            <template x-if="!(downloadingAll && downloadingAllFormat === 'pdf')">
+                                                <span><i class="fas fa-file-pdf mr-2"></i>Download All (PDF)</span>
+                                            </template>
+                                        </button>
+                                        <button
+                                            @click="downloadAllProjectOutputs('docx')"
+                                            :disabled="downloadingAll"
+                                            class="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-60">
+                                            <template x-if="downloadingAll && downloadingAllFormat === 'docx'">
+                                                <span><i class="fas fa-spinner fa-spin mr-2"></i>Preparing DOCX ZIP...</span>
+                                            </template>
+                                            <template x-if="!(downloadingAll && downloadingAllFormat === 'docx')">
+                                                <span><i class="fas fa-file-word mr-2"></i>Download All (DOCX)</span>
+                                            </template>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- All Outputs -->
                             <div x-show="selectedProject?.outputs.length > 0" class="mb-6">
                                 <h4 class="font-semibold text-gray-700 mb-3 flex items-center">
@@ -952,12 +1009,9 @@
                                                 <span class="text-sm font-medium" x-text="output"></span>
                                             </div>
                                             <div class="flex space-x-3">
-                                                <button @click="viewDocument(output)" class="text-green-600 hover:text-green-800 text-sm">
-                                                    <i class="fas fa-eye mr-1"></i> View
+                                                <button @click="deleteDocument(output)" class="text-red-600 hover:text-red-800 text-sm">
+                                                    <i class="fas fa-trash mr-1"></i> Delete
                                                 </button>
-                                                <a :href="`/api/outputs/${selectedProject.id}/${output}`" download class="text-blue-600 hover:text-blue-800 text-sm">
-                                                    <i class="fas fa-download mr-1"></i> Download
-                                                </a>
                                             </div>
                                         </div>
                                     </template>
@@ -1249,6 +1303,8 @@
                 generatedContent: '',
                 generatedFilename: '',
                 dragover: false,
+                downloadingAll: false,
+                downloadingAllFormat: null,
                 
                 // Help overlay
                 showHelp: false,
@@ -1546,6 +1602,41 @@
                     }
                 },
 
+                async downloadAllProjectOutputs(format = 'pdf') {
+                    if (!this.selectedProject || !this.selectedProject.outputs?.length) {
+                        alert('No generated documents available to download yet.');
+                        return;
+                    }
+
+                    this.downloadingAll = true;
+                    this.downloadingAllFormat = format;
+
+                    try {
+                        const response = await fetch(`/api/projects/${this.selectedProject.id}/outputs/zip?format=${format}`);
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Unable to download documents.');
+                        }
+
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                        link.href = url;
+                        link.download = `project-${this.selectedProject.id}-${format}-${timestamp}.zip`;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        window.URL.revokeObjectURL(url);
+                    } catch (e) {
+                        console.error('Error downloading documents ZIP:', e);
+                        alert(e.message || 'Failed to download documents. Please try again.');
+                    } finally {
+                        this.downloadingAll = false;
+                        this.downloadingAllFormat = null;
+                    }
+                },
+
                 addNewQuestion() {
                     this.newQuestions.questions.push({
                         question: '',
@@ -1633,6 +1724,89 @@
                         this.viewerDocument.content = '# Error\n\nFailed to load document: ' + e.message;
                     } finally {
                         this.viewerDocument.loading = false;
+                    }
+                },
+
+                async viewUploadedFile(filename) {
+                    this.viewerDocument.filename = filename;
+                    this.viewerDocument.content = '';
+                    this.viewerDocument.loading = true;
+                    this.showDocumentViewer = true;
+
+                    try {
+                        const response = await fetch(`/api/projects/${this.selectedProject.id}/uploads/${encodeURIComponent(filename)}`);
+                        if (response.ok) {
+                            // Attempt to read as text; non-text will likely display garbled - advise download instead
+                            const contentType = response.headers.get('content-type') || '';
+                            if (contentType.includes('text') || contentType.includes('markdown')) {
+                                this.viewerDocument.content = await response.text();
+                            } else {
+                                const blob = await response.blob();
+                                this.viewerDocument.content = '# Preview Unavailable\n\nThis file type cannot be displayed inline. Please use Download.';
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = filename;
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                window.URL.revokeObjectURL(url);
+                            }
+                        } else {
+                            this.viewerDocument.content = '# Error\n\nUnable to load uploaded file. Please try downloading instead.';
+                        }
+                    } catch (e) {
+                        console.error('Error loading uploaded file:', e);
+                        this.viewerDocument.content = '# Error\n\nFailed to load uploaded file: ' + e.message;
+                    } finally {
+                        this.viewerDocument.loading = false;
+                    }
+                },
+
+                async deleteUploadedFile(filename) {
+                    if (!this.selectedProject) return;
+                    const confirmed = confirm(`Delete ${filename}? This cannot be undone.`);
+                    if (!confirmed) return;
+
+                    try {
+                        const response = await fetch(`/api/projects/${this.selectedProject.id}/uploads/${encodeURIComponent(filename)}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Failed to delete file.');
+                        }
+
+                        this.selectedProject.files = (this.selectedProject.files || []).filter(f => f !== filename);
+                    } catch (e) {
+                        console.error('Error deleting file:', e);
+                        alert(e.message || 'Error deleting file. Please try again.');
+                    }
+                },
+
+                async deleteDocument(filename) {
+                    if (!this.selectedProject) return;
+                    const confirmed = confirm(`Delete ${filename}? This cannot be undone.`);
+                    if (!confirmed) return;
+
+                    try {
+                        const response = await fetch(`/api/outputs/${this.selectedProject.id}/${encodeURIComponent(filename)}`, {
+                            method: 'DELETE'
+                        });
+                        if (!response.ok) {
+                            const error = await response.json().catch(() => ({}));
+                            throw new Error(error.detail || 'Failed to delete document.');
+                        }
+
+                        this.selectedProject.outputs = (this.selectedProject.outputs || []).filter(o => o !== filename);
+
+                        if (this.viewerDocument?.filename === filename) {
+                            this.showDocumentViewer = false;
+                            this.viewerDocument = { filename: '', content: '', loading: false };
+                        }
+                    } catch (e) {
+                        console.error('Error deleting document:', e);
+                        alert(e.message || 'Error deleting document. Please try again.');
                     }
                 }
             };

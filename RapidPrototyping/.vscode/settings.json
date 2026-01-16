@@ -1,0 +1,17 @@
+{
+  "terminal.integrated.defaultProfile.osx": "zsh-conda",
+  "terminal.integrated.profiles.osx": {
+    "zsh": {
+      "path": "/bin/zsh"
+    },
+    "zsh-conda": {
+      "path": "/bin/zsh",
+      "args": [
+        "-i",
+        "-l",
+        "-c",
+        "if command -v conda >/dev/null 2>&1; then eval \"$(conda shell.zsh hook)\"; else source /Volumes/DataExt/anaconda3/etc/profile.d/conda.sh >/dev/null 2>&1 || true; eval \"$(conda shell.zsh hook)\" 2>/dev/null || true; fi; conda activate rapid-312 2>/dev/null || true; exec /bin/zsh -i -l"
+      ]
+    }
+  }
+}
