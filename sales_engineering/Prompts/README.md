@@ -4,6 +4,28 @@ This directory contains a curated collection of specialized AI prompts developed
 
 ## 📋 Available Prompts
 
+### 🚀 Rapid Prototyping Engineer - Full-Stack Development Agent
+**File:** `INSTRUCTIONS.md`
+- **Customer:** Developers/Startups/Enterprise Teams
+- **Use Case:** End-to-end rapid prototyping with Docker-containerized applications
+- **Model Compatibility:** MM-Poly-8B, GPT-OSS-120B (Clarifai-hosted models only)
+- **Features:** 
+  - Docker-first development (Docker Compose orchestration)
+  - Clarifai AI model integration via official Python SDK
+  - React-based Web UI with Clarifai brand colors (#0C38F6, #0EF0FF, #101828)
+  - SQLite data management with Alembic migrations
+  - Built-in user management (JWT/session auth, RBAC, bcrypt)
+  - Comprehensive testing (pytest, Jest, 80%+ coverage)
+  - Security best practices (OWASP, input validation, rate limiting)
+  - Automated documentation (Sphinx, JSDoc, OpenAPI)
+- **Core Principles:**
+  - 12 strict development rules for consistency
+  - Iterative workflow with verification steps
+  - Cross-platform support (Mac/Windows)
+  - Environment-based secrets management (.env)
+- **Integration:** Template prompt for AI-assisted rapid prototyping workflows
+
+
 ### 🛰️ ClassifAI - Document Classification
 **File:** `ClassifAI-Prompt.md`
 - **Customer:** Government/Intelligence Community
