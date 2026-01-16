@@ -4,9 +4,18 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { generateReport, generateMarkdownReport } = require('./report-generator');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Rate limiter for account write operations to protect the database
+const accountWriteLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 write requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Ensure data directory exists
 const dataDir = process.env.DATA_DIR || './data';
@@ -274,7 +283,7 @@ app.get('/api/accounts/:id', (req, res) => {
 });
 
 // Create new account
-app.post('/api/accounts', (req, res) => {
+app.post('/api/accounts', accountWriteLimiter, (req, res) => {
     try {
         const {
             name, overview, salesforceId, contractStart, contractEnd,
@@ -328,7 +337,7 @@ app.post('/api/accounts', (req, res) => {
 });
 
 // Update account
-app.put('/api/accounts/:id', (req, res) => {
+app.put('/api/accounts/:id', accountWriteLimiter, (req, res) => {
     try {
         const {
             name, overview, salesforceId, contractStart, contractEnd,
@@ -388,7 +397,7 @@ app.put('/api/accounts/:id', (req, res) => {
 });
 
 // Delete account
-app.delete('/api/accounts/:id', (req, res) => {
+app.delete('/api/accounts/:id', accountWriteLimiter, (req, res) => {
     try {
         // Delete links first
         db.prepare(`DELETE FROM account_links WHERE account_id = ?`).run(req.params.id);
