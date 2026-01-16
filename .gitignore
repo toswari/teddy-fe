@@ -4,3 +4,8 @@ __pycache__/
 *.egg-info
 .DS_Store
 *.log
+node_modules/
+*.db
+*.db-shm
+*.db-wal
+package-lock.json

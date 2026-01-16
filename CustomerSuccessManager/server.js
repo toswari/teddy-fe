@@ -4,9 +4,26 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { generateReport, generateMarkdownReport } = require('./report-generator');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Rate limiter for account write operations to protect the database
+const accountWriteLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 write requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Stricter rate limiter for administrative database operations (backup, clear, restore)
+const adminDbLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // limit each IP to 10 admin DB requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Ensure data directory exists
 const dataDir = process.env.DATA_DIR || './data';
@@ -102,6 +119,34 @@ function initDatabase() {
         // Column already exists
     }
     
+    try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN primary_poc_name TEXT`);
+        console.log('Added primary_poc_name column');
+    } catch (e) {
+        // Column already exists
+    }
+    
+    try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN primary_poc_email TEXT`);
+        console.log('Added primary_poc_email column');
+    } catch (e) {
+        // Column already exists
+    }
+    
+    try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN secondary_poc_name TEXT`);
+        console.log('Added secondary_poc_name column');
+    } catch (e) {
+        // Column already exists
+    }
+    
+    try {
+        db.exec(`ALTER TABLE accounts ADD COLUMN secondary_poc_email TEXT`);
+        console.log('Added secondary_poc_email column');
+    } catch (e) {
+        // Column already exists
+    }
+    
     console.log('Database initialized successfully');
 }
 
@@ -162,6 +207,10 @@ app.get('/api/accounts', (req, res) => {
                 needsReview: !!account.needs_review,
                 sentiment: account.sentiment || 'neutral',
                 engineeringStatus: account.engineering_status || 'none',
+                primaryPocName: account.primary_poc_name,
+                primaryPocEmail: account.primary_poc_email,
+                secondaryPocName: account.secondary_poc_name,
+                secondaryPocEmail: account.secondary_poc_email,
                 links: linksObj
             };
         });
@@ -229,6 +278,10 @@ app.get('/api/accounts/:id', (req, res) => {
             needsReview: !!account.needs_review,
             sentiment: account.sentiment || 'neutral',
             engineeringStatus: account.engineering_status || 'none',
+            primaryPocName: account.primary_poc_name,
+            primaryPocEmail: account.primary_poc_email,
+            secondaryPocName: account.secondary_poc_name,
+            secondaryPocEmail: account.secondary_poc_email,
             links: linksObj
         });
     } catch (error) {
@@ -238,24 +291,27 @@ app.get('/api/accounts/:id', (req, res) => {
 });
 
 // Create new account
-app.post('/api/accounts', (req, res) => {
+app.post('/api/accounts', accountWriteLimiter, (req, res) => {
     try {
         const {
             name, overview, salesforceId, contractStart, contractEnd,
             contractNeedsVerification, isPOC, engineeringEfforts, engineeringStatus,
-            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview, sentiment, links
+            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview, sentiment,
+            primaryPocName, primaryPocEmail, secondaryPocName, secondaryPocEmail, links
         } = req.body;
         
         const result = db.prepare(`
             INSERT INTO accounts (
                 name, overview, salesforce_id, contract_start, contract_end,
                 contract_needs_verification, is_poc, engineering_efforts, engineering_status,
-                sales_rep, last_contact_fe, last_contact_sales, cse_notes, needs_review, sentiment
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sales_rep, last_contact_fe, last_contact_sales, cse_notes, needs_review, sentiment,
+                primary_poc_name, primary_poc_email, secondary_poc_name, secondary_poc_email
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
             name, overview, salesforceId, contractStart, contractEnd,
             contractNeedsVerification ? 1 : 0, isPOC ? 1 : 0, engineeringEfforts, engineeringStatus || 'none',
-            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview ? 1 : 0, sentiment || 'neutral'
+            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview ? 1 : 0, sentiment || 'neutral',
+            primaryPocName, primaryPocEmail, secondaryPocName, secondaryPocEmail
         );
         
         const accountId = result.lastInsertRowid;
@@ -289,12 +345,13 @@ app.post('/api/accounts', (req, res) => {
 });
 
 // Update account
-app.put('/api/accounts/:id', (req, res) => {
+app.put('/api/accounts/:id', accountWriteLimiter, (req, res) => {
     try {
         const {
             name, overview, salesforceId, contractStart, contractEnd,
             contractNeedsVerification, isPOC, engineeringEfforts, engineeringStatus,
-            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview, sentiment, links
+            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview, sentiment,
+            primaryPocName, primaryPocEmail, secondaryPocName, secondaryPocEmail, links
         } = req.body;
         
         const result = db.prepare(`
@@ -302,12 +359,15 @@ app.put('/api/accounts/:id', (req, res) => {
                 name = ?, overview = ?, salesforce_id = ?, contract_start = ?,
                 contract_end = ?, contract_needs_verification = ?, is_poc = ?,
                 engineering_efforts = ?, engineering_status = ?, sales_rep = ?, last_contact_fe = ?,
-                last_contact_sales = ?, cse_notes = ?, needs_review = ?, sentiment = ?, updated_at = CURRENT_TIMESTAMP
+                last_contact_sales = ?, cse_notes = ?, needs_review = ?, sentiment = ?,
+                primary_poc_name = ?, primary_poc_email = ?, secondary_poc_name = ?, secondary_poc_email = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `).run(
             name, overview, salesforceId, contractStart, contractEnd,
             contractNeedsVerification ? 1 : 0, isPOC ? 1 : 0, engineeringEfforts, engineeringStatus || 'none',
-            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview ? 1 : 0, sentiment || 'neutral', req.params.id
+            salesRep, lastContactFE, lastContactSales, cseNotes, needsReview ? 1 : 0, sentiment || 'neutral',
+            primaryPocName, primaryPocEmail, secondaryPocName, secondaryPocEmail, req.params.id
         );
         
         if (result.changes === 0) {
@@ -345,7 +405,7 @@ app.put('/api/accounts/:id', (req, res) => {
 });
 
 // Delete account
-app.delete('/api/accounts/:id', (req, res) => {
+app.delete('/api/accounts/:id', accountWriteLimiter, (req, res) => {
     try {
         // Delete links first
         db.prepare(`DELETE FROM account_links WHERE account_id = ?`).run(req.params.id);
@@ -722,6 +782,10 @@ app.get('/api/report', (req, res) => {
                 cseNotes: account.cse_notes,
                 needsReview: !!account.needs_review,
                 sentiment: account.sentiment || 'neutral',
+                primaryPocName: account.primary_poc_name,
+                primaryPocEmail: account.primary_poc_email,
+                secondaryPocName: account.secondary_poc_name,
+                secondaryPocEmail: account.secondary_poc_email,
                 links: linksObj,
                 latestStatus: latestStatus ? {
                     statusText: latestStatus.status_text,
@@ -749,7 +813,7 @@ app.get('/api/report', (req, res) => {
 });
 
 // Database Management - Export Backup
-app.get('/api/backup', (req, res) => {
+app.get('/api/backup', adminDbLimiter, (req, res) => {
     try {
         // Get all accounts
         const accounts = db.prepare(`SELECT * FROM accounts`).all();
@@ -789,7 +853,7 @@ app.get('/api/backup', (req, res) => {
 });
 
 // Database Management - Clear Database
-app.delete('/api/database', (req, res) => {
+app.delete('/api/database', adminDbLimiter, (req, res) => {
     try {
         db.prepare(`DELETE FROM status_updates`).run();
         db.prepare(`DELETE FROM account_links`).run();
@@ -806,7 +870,7 @@ app.delete('/api/database', (req, res) => {
 });
 
 // Database Management - Restore from Backup
-app.post('/api/restore', (req, res) => {
+app.post('/api/restore', adminDbLimiter, (req, res) => {
     try {
         const { data } = req.body;
         
@@ -825,8 +889,9 @@ app.post('/api/restore', (req, res) => {
                 id, name, overview, salesforce_id, contract_start, contract_end,
                 contract_needs_verification, is_poc, engineering_efforts, engineering_status,
                 sales_rep, last_contact_fe, last_contact_sales, cse_notes, needs_review,
-                sentiment, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sentiment, primary_poc_name, primary_poc_email, secondary_poc_name, secondary_poc_email,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
         
         for (const acc of data.accounts) {
@@ -836,6 +901,7 @@ app.post('/api/restore', (req, res) => {
                 acc.engineering_efforts, acc.engineering_status || 'none',
                 acc.sales_rep, acc.last_contact_fe, acc.last_contact_sales,
                 acc.cse_notes, acc.needs_review ? 1 : 0, acc.sentiment || 'neutral',
+                acc.primary_poc_name, acc.primary_poc_email, acc.secondary_poc_name, acc.secondary_poc_email,
                 acc.created_at, acc.updated_at
             );
         }
