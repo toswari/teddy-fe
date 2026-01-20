@@ -1,0 +1,790 @@
+import os
+from typing import Any, Dict, Generator, List, Optional
+
+import yaml
+from clarifai_grpc.grpc.api import resources_pb2, service_pb2
+from clarifai_grpc.grpc.api.status import status_code_pb2
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.wrappers_pb2 import BoolValue
+
+from clarifai.client.app import App
+from clarifai.client.base import BaseClient
+from clarifai.client.compute_cluster import ComputeCluster
+from clarifai.client.lister import Lister
+from clarifai.errors import UserError
+from clarifai.utils.constants import DEFAULT_BASE
+from clarifai.utils.logging import logger
+
+
+class User(Lister, BaseClient):
+    """User is a class that provides access to Clarifai API endpoints related to user information."""
+
+    def __init__(
+        self,
+        user_id: str = None,
+        base_url: str = DEFAULT_BASE,
+        pat: str = None,
+        token: str = None,
+        root_certificates_path: str = None,
+        **kwargs,
+    ):
+        """Initializes an User object.
+
+        Args:
+            user_id (str): The user ID for the user to interact with.
+            base_url (str): Base API url. Default "https://api.clarifai.com"
+            pat (str): A personal access token for authentication. Can be set as env var CLARIFAI_PAT
+            token (str): A session token for authentication. Accepts either a session token or a pat. Can be set as env var CLARIFAI_SESSION_TOKEN
+            root_certificates_path (str): Path to the SSL root certificates file, used to establish secure gRPC connections.
+            **kwargs: Additional keyword arguments to be passed to the User.
+        """
+        self.kwargs = {**kwargs, 'id': user_id}
+        self.user_info = resources_pb2.User(**self.kwargs)
+        self.logger = logger
+        BaseClient.__init__(
+            self,
+            user_id=self.id,
+            app_id="",
+            base=base_url,
+            pat=pat,
+            token=token,
+            root_certificates_path=root_certificates_path,
+        )
+        Lister.__init__(self)
+
+    def list_apps(
+        self,
+        filter_by: Dict[str, Any] = {},
+        page_no: Optional[int] = None,
+        per_page: Optional[int] = None,
+    ) -> Generator[App, None, None]:
+        """Lists all the apps for the user.
+
+        Args:
+            filter_by (Dict[str, Any]): A dictionary of filters to be applied to the list of apps.
+            page_no (Optional[int]): The page number to list. If None, lists all pages.
+            per_page (Optional[int]): The number of items per page. If None, uses default.
+
+        Yields:
+            App: App objects for the user.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> apps = list(User("user_id").list_apps())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id, **filter_by)
+        all_apps_info = self.list_pages_generator(
+            self.STUB.ListApps,
+            service_pb2.ListAppsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+        for app_info in all_apps_info:
+            yield App.from_auth_helper(
+                self.auth_helper, **app_info
+            )  # (base_url=self.base, pat=self.pat, token=self.token, **app_info)
+
+    def list_runners(
+        self, filter_by: Dict[str, Any] = {}, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all runners for the user
+
+        Args:
+            filter_by (dict): A dictionary of filters to apply to the list of runners.
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the runners.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_runners= list(client.list_runners())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id, **filter_by)
+        all_runners_info = self.list_pages_generator(
+            self.STUB.ListRunners,
+            service_pb2.ListRunnersRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for runner_info in all_runners_info:
+            yield dict(auth=self.auth_helper, check_runner_exists=False, **runner_info)
+
+    def list_compute_clusters(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all compute clusters for the user
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the compute clusters.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_compute_clusters= list(client.list_compute_clusters())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_compute_clusters_info = self.list_pages_generator(
+            self.STUB.ListComputeClusters,
+            service_pb2.ListComputeClustersRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for compute_cluster_info in all_compute_clusters_info:
+            yield ComputeCluster.from_auth_helper(self.auth_helper, **compute_cluster_info)
+
+    def list_pipelines(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all pipelines for the user across all apps
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipelines.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_pipelines = list(client.list_pipelines())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_pipelines_info = self.list_pages_generator(
+            self.STUB.ListPipelines,
+            service_pb2.ListPipelinesRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_info in all_pipelines_info:
+            pipeline = App._process_pipeline_info(
+                pipeline_info, self.auth_helper, only_in_app=False
+            )
+            if pipeline is not None:
+                yield pipeline
+
+    def list_pipeline_steps(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all pipeline steps for the user across all apps
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the pipeline steps.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_pipeline_steps = list(client.list_pipeline_steps())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_pipeline_steps_info = self.list_pages_generator(
+            self.STUB.ListPipelineStepVersions,
+            service_pb2.ListPipelineStepVersionsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+
+        for pipeline_step_info in all_pipeline_steps_info:
+            pipeline_step = App._process_pipeline_step_info(
+                pipeline_step_info, self.auth_helper, only_in_app=False
+            )
+            if pipeline_step is not None:
+                yield pipeline_step
+
+    def create_app(self, app_id: str, base_workflow: str = 'Empty', **kwargs) -> App:
+        """Creates an app for the user.
+
+        Args:
+            app_id (str): The app ID for the app to create.
+            base_workflow (str): The base workflow to use for the app.(Examples: 'Universal', 'Language-Understanding', 'General')
+            **kwargs: Additional keyword arguments to be passed to the App.
+
+        Returns:
+            App: An App object for the specified app ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> app = client.create_app(app_id="app_id",base_workflow="Universal")
+        """
+        workflow = resources_pb2.Workflow(id=base_workflow, app_id="main", user_id="clarifai")
+        request = service_pb2.PostAppsRequest(
+            user_app_id=self.user_app_id,
+            apps=[resources_pb2.App(id=app_id, default_workflow=workflow, **kwargs)],
+        )
+        response = self._grpc_request(self.STUB.PostApps, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info(f"App with ID '{app_id}' is created:\n{response.status}")
+        return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
+
+    def _process_compute_cluster_config(
+        self, compute_cluster_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        assert "compute_cluster" in compute_cluster_config, (
+            "compute cluster info not found in the config file"
+        )
+        compute_cluster = compute_cluster_config['compute_cluster']
+        assert "region" in compute_cluster, "region not found in the config file"
+        assert "managed_by" in compute_cluster, "managed_by not found in the config file"
+        assert "cluster_type" in compute_cluster, "cluster_type not found in the config file"
+        compute_cluster['cloud_provider'] = resources_pb2.CloudProvider(
+            **compute_cluster['cloud_provider']
+        )
+        compute_cluster['key'] = resources_pb2.Key(id=self.pat)
+        if "visibility" in compute_cluster:
+            compute_cluster["visibility"] = resources_pb2.Visibility(
+                **compute_cluster["visibility"]
+            )
+        return compute_cluster
+
+    def create_compute_cluster(
+        self,
+        config_filepath: str = None,
+        compute_cluster_id: str = None,
+        compute_cluster_config: Dict[str, Any] = None,
+    ) -> ComputeCluster:
+        """Creates a compute cluster for the user.
+
+        Args:
+            config_filepath (str): The path to the compute cluster config file.
+            compute_cluster_id (str): New compute cluster ID for the compute cluster to create.
+            compute_cluster_config (Dict[str, Any]): Optional dictionary containing compute cluster configuration.
+
+        Returns:
+            ComputeCluster: A Compute Cluster object for the specified compute cluster ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> compute_cluster = client.create_compute_cluster(config_filepath="config.yml")
+        """
+
+        if config_filepath is not None:
+            assert compute_cluster_config is None, (
+                "Either config_filepath or compute_cluster_config should be provided, not both."
+            )
+            if not os.path.exists(config_filepath):
+                raise UserError(f"Compute Cluster config file not found at {config_filepath}")
+            with open(config_filepath, "r") as f:
+                compute_cluster_config = yaml.safe_load(f)
+        elif compute_cluster_config is not None:
+            assert isinstance(compute_cluster_config, dict), (
+                "compute_cluster_config should be a dictionary if provided."
+            )
+        else:
+            raise AssertionError(
+                "Either config_filepath or compute_cluster_config should be provided."
+            )
+
+        compute_cluster_config = self._process_compute_cluster_config(compute_cluster_config)
+
+        if 'id' in compute_cluster_config:
+            if compute_cluster_id is None:
+                compute_cluster_id = compute_cluster_config['id']
+            compute_cluster_config.pop('id')
+
+        request = service_pb2.PostComputeClustersRequest(
+            user_app_id=self.user_app_id,
+            compute_clusters=[
+                resources_pb2.ComputeCluster(id=compute_cluster_id, **compute_cluster_config)
+            ],
+        )
+        response = self._grpc_request(self.STUB.PostComputeClusters, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info(
+            f"Compute Cluster with ID '{compute_cluster_id}' is created:\n{response.status}"
+        )
+        return ComputeCluster.from_auth_helper(
+            auth=self.auth_helper, compute_cluster_id=compute_cluster_id
+        )
+
+    def app(self, app_id: str, **kwargs) -> App:
+        """Returns an App object for the specified app ID.
+
+        Args:
+            app_id (str): The app ID for the app to interact with.
+            **kwargs: Additional keyword arguments to be passed to the App.
+
+        Returns:
+            App: An App object for the specified app ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> app = User("user_id").app("app_id")
+        """
+        request = service_pb2.GetAppRequest(
+            user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id)
+        )
+        response = self._grpc_request(self.STUB.GetApp, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        kwargs['user_id'] = self.id
+        return App.from_auth_helper(auth=self.auth_helper, app_id=app_id, **kwargs)
+
+    def runner(self, runner_id: str) -> dict:
+        """Returns a Runner object if exists.
+
+        Args:
+            runner_id (str): The runner ID to interact with
+
+        Returns:
+            Dict: A dictionary containing information about the existing runner ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> runner_info = client.runner(runner_id="runner_id")
+        """
+        request = service_pb2.GetRunnerRequest(user_app_id=self.user_app_id, runner_id=runner_id)
+        response = self._grpc_request(self.STUB.GetRunner, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(
+                f"""Error getting runner, are you use this is a valid runner id {runner_id} at the user_id/app_id
+          {self.user_app_id.user_id}/{self.user_app_id.app_id}.
+          Error: {response.status.description}"""
+            )
+
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        kwargs = self.process_response_keys(dict_response["runner"], "runner")
+
+        return dict(self.auth_helper, check_runner_exists=False, **kwargs)
+
+    def compute_cluster(self, compute_cluster_id: str) -> ComputeCluster:
+        """Returns an Compute Cluster object for the specified compute cluster ID.
+
+        Args:
+            compute_cluster_id (str): The compute cluster ID for the compute cluster to interact with.
+
+        Returns:
+            ComputeCluster: A Compute Cluster object for the specified compute cluster ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> compute_cluster = User("user_id").compute_cluster("compute_cluster_id")
+        """
+        request = service_pb2.GetComputeClusterRequest(
+            user_app_id=self.user_app_id, compute_cluster_id=compute_cluster_id
+        )
+        response = self._grpc_request(self.STUB.GetComputeCluster, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        kwargs = self.process_response_keys(dict_response["compute_cluster"], "compute_cluster")
+
+        return ComputeCluster.from_auth_helper(auth=self.auth_helper, **kwargs)
+
+    def patch_app(self, app_id: str, action: str = 'overwrite', **kwargs) -> App:
+        """Patch an app for the user.
+
+        Args:
+            app_id (str): The app ID for the app to patch.
+            action (str): The action to perform on the app (overwrite/remove).
+            **kwargs: Additional keyword arguments to be passed to patch the App.
+
+        Returns:
+            App: Patched App object for the specified app ID.
+        """
+        if "base_workflow" in kwargs:
+            kwargs["default_workflow"] = resources_pb2.Workflow(
+                id=kwargs.pop("base_workflow"), app_id="main", user_id="clarifai"
+            )
+        if "visibility" in kwargs:
+            kwargs["visibility"] = resources_pb2.Visibility(gettable=kwargs["visibility"])
+        if "image_url" in kwargs:
+            kwargs["image"] = resources_pb2.Image(url=kwargs.pop("image_url"))
+        if "is_template" in kwargs:
+            kwargs["is_template"] = BoolValue(value=kwargs["is_template"])
+        request = service_pb2.PatchAppRequest(
+            user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id),
+            app=resources_pb2.App(id=app_id, **kwargs),
+            action=action,
+            reindex=False,
+        )
+        response = self._grpc_request(self.STUB.PatchApp, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nApp patched\n%s", response.status)
+
+        return App.from_auth_helper(auth=self.auth_helper, app_id=app_id)
+
+    def delete_app(self, app_id: str) -> None:
+        """Deletes an app for the user.
+
+        Args:
+            app_id (str): The app ID for the app to delete.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> user = User("user_id").delete_app("app_id")
+        """
+        request = service_pb2.DeleteAppRequest(
+            user_app_id=resources_pb2.UserAppIDSet(user_id=self.id, app_id=app_id)
+        )
+        response = self._grpc_request(self.STUB.DeleteApp, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nApp Deleted\n%s", response.status)
+
+    def delete_runner(self, runner_id: str) -> None:
+        """Deletes all spectified runner ids
+
+        Args:
+            runner_ids (str): List of runners to delete
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> client.delete_runner(runner_id="runner_id")
+        """
+        request = service_pb2.DeleteRunnersRequest(user_app_id=self.user_app_id, ids=[runner_id])
+        response = self._grpc_request(self.STUB.DeleteRunners, request)
+
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nRunner Deleted\n%s", response.status)
+
+    def delete_compute_clusters(self, compute_cluster_ids: List[str]) -> None:
+        """Deletes a list of compute clusters for the user.
+
+        Args:
+            compute_cluster_ids (List[str]): The compute cluster IDs of the user to delete.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> user = User("user_id").delete_compute_clusters(compute_cluster_ids=["compute_cluster_id1", "compute_cluster_id2"])
+        """
+        assert isinstance(compute_cluster_ids, list), "compute_cluster_ids param should be a list"
+
+        request = service_pb2.DeleteComputeClustersRequest(
+            user_app_id=self.user_app_id, ids=compute_cluster_ids
+        )
+        response = self._grpc_request(self.STUB.DeleteComputeClusters, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nCompute Cluster Deleted\n%s", response.status)
+
+    def get_user_info(self, user_id: str = None) -> resources_pb2.User:
+        """Returns the user information for the specified user ID.
+
+        Args:
+            user_id (str): The user ID for the user to interact with.
+
+        Returns:
+            User: A User object for the specified user ID.
+        """
+        request = service_pb2.GetUserRequest(
+            user_app_id=resources_pb2.UserAppIDSet(user_id=user_id if user_id else self.id)
+        )
+        response = self._grpc_request(self.STUB.GetUser, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        return response
+
+    def __getattr__(self, name):
+        return getattr(self.user_info, name)
+
+    def __str__(self):
+        init_params = [param for param in self.kwargs.keys()]
+        attribute_strings = [
+            f"{param}={getattr(self.user_info, param)}"
+            for param in init_params
+            if hasattr(self.user_info, param)
+        ]
+        return f"Clarifai User Details: \n{', '.join(attribute_strings)}\n"
+
+    def get_secret(self, secret_id: str) -> dict:
+        """Returns a secret object if exists.
+
+        Args:
+            secret_id (str): The secret ID to interact with
+
+        Returns:
+            Dict: A dictionary containing information about the existing secret ID.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> secret_info = client.get_secret(secret_id="secret_id")
+        """
+        request = service_pb2.GetSecretRequest(user_app_id=self.user_app_id, id=secret_id)
+        response = self._grpc_request(self.STUB.GetSecret, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(
+                f"""Error getting secret, are you sure this is a valid secret id {secret_id} at the user_id
+          {self.user_app_id.user_id}.
+          Error: {response.status.description}"""
+            )
+
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        kwargs = self.process_response_keys(dict_response["secret"], "secret")
+
+        return dict(auth=self.auth_helper, **kwargs)
+
+    def list_secrets(
+        self, page_no: int = None, per_page: int = None
+    ) -> Generator[dict, None, None]:
+        """List all secrets for the user
+
+        Args:
+            page_no (int): The page number to list.
+            per_page (int): The number of items per page.
+
+        Yields:
+            Dict: Dictionaries containing information about the secrets.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> all_secrets = list(client.list_secrets())
+
+        Note:
+            Defaults to 16 per page if page_no is specified and per_page is not specified.
+            If both page_no and per_page are None, then lists all the resources.
+        """
+        request_data = dict(user_app_id=self.user_app_id)
+        all_secrets_info = self.list_pages_generator(
+            self.STUB.ListSecrets,
+            service_pb2.ListSecretsRequest,
+            request_data,
+            per_page=per_page,
+            page_no=page_no,
+        )
+        for secret_info in all_secrets_info:
+            yield dict(auth=self.auth_helper, **secret_info)
+
+    def create_secrets(self, secrets: List[Dict[str, Any]]) -> List[dict]:
+        """Creates secrets for the user.
+
+        Args:
+            secrets (List[Dict[str, Any]]): List of secret configurations to create.
+                Each secret dict can contain:
+                - id (str): The name/ID of the secret (required)
+                - value (str): The secret value (required)
+                - description (str): Optional description of the secret
+                - expires_at (str): Optional expiration timestamp
+
+        Returns:
+            List[Dict]: List of dictionaries containing information about the created secrets.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> secrets = [{"id": "secret1", "value": "secret_value", "description": "My Secret"}]
+            >>> created_secrets = client.create_secrets(secrets)
+        """
+        assert isinstance(secrets, list), "secrets param should be a list"
+
+        # Convert dict secrets to protobuf Secret objects
+        secret_objects = []
+        for secret_config in secrets:
+            secret_objects.append(resources_pb2.Secret(**secret_config))
+
+        request = service_pb2.PostSecretsRequest(
+            user_app_id=self.user_app_id, secrets=secret_objects
+        )
+        response = self._grpc_request(self.STUB.PostSecrets, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        self.logger.info(f"Secrets created successfully:\n{response.status}")
+
+        # Convert response to list of dictionaries
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        created_secrets = []
+        for secret in dict_response.get("secrets", []):
+            kwargs = self.process_response_keys(secret, "secret")
+            created_secrets.append(dict(auth=self.auth_helper, **kwargs))
+
+        return created_secrets
+
+    def patch_secrets(
+        self, secrets: List[Dict[str, Any]], action: str = 'overwrite'
+    ) -> List[dict]:
+        """Patches secrets for the user.
+
+        Args:
+            secrets (List[Dict[str, Any]]): List of secret configurations to patch.
+                Each secret dict should contain:
+                - id (str): The name/ID of the secret to patch (required)
+                - value (str): Optional new secret value
+                - description (str): Optional new description
+                - expires_at (str): Optional new expiration timestamp
+            action (str): The action to perform on the secrets (overwrite/remove).
+
+        Returns:
+            List[Dict]: List of dictionaries containing information about the patched secrets.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> secrets = [{"id": "secret1", "description": "Updated Secret Description"}]
+            >>> patched_secrets = client.patch_secrets(secrets, action="overwrite")
+        """
+        assert isinstance(secrets, list), "secrets param should be a list"
+
+        # Convert dict secrets to protobuf Secret objects
+        secret_objects = []
+        for secret_config in secrets:
+            secret_objects.append(resources_pb2.Secret(**secret_config))
+
+        request = service_pb2.PatchSecretsRequest(
+            user_app_id=self.user_app_id, secret=secret_objects, action=action
+        )
+        response = self._grpc_request(self.STUB.PatchSecrets, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+
+        self.logger.info(f"Secrets patched successfully:\n{response.status}")
+
+        # Convert response to list of dictionaries
+        dict_response = MessageToDict(response, preserving_proto_field_name=True)
+        patched_secrets = []
+        for secret in dict_response.get("secrets", []):
+            kwargs = self.process_response_keys(secret, "secret")
+            patched_secrets.append(dict(auth=self.auth_helper, **kwargs))
+
+        return patched_secrets
+
+    def delete_secrets(self, secret_ids: List[str]) -> None:
+        """Deletes a list of secrets for the user.
+
+        Args:
+            secret_ids (List[str]): The secret IDs of the user to delete.
+
+        Example:
+            >>> from clarifai.client.user import User
+            >>> client = User(user_id="user_id")
+            >>> client.delete_secrets(secret_ids=["secret_id1", "secret_id2"])
+        """
+        assert isinstance(secret_ids, list), "secret_ids param should be a list"
+
+        request = service_pb2.DeleteSecretsRequest(user_app_id=self.user_app_id, ids=secret_ids)
+        response = self._grpc_request(self.STUB.DeleteSecrets, request)
+        if response.status.code != status_code_pb2.SUCCESS:
+            raise Exception(response.status)
+        self.logger.info("\nSecrets Deleted\n%s", response.status)
+
+    def list_models(
+        self,
+        user_id: str = None,
+        app_id: str = None,
+        show: bool = True,
+        return_clarifai_model: bool = False,
+        **kwargs,
+    ):
+        if user_id == "all":
+            params = {}
+        elif user_id:
+            user_app_id = resources_pb2.UserAppIDSet(user_id=user_id, app_id=app_id)
+            params = {"user_app_id": user_app_id}
+        elif not user_id:
+            user_app_id = resources_pb2.UserAppIDSet(
+                user_id=self.user_app_id.user_id, app_id=app_id
+            )
+            params = {"user_app_id": user_app_id}
+
+        params.update(**kwargs)
+        models = self.list_pages_generator(
+            self.STUB.ListModels, service_pb2.ListModelsRequest, request_data=params
+        )
+        all_data = []
+        for model in models:
+            url = (
+                f"https://clarifai.com/{model['user_id']}/{model['app_id']}/models/{model['name']}"
+            )
+            data = dict(
+                user_id=model["user_id"],
+                app_id=model["app_id"],
+                id=model["model_id"],
+                model_type=model["model_type_id"],
+                url=url,
+            )
+            method_types_data = dict(
+                supported_openai_client=False,
+                UNARY_UNARY={"predict"},
+                UNARY_STREAMING=set(),
+                STREAMING_STREAMING=set(),
+            )
+            for each_method in model.get("model_version", {}).get("method_signatures", []):
+                name = each_method["name"]
+                method_type = each_method["method_type"]
+                method_types_data[method_type].add(name)
+            if (
+                "openai_transport" in method_types_data["UNARY_UNARY"]
+                and "openai_stream_transport" in method_types_data["UNARY_STREAMING"]
+            ):
+                method_types_data["supported_openai_client"] = True
+                method_types_data["UNARY_UNARY"].remove("openai_transport")
+                method_types_data["UNARY_STREAMING"].remove("openai_stream_transport")
+            for k, v in method_types_data.items():
+                if k != "supported_openai_client":
+                    if not v:
+                        method_types_data[k] = None
+                    else:
+                        method_types_data[k] = list(v)
+
+            data.update(method_types_data)
+            all_data.append(data)
+
+        if show:
+            from tabulate import tabulate
+
+            print(tabulate(all_data, headers="keys"))
+
+        if return_clarifai_model:
+            from clarifai.client import Model
+
+            models = []
+            for each_data in all_data:
+                model = Model.from_auth_helper(
+                    self.auth_helper,
+                    url=each_data["url"],
+                )
+                models.append(model)
+            return models
+        else:
+            return all_data
