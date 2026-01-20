@@ -18,30 +18,22 @@ Interact with Clarifai's OpenAI-compatible text models **or** Clarifai's native 
 - Optional config defaults for prompt text and model URL lists (via `.streamlit/app-settings.toml`).
 
 ## Prerequisites
-- Python 3.10+
+- Python 3.12+
 - Clarifai account with OpenAI-compatible access and API key.
 
 ## Setup
-1. Create and activate a virtual environment.
+1. Run the setup script to create and configure the virtual environment.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+./setup-env.sh
 ```
 
-2. Install runtime dependencies.
+This script will:
+- Check for Python 3.12
+- Create a virtual environment
+- Install all required dependencies
 
-```bash
-pip install -r requirements.txt
-```
-
-3. (Optional) Install development dependencies for tests.
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-4. Provide Clarifai credentials via environment variables or `streamlit` secrets:
+2. Provide Clarifai credentials via environment variables or `streamlit` secrets:
    - `CLARIFAI_PAT`
    - `CLARIFAI_BASE_URL` (e.g. `https://api.clarifai.com/v2/ext/openai/v1`)
    - `CLARIFAI_PREFERRED_REGION` (optional)
@@ -56,9 +48,27 @@ CLARIFAI_PREFERRED_REGION = "us-east-1"
 
 ## Run the App
 
+### Quick Start
 ```bash
+./start.sh
+```
+
+This will start the Streamlit app on http://localhost:8501.
+
+### Manual Start
+If you prefer to start manually:
+
+```bash
+source .venv/bin/activate
 streamlit run app.py
 ```
+
+### Stop the App
+```bash
+./stop.sh
+```
+
+This will gracefully stop the running Streamlit app.
 
 ## Usage
 1. Paste the full Clarifai model URL (example shown in the placeholder) or pick one from the dropdown.
