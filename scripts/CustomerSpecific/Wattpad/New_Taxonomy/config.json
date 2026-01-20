@@ -1,0 +1,49 @@
+{
+  "models": [
+    {
+      "name": "prod4_c28",
+      "url": "https://clarifai.com/wattpad/2b985902446e4670a279428a863c4fa4/models/prod4_c28",
+      "pat": "pathere",
+      "user_id": "wattpad",
+      "response_map": "f'{max(output.data.concepts, key=lambda x: x.value).name} ({max(output.data.concepts, key=lambda x: x.value).value:.2f})'",
+      "reasoning_map": "",
+      "type": "image",
+      "monitor_CSEM": false, 
+      "resize_to": 250,
+      "batch_size": 10,
+      "needs_prompt": false,
+      "enabled": true,
+      "timeout": 5
+    },
+    {
+      "name": "prod4_explicit_c28",
+      "url": "https://clarifai.com/wattpad/2b985902446e4670a279428a863c4fa4/models/prod4_explicit_c28",
+      "pat": "pathere",
+      "user_id": "wattpad",
+      "response_map": "f'{max(output.data.concepts, key=lambda x: x.value).name} ({max(output.data.concepts, key=lambda x: x.value).value:.2f})'",
+      "reasoning_map": "",
+      "type": "image",
+      "monitor_CSEM": false,
+      "resize_to": 250,
+      "batch_size": 10,
+      "needs_prompt": false,
+      "enabled": true,
+      "timeout": 5
+    },
+    {
+      "name": "mm-poly-8b",
+      "url": "https://clarifai.com/clarifai/main/models/mm-poly-8b",
+      "pat": "pathere",
+      "user_id": "mulder",
+      "response_map": "print(output.data.text.raw) or f'{json.loads(output.data.text.raw.split(\"```json\")[1].split(\"```\")[0])[0][\"predicted_category\"] + \"_\" + json.loads(output.data.text.raw.split(\"```json\")[1].split(\"```\")[0])[0][\"predicted_rating\"] + \" (\" + str(json.loads(output.data.text.raw.split(\"```json\")[1].split(\"```\")[0])[0][\"confidence_score\"]) + \")\"}'",
+      "reasoning_map": "json.loads(output.data.text.raw.split(\"```json\")[1].split(\"```\")[0])[0][\"reasoning\"]",
+      "type": "multimodal",
+      "monitor_CSEM": true,
+      "resize_to": 1200,
+      "batch_size": 1,
+      "needs_prompt": true,
+      "enabled": true,
+      "timeout": 10
+    }
+  ]
+}
