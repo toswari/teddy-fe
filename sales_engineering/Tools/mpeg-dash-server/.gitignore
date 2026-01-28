@@ -1,0 +1,20 @@
+# Environment files
+.env
+*.env
+
+# Virtual environments
+.venv/
+.vscode/
+
+# Runtime artifacts
+.run/
+media/*
+!media/.gitkeep
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Logs
+*.log
